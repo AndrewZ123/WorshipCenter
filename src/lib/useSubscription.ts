@@ -21,12 +21,13 @@ export function useSubscription() {
         .from('subscriptions')
         .select('*')
         .eq('church_id', user.church_id)
-        .single();
+        .maybeSingle(); // Use maybeSingle() to handle no results gracefully
 
       if (error) throw error;
       setSubscription(data);
     } catch (error) {
       console.error('Error fetching subscription:', error);
+      setSubscription(null);
     } finally {
       setLoading(false);
     }
