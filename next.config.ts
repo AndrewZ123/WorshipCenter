@@ -46,11 +46,11 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://m.stripe.com",
-      "style-src 'self' 'unsafe-inline' https://js.stripe.com https://m.stripe.network",
-      "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://api.stripe.com https://m.stripe.com",
-      "frame-src https://js.stripe.com https://hooks.stripe.com https://m.stripe.network",
+      "style-src 'self' 'unsafe-inline' 'unsafe-hashes' https://js.stripe.com https://m.stripe.network https://fonts.googleapis.com",
+      "img-src 'self' data: blob: https: https://*.stripe.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "connect-src 'self' https://*.supabase.co https://api.stripe.com https://m.stripe.com https://m.stripe.network",
+      "frame-src https://js.stripe.com https://hooks.stripe.com https://m.stripe.network https://m.stripe.com",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -75,7 +75,8 @@ const nextConfig: NextConfig = {
     unoptimized: process.env.STATIC_EXPORT === "true",
   },
   // Trailing slashes for better Capacitor WebView compatibility
-  trailingSlash: true,
+  // Note: API routes don't support trailing slashes, so we handle this in the config
+  trailingSlash: process.env.STATIC_EXPORT === "true" ? true : false,
   // Silence Turbopack conflict with next-pwa (which uses webpack)
   // @ts-ignore
   turbopack: {},
