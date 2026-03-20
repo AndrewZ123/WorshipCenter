@@ -77,6 +77,11 @@ export default function LoginPage() {
                     placeholder="Enter your password"
                     size="md"
                   />
+                  <Text mt="2" textAlign="right" fontSize="sm">
+                    <ChakraLink color="brand.500" fontWeight="500" href="/reset-password">
+                      Forgot password?
+                    </ChakraLink>
+                  </Text>
                 </FormControl>
 
                 <Button type="submit" w="full" size="lg" isLoading={loading}>

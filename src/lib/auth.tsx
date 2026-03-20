@@ -12,6 +12,8 @@ interface AuthContextType {
   signup: (churchName: string, userName: string, email: string, password: string) => Promise<boolean>;
   join: (email: string, churchId: string, password: string) => Promise<boolean>;
   logout: () => void;
+  resetPassword: (email: string) => Promise<boolean>;
+  updatePassword: (password: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -22,6 +24,8 @@ const AuthContext = createContext<AuthContextType>({
   signup: async () => false,
   join: async () => false,
   logout: () => {},
+  resetPassword: async () => false,
+  updatePassword: async () => false,
 });
 
 // Removed simple password store methods since Supabase Auth handles credentials.
@@ -248,8 +252,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setChurch(null);
   }, []);
 
+  const resetPassword = useCallback(async (email: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/new-password`,
+      });
+      if (error) {
+        console.error('[Auth] Reset password error:', error.message);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('[Auth] Reset password exception:', err);
+      return false;
+    }
+  }, []);
+
+  const updatePassword = useCallback(async (password: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        console.error('[Auth] Update password error:', error.message);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('[Auth] Update password exception:', err);
+      return false;
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, church, loading, login, signup, join, logout }}>
+    <AuthContext.Provider value={{ user, church, loading, login, signup, join, logout, resetPassword, updatePassword }}>
       {children}
     </AuthContext.Provider>
   );

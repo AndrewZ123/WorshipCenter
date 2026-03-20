@@ -1,36 +1,158 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WorshipCenter
+
+A comprehensive church service planning and team management application built with Next.js, Supabase, and Capacitor.
+
+## Features
+
+- **Service Planning**: Create and manage church services with songs, team assignments, and templates
+- **Team Management**: Add and manage team members with role-based access control
+- **Song Library**: Organize songs with YouTube video IDs for easy reference
+- **Templates**: Reuse service plans with customizable templates
+- **Real-time Chat**: Team communication with role-based chat permissions
+- **Usage Tracking**: Monitor team and service usage metrics
+- **Subscription Management**: Built-in Stripe integration with trial periods
+- **Mobile Support**: Cross-platform mobile app via Capacitor
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React, TypeScript
+- **UI Framework**: Chakra UI
+- **Backend**: Supabase (PostgreSQL, Auth, Real-time)
+- **Payments**: Stripe
+- **Mobile**: Capacitor (iOS, Android)
+- **PWA**: Next.js PWA for offline support
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ and npm
+- Supabase account
+- Stripe account (for subscriptions)
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/AndrewZ123/WorshipCenter.git
+cd WorshipCenter
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+```bash
+cp .env.vercel.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Edit `.env.local` and add your Supabase and Stripe credentials:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+```
 
-## Learn More
+4. Set up the database:
+```bash
+# Apply all migrations
+npx tsx scripts/apply-migration.ts
+```
 
-To learn more about Next.js, take a look at the following resources:
+5. Run the development server:
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Database Schema
 
-## Deploy on Vercel
+The database includes the following main tables:
+- `churches`: Church information
+- `users`: User profiles linked to auth
+- `team_members`: Team member invitations
+- `services`: Service plans
+- `songs`: Song library
+- `templates`: Service templates
+- `chat_messages`: Team chat messages
+- `subscriptions`: Billing and subscription info
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+See `supabase/schema.sql` for the complete schema and `supabase/migrations/` for migration history.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Authentication
+
+WorshipCenter uses Supabase Auth for authentication:
+- **Sign Up**: Create a new church and user account
+- **Join**: Accept team member invitations
+- **Login**: Email/password authentication
+- **Password Reset**: Email-based password recovery
+
+## Role-Based Access Control
+
+Three user roles with different permissions:
+- **admin**: Full access to all features and billing
+- **team**: Can manage services, songs, and chat
+- **viewer**: Read-only access to services and songs
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Push your code to GitHub
+2. Import the project in Vercel
+3. Add environment variables in Vercel dashboard
+4. Deploy
+
+### Mobile Apps
+
+Build mobile apps using Capacitor:
+
+```bash
+# iOS
+npm run build
+npx cap open ios
+
+# Android
+npm run build
+npx cap open android
+```
+
+## Environment Variables
+
+Required environment variables:
+- `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Stripe publishable key
+- `STRIPE_SECRET_KEY`: Stripe secret key
+- `STRIPE_WEBHOOK_SECRET`: Stripe webhook secret
+
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── (app)/             # Protected app pages
+│   ├── api/               # API routes
+│   ├── demo/              # Demo pages
+│   └── login/             # Auth pages
+├── components/             # React components
+│   ├── layout/           # Layout components
+│   └── ui/               # UI components
+└── lib/                   # Utility libraries
+    ├── auth.tsx           # Authentication logic
+    ├── supabase.ts        # Supabase client
+    └── stripe.ts          # Stripe integration
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - see LICENSE file for details
