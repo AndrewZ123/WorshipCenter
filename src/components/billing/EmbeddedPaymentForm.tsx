@@ -39,6 +39,8 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
   const [error, setError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
 
   useEffect(() => {
     async function initializePayment() {
@@ -131,7 +133,7 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
       return;
     }
 
-    // Payment succeeded, confirm subscription
+    // Payment succeeded, confirm payment
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -155,14 +157,25 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
       const data = await response.json();
       if (data.error) {
         setError(data.error);
+        setIsLoading(false);
       } else {
-        onSuccess();
+        // Payment confirmed successfully
+        // The webhook will create the subscription asynchronously
+        // Show success message and notify parent component
+        setIsSuccess(true);
+        setIsActivating(true);
+        setIsLoading(false);
+        
+        // Wait a moment for the webhook to process, then call onSuccess
+        setTimeout(() => {
+          setIsActivating(false);
+          onSuccess();
+        }, 3000);
       }
     } catch (err) {
-      setError('Failed to activate subscription');
+      setError('Failed to confirm payment');
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   if (isInitializing) {
@@ -180,6 +193,28 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
         <AlertTitle>Initialization Error</AlertTitle>
         <AlertDescription>{error}</AlertDescription>
       </Alert>
+    );
+  }
+
+  // Show success message if payment succeeded
+  if (isSuccess) {
+    return (
+      <VStack spacing={6} align="stretch" py={8}>
+        <Alert status="success" borderRadius="lg">
+          <AlertIcon />
+          <Box>
+            <AlertTitle>Payment Successful!</AlertTitle>
+            <AlertDescription>
+              {isActivating ? (
+                <Text>Activating your subscription... This may take a few seconds.</Text>
+              ) : (
+                <Text>Your subscription is now active! You can start using WorshipCenter right away.</Text>
+              )}
+            </AlertDescription>
+          </Box>
+        </Alert>
+        {isActivating && <Spinner color="teal.500" />}
+      </VStack>
     );
   }
 
