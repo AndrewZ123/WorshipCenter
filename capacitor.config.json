@@ -1,0 +1,22 @@
+{
+  "appId": "com.worshipcenter.app",
+  "appName": "WorshipCenter",
+  "webDir": "out",
+  "bundledWebRuntime": false,
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#ffffff",
+    "preferredContentMode": "mobile"
+  },
+  "android": {
+    "backgroundColor": "#ffffff",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#6B46C1",
+      "showSpinner": false
+    }
+  }
+}

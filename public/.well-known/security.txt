@@ -1,0 +1,23 @@
+# WorshipCenter Security Contact Information
+# https://securitytxt.org/
+
+# Preferred contact method (PGP encrypted email preferred)
+Contact: security@worshipcenter.app
+
+# Security policy URL
+Policy: https://worshipcenter.app/security-policy
+
+# Acknowledgments for security researchers
+Acknowledgments: https://worshipcenter.app/security/hall-of-fame
+
+# Preferred languages for reports
+Preferred-Languages: en
+
+# Security.txt expiry date
+Expires: 2027-12-31T23:59:59.000Z
+
+# Hiring URL for security positions
+Hiring: https://worshipcenter.app/careers
+
+# Note: Please report security vulnerabilities to security@worshipcenter.app
+# We aim to respond within 48 hours and appreciate responsible disclosure.

@@ -1,0 +1,4 @@
+{
+  "buildCommand": "echo 'No build command needed for monorepo'",
+  "installCommand": "echo 'No install command needed for monorepo'"
+}
