@@ -1,11 +1,10 @@
-'use client';
+  'use client';
 
 import React, { useState } from 'react';
 import {
   Box, Flex, VStack, Heading, Text, Input, Button, FormControl,
   FormLabel, Link as ChakraLink, Alert, AlertIcon, Card, CardBody,
 } from '@chakra-ui/react';
-import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 
 export default function ResetPasswordPage() {
@@ -13,7 +12,6 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { resetPassword } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -22,13 +20,28 @@ export default function ResetPasswordPage() {
     setSuccess(false);
     setLoading(true);
 
-    const success = await resetPassword(email);
-    if (success) {
-      setSuccess(true);
-    } else {
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSuccess(true);
+      } else {
+        setError(data.error || 'Unable to send reset email. Please try again.');
+      }
+    } catch (err) {
+      console.error('Reset password error:', err);
       setError('Unable to send reset email. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
