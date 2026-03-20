@@ -81,63 +81,59 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
     e.preventDefault();
     setError(null);
 
-    if (!stripe || !elements) {
+    if (!stripe || !elements || isLoading) {
       return;
     }
 
     setIsLoading(true);
 
-    const { error: submitError } = await elements.submit();
-    if (submitError) {
-      setError(submitError.message || 'Payment failed');
-      setIsLoading(false);
-      return;
-    }
-
-    let paymentIntentResult;
-    
-    // Try to confirm the payment
-    const result = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/settings/billing`,
-      },
-      redirect: 'if_required',
-    });
-
-    if (result.error) {
-      // If the payment is already confirmed/succeeded, retrieve the payment intent
-      if (result.error.type === 'invalid_request_error' || 
-          result.error.code === 'payment_intent_unexpected_state') {
-        const { error: retrieveError, paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
-        if (!retrieveError && paymentIntent) {
-          paymentIntentResult = paymentIntent;
-        } else {
-          setError(result.error.message || 'Payment failed');
-          setIsLoading(false);
-          return;
-        }
-      } else {
-        setError(result.error.message || 'Payment failed');
+    try {
+      // Submit the payment elements
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        setError(submitError.message || 'Payment failed. Please check your payment details and try again.');
         setIsLoading(false);
         return;
       }
-    } else {
-      paymentIntentResult = result.paymentIntent;
-    }
 
-    // Check if payment succeeded
-    if (!paymentIntentResult || paymentIntentResult.status !== 'succeeded') {
-      setError('Payment was not successful');
-      setIsLoading(false);
-      return;
-    }
+      // Confirm the payment
+      const result = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/settings/billing`,
+        },
+        redirect: 'if_required',
+      });
 
-    // Payment succeeded, confirm payment
-    try {
+      if (result.error) {
+        // Handle specific error types with better messages
+        if (result.error.type === 'card_error') {
+          setError(`Payment failed: ${result.error.message}`);
+        } else if (result.error.type === 'validation_error') {
+          setError(`Validation error: ${result.error.message}`);
+        } else if (result.error.type === 'invalid_request_error') {
+          // This might indicate the payment was already confirmed
+          setError('Payment processing. Please wait a moment and refresh the page.');
+        } else {
+          setError(result.error.message || 'Payment failed. Please try again.');
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // Payment succeeded
+      const paymentIntent = result.paymentIntent;
+      
+      if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+        setError('Payment was not completed successfully');
+        setIsLoading(false);
+        return;
+      }
+
+      // Confirm payment with backend
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        setError('No active session');
+        setError('Session expired. Please refresh and try again.');
         setIsLoading(false);
         return;
       }
@@ -149,31 +145,31 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          paymentIntentId: paymentIntentResult.id,
+          paymentIntentId: paymentIntent.id,
           priceType,
         }),
       });
 
       const data = await response.json();
-      if (data.error) {
-        setError(data.error);
+      if (!response.ok || data.error) {
+        setError(data.error || 'Failed to confirm payment with server');
         setIsLoading(false);
-      } else {
-        // Payment confirmed successfully
-        // The webhook will create the subscription asynchronously
-        // Show success message and notify parent component
-        setIsSuccess(true);
-        setIsActivating(true);
-        setIsLoading(false);
-        
-        // Wait a moment for the webhook to process, then call onSuccess
-        setTimeout(() => {
-          setIsActivating(false);
-          onSuccess();
-        }, 3000);
+        return;
       }
+
+      // Payment confirmed successfully - webhook will activate subscription
+      setIsSuccess(true);
+      setIsActivating(true);
+      setIsLoading(false);
+      
+      // Wait for webhook processing, then refresh
+      setTimeout(() => {
+        setIsActivating(false);
+        onSuccess();
+      }, 3000);
     } catch (err) {
-      setError('Failed to confirm payment');
+      console.error('Payment confirmation error:', err);
+      setError('An unexpected error occurred. Please try again.');
       setIsLoading(false);
     }
   };

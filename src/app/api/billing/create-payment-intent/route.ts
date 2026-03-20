@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, PRICING } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
+import { hasPermission } from '@/lib/rbac';
 
 // Lazy initialization of Supabase client
 const getSupabase = () => createClient(
@@ -31,12 +32,20 @@ export async function POST(request: NextRequest) {
     // Get user's church and subscription
     const { data: userData } = await supabase
       .from('users')
-      .select('church_id')
+      .select('church_id, role')
       .eq('id', user.id)
       .single();
 
     if (!userData?.church_id) {
       return NextResponse.json({ error: 'Church not found' }, { status: 404 });
+    }
+
+    // Check if user has permission to manage billing (admin only)
+    if (!userData.role || !hasPermission(userData.role as any, 'billing', 'manage')) {
+      return NextResponse.json(
+        { error: 'You do not have permission to manage billing. Only admins can manage subscriptions.' },
+        { status: 403 }
+      );
     }
 
     const { data: subscription } = await supabase
@@ -76,6 +85,37 @@ export async function POST(request: NextRequest) {
         .from('subscriptions')
         .update({ stripe_customer_id: customerId })
         .eq('church_id', userData.church_id);
+    }
+
+    // Check Stripe for existing active subscriptions
+    // This catches cases where the webhook hasn't updated the database yet
+    const existingSubscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'active',
+      limit: 1,
+    });
+
+    if (existingSubscriptions.data.length > 0) {
+      // Update the database to reflect the actual Stripe state
+      const stripeSubscription = existingSubscriptions.data[0];
+      const subData = stripeSubscription as any;
+      
+      await supabase
+        .from('subscriptions')
+        .update({
+          stripe_subscription_id: stripeSubscription.id,
+          stripe_price_id: stripeSubscription.items.data[0].price.id,
+          status: 'active',
+          current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: stripeSubscription.cancel_at_period_end,
+        })
+        .eq('church_id', userData.church_id);
+
+      return NextResponse.json(
+        { error: 'You already have an active subscription. Refreshing your subscription status...' },
+        { status: 400 }
+      );
     }
 
     // Determine the amount

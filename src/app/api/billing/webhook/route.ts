@@ -40,43 +40,68 @@ export async function POST(request: NextRequest) {
         console.log(`Payment intent succeeded for church ${churchId}, price type ${priceType}`);
 
         if (churchId && customerId && priceType) {
-          // Get price ID from metadata
-          const priceId = priceType === 'yearly' 
-            ? PRICING.yearlyPriceId 
-            : PRICING.monthlyPriceId;
+          try {
+            // Get price ID from environment variables
+            const priceId = priceType === 'yearly' 
+              ? PRICING.yearlyPriceId 
+              : PRICING.monthlyPriceId;
 
-          // Create Stripe subscription
-          const stripeSubscription = await stripe.subscriptions.create({
-            customer: customerId,
-            items: [{ price: priceId }],
-            payment_behavior: 'default_incomplete',
-            payment_settings: {
-              payment_method_types: ['card'],
-              save_default_payment_method: 'on_subscription',
-            },
-            expand: ['latest_invoice.payment_intent'],
-            metadata: {
-              church_id: churchId,
-              price_type: priceType,
-            },
+            // Validate price ID exists
+            if (!priceId) {
+              console.error(`Price ID not found for ${priceType}. Check STRIPE_${priceType.toUpperCase()}_PRICE_ID environment variable.`);
+              throw new Error(`Price ID not configured for ${priceType}`);
+            }
+
+            console.log(`Creating subscription with price ID: ${priceId}`);
+
+            // Create Stripe subscription
+            const stripeSubscription = await stripe.subscriptions.create({
+              customer: customerId,
+              items: [{ price: priceId }],
+              payment_behavior: 'default_incomplete',
+              payment_settings: {
+                payment_method_types: ['card'],
+                save_default_payment_method: 'on_subscription',
+              },
+              expand: ['latest_invoice.payment_intent'],
+              metadata: {
+                church_id: churchId,
+                price_type: priceType,
+              },
+            });
+
+            const subData = stripeSubscription as any;
+            
+            // Update subscription in database
+            const { error: updateError } = await supabase
+              .from('subscriptions')
+              .update({
+                stripe_subscription_id: stripeSubscription.id,
+                stripe_price_id: priceId,
+                status: 'active',
+                current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
+                current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
+                cancel_at_period_end: false,
+              })
+              .eq('church_id', churchId);
+
+            if (updateError) {
+              console.error('Failed to update subscription in database:', updateError);
+              throw updateError;
+            }
+
+            console.log(`Created subscription ${stripeSubscription.id} for church ${churchId}`);
+          } catch (subscriptionError) {
+            console.error('Failed to create subscription for church:', churchId, subscriptionError);
+            // Don't throw here - we want to acknowledge the webhook even if subscription creation fails
+            // The user can retry or sync later
+          }
+        } else {
+          console.error('Missing required metadata in payment intent:', {
+            churchId,
+            customerId,
+            priceType,
           });
-
-          const subData = stripeSubscription as any;
-          
-          // Update subscription in database
-          await supabase
-            .from('subscriptions')
-            .update({
-              stripe_subscription_id: stripeSubscription.id,
-              stripe_price_id: priceId,
-              status: 'active',
-              current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
-              current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
-              cancel_at_period_end: false,
-            })
-            .eq('church_id', churchId);
-
-          console.log(`Created subscription ${stripeSubscription.id} for church ${churchId}`);
         }
         break;
       }
