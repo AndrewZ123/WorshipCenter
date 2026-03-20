@@ -92,7 +92,10 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
       return;
     }
 
-    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+    let paymentIntentResult;
+    
+    // Try to confirm the payment
+    const result = await stripe.confirmPayment({
       elements,
       confirmParams: {
         return_url: `${window.location.origin}/settings/billing`,
@@ -100,8 +103,30 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
       redirect: 'if_required',
     });
 
-    if (confirmError) {
-      setError(confirmError.message || 'Payment failed');
+    if (result.error) {
+      // If the payment is already confirmed/succeeded, retrieve the payment intent
+      if (result.error.type === 'invalid_request_error' || 
+          result.error.code === 'payment_intent_unexpected_state') {
+        const { error: retrieveError, paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
+        if (!retrieveError && paymentIntent) {
+          paymentIntentResult = paymentIntent;
+        } else {
+          setError(result.error.message || 'Payment failed');
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        setError(result.error.message || 'Payment failed');
+        setIsLoading(false);
+        return;
+      }
+    } else {
+      paymentIntentResult = result.paymentIntent;
+    }
+
+    // Check if payment succeeded
+    if (!paymentIntentResult || paymentIntentResult.status !== 'succeeded') {
+      setError('Payment was not successful');
       setIsLoading(false);
       return;
     }
@@ -122,7 +147,7 @@ function CheckoutForm({ priceType, amount, onSuccess, onCancel }: PaymentFormPro
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          paymentIntentId: paymentIntent?.id,
+          paymentIntentId: paymentIntentResult.id,
           priceType,
         }),
       });
