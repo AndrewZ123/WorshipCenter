@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe } from '@/lib/stripe';
+import { getStripe, PRICING } from '@/lib/stripe';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
@@ -31,6 +31,56 @@ export async function POST(request: NextRequest) {
 
     // Handle the event
     switch (event.type) {
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const churchId = paymentIntent.metadata?.church_id;
+        const priceType = paymentIntent.metadata?.price_type;
+        const customerId = paymentIntent.customer as string;
+
+        console.log(`Payment intent succeeded for church ${churchId}, price type ${priceType}`);
+
+        if (churchId && customerId && priceType) {
+          // Get price ID from metadata
+          const priceId = priceType === 'yearly' 
+            ? PRICING.yearlyPriceId 
+            : PRICING.monthlyPriceId;
+
+          // Create Stripe subscription
+          const stripeSubscription = await stripe.subscriptions.create({
+            customer: customerId,
+            items: [{ price: priceId }],
+            payment_behavior: 'default_incomplete',
+            payment_settings: {
+              payment_method_types: ['card'],
+              save_default_payment_method: 'on_subscription',
+            },
+            expand: ['latest_invoice.payment_intent'],
+            metadata: {
+              church_id: churchId,
+              price_type: priceType,
+            },
+          });
+
+          const subData = stripeSubscription as any;
+          
+          // Update subscription in database
+          await supabase
+            .from('subscriptions')
+            .update({
+              stripe_subscription_id: stripeSubscription.id,
+              stripe_price_id: priceId,
+              status: 'active',
+              current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
+              current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
+              cancel_at_period_end: false,
+            })
+            .eq('church_id', churchId);
+
+          console.log(`Created subscription ${stripeSubscription.id} for church ${churchId}`);
+        }
+        break;
+      }
+
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const churchId = session.metadata?.church_id;

@@ -66,7 +66,24 @@ export default function BillingPage() {
   const handlePaymentSuccess = () => {
     setShowPaymentForm(false);
     setSuccess(true);
+    
+    // Refetch subscription immediately
     refetch();
+    
+    // Poll for subscription updates to catch webhook processing
+    let attempts = 0;
+    const maxAttempts = 10;
+    const pollInterval = setInterval(async () => {
+      attempts++;
+      await refetch();
+      
+      if (attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+      }
+    }, 1000);
+    
+    // Clean up interval after max attempts
+    setTimeout(() => clearInterval(pollInterval), maxAttempts * 1000);
   };
 
   const handlePaymentCancel = () => {
@@ -168,8 +185,8 @@ export default function BillingPage() {
           </CardBody>
         </Card>
 
-        {/* Pricing Cards */}
-        {(!billingState.isActive || billingState.isTrialing) && (
+        {/* Pricing Cards - Only show if not already subscribed */}
+        {!billingState.isActive && (
           <Box>
             <Heading size="md" mb={4}>Choose Your Plan</Heading>
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>

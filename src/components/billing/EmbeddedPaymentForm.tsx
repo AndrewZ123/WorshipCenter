@@ -323,12 +323,14 @@ export default function EmbeddedPaymentForm({
 }: EmbeddedPaymentFormProps) {
   const [clientSecret, setClientSecret] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(true);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
     async function initializePayment() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
+          setInitError('No active session');
           setIsInitializing(false);
           return;
         }
@@ -343,11 +345,22 @@ export default function EmbeddedPaymentForm({
         });
 
         const data = await response.json();
-        if (data.clientSecret) {
+        if (response.status === 400 && data.error === 'You already have an active subscription') {
+          setInitError('You already have an active subscription. Refreshing page...');
+          setIsInitializing(false);
+          // Auto-refresh after 2 seconds
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else if (data.clientSecret) {
           setClientSecret(data.clientSecret);
+          setIsInitializing(false);
+        } else {
+          setInitError(data.error || 'Failed to initialize payment');
+          setIsInitializing(false);
         }
-        setIsInitializing(false);
       } catch (err) {
+        setInitError('Failed to initialize payment');
         setIsInitializing(false);
       }
     }
@@ -367,7 +380,7 @@ export default function EmbeddedPaymentForm({
     return (
       <Alert status="error" borderRadius="lg">
         <AlertIcon />
-        <AlertTitle>Unable to initialize payment</AlertTitle>
+        <AlertTitle>{initError || 'Unable to initialize payment'}</AlertTitle>
         <AlertDescription>Please try again or contact support.</AlertDescription>
       </Alert>
     );

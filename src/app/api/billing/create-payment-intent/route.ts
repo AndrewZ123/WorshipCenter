@@ -49,6 +49,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
     }
 
+    // Prevent creating payment intent if user already has active subscription
+    if (subscription.status === 'active') {
+      return NextResponse.json(
+        { error: 'You already have an active subscription' },
+        { status: 400 }
+      );
+    }
+
     // Get or create Stripe customer
     let customerId = subscription.stripe_customer_id;
     
