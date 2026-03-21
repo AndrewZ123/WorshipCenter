@@ -780,7 +780,8 @@ export const db = {
         id: userData.id,
         name: userData.name,
         email: userData.email,
-      } : { id: msg.user_id, name: 'Unknown' },
+        avatar_url: userData.avatar_url,
+      } : { id: msg.user_id, name: 'Unknown', avatar_url: undefined },
     };
   },
 
@@ -835,7 +836,8 @@ export const db = {
                   id: userData.id,
                   name: userData.name,
                   email: userData.email,
-                } : { id: payload.new.user_id as string, name: 'Unknown' },
+                  avatar_url: userData.avatar_url,
+                } : { id: payload.new.user_id as string, name: 'Unknown', avatar_url: undefined },
               };
               
               callback(mappedMessage);

@@ -323,13 +323,18 @@ export default function ChatPage() {
     e.preventDefault();
     if (!input.trim() || !user?.id || !church?.id || isSending) return;
 
+    const messageContent = input.trim();
     setIsSending(true);
+    
     try {
-      await db.chat.create({
+      const newMessage = await db.chat.create({
         church_id: church.id,
         user_id: user.id,
-        content: input.trim(),
+        content: messageContent,
       });
+      
+      // Immediately add the message to state so the sender sees it right away
+      setMessages((prev) => [...prev, newMessage]);
       setInput('');
       inputRef.current?.focus();
     } catch (error) {
