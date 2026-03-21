@@ -46,7 +46,7 @@ export function useSubscription() {
     daysRemaining: trialEndDate
       ? Math.max(0, Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : 0,
-    isActive: subscription?.status === 'active' || subscription?.status === 'trialing',
+    isActive: subscription?.status === 'active',
     isPastDue: subscription?.status === 'past_due',
     isCanceled: subscription?.status === 'canceled',
     subscription,
