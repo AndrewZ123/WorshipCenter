@@ -37,10 +37,14 @@ export function useSubscription() {
     fetchSubscription();
   }, [fetchSubscription]);
 
+  // Calculate trial end date and check if currently in trial
+  const trialEndDate = subscription?.trial_end ? new Date(subscription.trial_end) : null;
+  const isCurrentlyInTrial = Boolean(trialEndDate && trialEndDate > new Date());
+  
   const billingState: BillingState = {
-    isTrialing: subscription?.status === 'trialing',
-    daysRemaining: subscription?.trial_end
-      ? Math.max(0, Math.ceil((new Date(subscription.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    isTrialing: subscription?.status === 'trialing' && isCurrentlyInTrial,
+    daysRemaining: trialEndDate
+      ? Math.max(0, Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : 0,
     isActive: subscription?.status === 'active' || subscription?.status === 'trialing',
     isPastDue: subscription?.status === 'past_due',

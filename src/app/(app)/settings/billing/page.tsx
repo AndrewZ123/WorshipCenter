@@ -36,7 +36,6 @@ import { useSubscription } from '@/lib/useSubscription';
 import { usePermissions } from '@/lib/usePermissions';
 import { supabase } from '@/lib/supabase';
 import EmbeddedPaymentForm from '@/components/billing/EmbeddedPaymentForm';
-import SyncSubscriptionButton from '@/components/billing/SyncSubscriptionButton';
 import { PRICING } from '@/lib/stripe';
 
 export default function BillingPage() {
@@ -131,24 +130,21 @@ export default function BillingPage() {
                   <Icon as={FiCreditCard} boxSize={5} color="teal.500" />
                   <Heading size="md">Subscription Status</Heading>
                 </HStack>
-                <HStack spacing={2}>
-                  <Badge
-                    colorScheme={
-                      billingState.isActive ? 'green' :
-                      billingState.isTrialing ? 'blue' :
-                      billingState.isPastDue ? 'red' : 'gray'
-                    }
-                    fontSize="sm"
-                    px={3}
-                    py={1}
-                    borderRadius="full"
-                  >
-                    {billingState.isActive ? 'Active' :
-                     billingState.isTrialing ? 'Free Trial' :
-                     billingState.isPastDue ? 'Past Due' : 'Inactive'}
-                  </Badge>
-                  <SyncSubscriptionButton onSyncComplete={refetch} />
-                </HStack>
+                <Badge
+                  colorScheme={
+                    billingState.isActive ? 'green' :
+                    billingState.isTrialing ? 'blue' :
+                    billingState.isPastDue ? 'red' : 'gray'
+                  }
+                  fontSize="sm"
+                  px={3}
+                  py={1}
+                  borderRadius="full"
+                >
+                  {billingState.isActive ? 'Active' :
+                   billingState.isTrialing ? 'Free Trial' :
+                   billingState.isPastDue ? 'Past Due' : 'Inactive'}
+                </Badge>
               </HStack>
 
               {billingState.isTrialing && (
