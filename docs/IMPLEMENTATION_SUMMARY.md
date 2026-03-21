@@ -45,7 +45,16 @@ The WorshipCenter codebase was **remarkably complete**. Out of 7 major feature c
 - Includes service details and team member assignments
 - Ready for scheduled job integration (Vercel Cron)
 
-### 3. Onboarding Checklist 🎯
+### 3. Welcome Emails 🎉
+**File**: `src/app/api/notifications/send-welcome/route.ts`
+
+- API endpoint to send welcome emails when users sign up
+- Automatically sent after successful registration
+- Also sent when team members accept invitations
+- Personalized with church name and getting started tips
+- Integrated into both signup and join flows in `src/lib/auth.tsx`
+
+### 4. Onboarding Checklist 🎯
 **File**: `src/components/onboarding/OnboardingChecklist.tsx`
 
 - Detects empty organization state (no services, songs, or team)
@@ -53,7 +62,7 @@ The WorshipCenter codebase was **remarkably complete**. Out of 7 major feature c
 - Dismissible with localStorage persistence
 - Integrated into dashboard for new users
 
-### 4. Help & Support Link ❓
+### 5. Help & Support Link ❓
 **File**: `src/components/layout/AppShell.tsx`
 
 - Added "Help & Support" menu item in user menu
@@ -63,19 +72,21 @@ The WorshipCenter codebase was **remarkably complete**. Out of 7 major feature c
 
 ---
 
-## Files Created (3)
+## Files Created (4)
 
 1. `src/app/api/notifications/send-invitation/route.ts`
 2. `src/app/api/notifications/send-reminder/route.ts`
-3. `src/components/onboarding/OnboardingChecklist.tsx`
+3. `src/app/api/notifications/send-welcome/route.ts`
+4. `src/components/onboarding/OnboardingChecklist.tsx`
 
-## Files Modified (5)
+## Files Modified (6)
 
 1. `src/app/(app)/dashboard/page.tsx` - Integrated onboarding checklist
 2. `src/components/layout/AppShell.tsx` - Added help link
 3. `supabase/schema.sql` - Added invitations & reminder_logs tables
 4. `src/lib/types.ts` - Added Invitation & ReminderLog interfaces
 5. `src/lib/store.ts` - Added invitations & reminderLogs modules
+6. `src/lib/auth.tsx` - Integrated welcome email into signup & join flows
 
 ## Documentation Created (1)
 
@@ -155,6 +166,17 @@ Send a reminder email for an upcoming service.
 ```json
 {
   "serviceId": "uuid"
+}
+```
+
+### POST /api/notifications/send-welcome
+Send a welcome email to a new user after signup or team join.
+
+**Request Body**:
+```json
+{
+  "userId": "uuid",
+  "churchId": "uuid"
 }
 ```
 

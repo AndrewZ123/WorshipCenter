@@ -195,6 +195,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Note: Subscription is auto-created by database trigger (see supabase/migrations/002_add_subscriptions.sql)
       // This creates a 14-day trial automatically when a church is created.
 
+      // Send welcome email
+      try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        const welcomeEmailResponse = await fetch(`${appUrl}/api/notifications/send-welcome`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: authData.user.id,
+            churchId: signupResult.church_id,
+          }),
+        });
+        
+        if (welcomeEmailResponse.ok) {
+          console.log('[Auth] Welcome email sent successfully');
+        } else {
+          console.warn('[Auth] Failed to send welcome email, but signup succeeded');
+        }
+      } catch (emailError) {
+        // Don't fail signup if email fails
+        console.warn('[Auth] Welcome email error:', emailError);
+      }
+
       // onAuthStateChange will fire and load the profile automatically.
       return true;
     } catch (err) {
@@ -236,6 +258,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (profileError) {
         console.error('[Auth] Join profile create error:', profileError.message);
         return false;
+      }
+
+      // Send welcome email to team member
+      try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        const welcomeEmailResponse = await fetch(`${appUrl}/api/notifications/send-welcome`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: authData.user.id,
+            churchId: churchId,
+          }),
+        });
+        
+        if (welcomeEmailResponse.ok) {
+          console.log('[Auth] Welcome email sent to team member successfully');
+        } else {
+          console.warn('[Auth] Failed to send welcome email to team member, but join succeeded');
+        }
+      } catch (emailError) {
+        // Don't fail join if email fails
+        console.warn('[Auth] Welcome email error:', emailError);
       }
 
       // onAuthStateChange will fire and load the profile automatically.
