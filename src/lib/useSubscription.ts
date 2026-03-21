@@ -42,7 +42,7 @@ export function useSubscription() {
     daysRemaining: subscription?.trial_end
       ? Math.max(0, Math.ceil((new Date(subscription.trial_end).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : 0,
-    isActive: subscription?.status === 'active',
+    isActive: subscription?.status === 'active' || subscription?.status === 'trialing',
     isPastDue: subscription?.status === 'past_due',
     isCanceled: subscription?.status === 'canceled',
     subscription,

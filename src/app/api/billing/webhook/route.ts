@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
                 current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
                 current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
                 cancel_at_period_end: false,
+                trial_end: null,
               })
               .eq('church_id', churchId);
 
