@@ -124,7 +124,28 @@ export default function TeamPage() {
         body: JSON.stringify({ teamMemberId: member.id, churchId: church.id }),
       });
       
-      const data = await response.json();
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Got HTML error page instead of JSON
+        const errorText = await response.text();
+        console.error('Non-JSON response:', errorText);
+        
+        if (!response.ok) {
+          toast({ 
+            title: 'Failed to send invitation', 
+            description: `Server error (${response.status}). Please check if email service is configured.`,
+            status: 'error', 
+            duration: 5000 
+          });
+          return;
+        }
+        data = {};
+      }
       
       if (response.ok) {
         if (data.emailSent) {
@@ -144,7 +165,7 @@ export default function TeamPage() {
         console.error('API error:', data);
         toast({ 
           title: 'Failed to send invitation', 
-          description: data.error || 'Unknown error',
+          description: data.error || data.details || `Server error (${response.status})`,
           status: 'error', 
           duration: 5000 
         });
