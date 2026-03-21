@@ -113,11 +113,7 @@ export function validateEnvVars(): { valid: boolean; errors: string[] } {
   }
 
   if (errors.length > 0) {
-    console.error('❌ Environment Variable Validation Failed:');
-    errors.forEach(err => console.error(`   - ${err}`));
-    console.error('\nPlease set these variables in your environment or .env file.');
-  } else {
-    console.log('✅ All required environment variables are set.');
+    console.error('[Env] Environment Variable Validation Failed:', errors);
   }
 
   return {

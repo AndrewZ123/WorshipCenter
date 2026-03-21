@@ -77,20 +77,19 @@ export async function getServerHealth() {
  * Log server startup information
  */
 export function logServerStartup() {
-  console.log('='.repeat(60));
-  console.log('🚀 WorshipCenter Server Initialization');
-  console.log('='.repeat(60));
-  console.log(`Environment: ${process.env.NODE_ENV || 'unknown'}`);
-  console.log(`App URL: ${env.appUrl()}`);
-  console.log(`Supabase URL: ${env.supabaseUrl()}`);
-  console.log('='.repeat(60));
+  // Only log in development environment
+  if (process.env.NODE_ENV === 'development') {
+    console.log('='.repeat(60));
+    console.log('🚀 WorshipCenter Server Initialization');
+    console.log('='.repeat(60));
+    console.log(`Environment: ${process.env.NODE_ENV || 'unknown'}`);
+    console.log(`App URL: ${env.appUrl()}`);
+    console.log(`Supabase URL: ${env.supabaseUrl()}`);
+    console.log('='.repeat(60));
+  }
   
   const validation = validateEnvVars();
-  if (validation.valid) {
-    console.log('✅ Environment configuration validated');
-  } else {
-    console.log('⚠️  Environment configuration issues detected');
-    validation.errors.forEach(err => console.log(`   - ${err}`));
+  if (!validation.valid) {
+    console.warn('[Server] Environment configuration issues detected:', validation.errors);
   }
-  console.log('='.repeat(60));
 }

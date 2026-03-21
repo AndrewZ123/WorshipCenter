@@ -127,11 +127,21 @@ export default function TeamPage() {
       if (response.ok) {
         toast({ title: 'Invitation email sent!', description: `Email sent to ${member.email}`, status: 'success', duration: 3000 });
       } else {
-        throw new Error('Failed to send email');
+        // Email service not configured or failed - in production, fail silently
+        // In development, show error for debugging
+        if (process.env.NODE_ENV === 'development') {
+          toast({ title: 'Failed to send email', description: 'Email service not configured', status: 'error', duration: 3000 });
+        } else {
+          // Silently fail in production - user can still use copy invite link
+          console.warn('Email service not configured');
+        }
       }
     } catch (error) {
-      console.error('Failed to send invitation email:', error);
-      toast({ title: 'Failed to send email', description: 'Please try again later', status: 'error', duration: 3000 });
+      // Email service not configured or failed - in production, fail silently
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to send invitation email:', error);
+        toast({ title: 'Failed to send email', description: 'Email service not configured', status: 'error', duration: 3000 });
+      }
     }
   };
 

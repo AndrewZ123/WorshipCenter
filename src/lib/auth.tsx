@@ -153,6 +153,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Only log in development
+      if (process.env.NODE_ENV === 'development' && session?.user?.email) {
+        console.log(`[Auth] Handling auth state: ${event}`, session.user.email);
+      }
       handleAuthState(event, session);
     });
 
