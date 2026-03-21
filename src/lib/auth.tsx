@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pendingAuthId = React.useRef<string | null>(null);
 
   // Load Profile from Supabase
-  const loadProfile = async (authUserId: string): Promise<'success' | 'not_found' | 'error' | 'aborted'> => {
+  const loadProfile = async (authUserId: string, useCache = true): Promise<'success' | 'not_found' | 'error' | 'aborted'> => {
     // If we're already loading this user, don't start another concurrent request
     if (pendingAuthId.current === authUserId) {
       console.log('[Auth] Profile load already in progress for:', authUserId);
@@ -49,9 +49,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[Auth] Profile already loaded for:', authUserId);
       return 'success';
     }
+
+    // Try to load from cache first
+    if (useCache) {
+      try {
+        const cachedUser = localStorage.getItem(`wc_user_${authUserId}`);
+        const cachedChurch = localStorage.getItem(`wc_church_${authUserId}`);
+        if (cachedUser && cachedChurch) {
+          console.log('[Auth] Loading profile from cache for:', authUserId);
+          setUser(JSON.parse(cachedUser));
+          setChurch(JSON.parse(cachedChurch));
+          
+          // Load fresh data in background without blocking UI
+          loadProfile(authUserId, false).catch(err => {
+            console.warn('[Auth] Background profile refresh failed:', err);
+          });
+          
+          return 'success';
+        }
+      } catch (err) {
+        console.warn('[Auth] Failed to load from cache:', err);
+      }
+    }
     
     pendingAuthId.current = authUserId;
-    console.log('[Auth] Loading profile for:', authUserId);
+    console.log('[Auth] Loading profile from database for:', authUserId);
     
     try {
       const { data: userData, error: userError } = await supabase
@@ -90,6 +112,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('[Auth] Church profile loaded:', churchData?.name);
       setChurch(churchData ? (churchData as Church) : null);
+      
+      // Cache the data for faster loads
+      try {
+        localStorage.setItem(`wc_user_${authUserId}`, JSON.stringify(userData));
+        if (churchData) {
+          localStorage.setItem(`wc_church_${authUserId}`, JSON.stringify(churchData));
+        }
+      } catch (err) {
+        console.warn('[Auth] Failed to cache profile data:', err);
+      }
+      
       return 'success';
     } catch (err) {
       console.error('[Auth] loadProfile exception:', err);
@@ -292,9 +325,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
+    
+    // Clear cached data
+    if (user?.id) {
+      try {
+        localStorage.removeItem(`wc_user_${user.id}`);
+        localStorage.removeItem(`wc_church_${user.id}`);
+      } catch (err) {
+        console.warn('[Auth] Failed to clear cache on logout:', err);
+      }
+    }
+    
     setUser(null);
     setChurch(null);
-  }, []);
+  }, [user]);
 
   const resetPassword = useCallback(async (email: string): Promise<boolean> => {
     try {

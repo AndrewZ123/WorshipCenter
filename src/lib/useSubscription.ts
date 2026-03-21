@@ -47,13 +47,13 @@ export function useSubscription() {
   const isCurrentlyInTrial = Boolean(trialEndDate && trialEndDate > new Date());
   
   const billingState: BillingState = {
-    isTrialing: subscription?.status === 'trialing' && isCurrentlyInTrial,
+    isTrialing: !loading && subscription?.status === 'trialing' && isCurrentlyInTrial,
     daysRemaining: trialEndDate
       ? Math.max(0, Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : 0,
-    isActive: subscription?.status === 'active',
-    isPastDue: subscription?.status === 'past_due',
-    isCanceled: subscription?.status === 'canceled',
+    isActive: !loading && subscription?.status === 'active',
+    isPastDue: !loading && subscription?.status === 'past_due',
+    isCanceled: !loading && subscription?.status === 'canceled',
     subscription,
   };
 

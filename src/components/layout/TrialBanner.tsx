@@ -7,13 +7,13 @@ import { useSubscription } from '@/lib/useSubscription';
 import NextLink from 'next/link';
 
 export function TrialBanner() {
-  const { billingState, hasAccess } = useSubscription();
+  const { billingState, hasAccess, loading } = useSubscription();
   
   const bgColor = useColorModeValue('teal.50', 'teal.900');
   const borderColor = useColorModeValue('teal.200', 'teal.700');
   
-  // Don't show banner if active subscription, not trialing, or more than 3 days remaining
-  if (!billingState.isTrialing || billingState.isActive || billingState.daysRemaining > 3) {
+  // Don't show banner while loading or if active subscription, not trialing, or more than 3 days remaining
+  if (loading || !billingState.isTrialing || billingState.isActive || billingState.daysRemaining > 3) {
     return null;
   }
   
@@ -61,13 +61,13 @@ export function TrialBanner() {
 }
 
 export function TrialExpiredBanner() {
-  const { billingState } = useSubscription();
+  const { billingState, loading } = useSubscription();
   
   const bgColor = useColorModeValue('orange.50', 'orange.900');
   const borderColor = useColorModeValue('orange.200', 'orange.700');
   
-  // Only show if trial expired and not active
-  if (billingState.isActive || billingState.isTrialing) {
+  // Only show if not loading, trial expired and not active
+  if (loading || billingState.isActive || billingState.isTrialing) {
     return null;
   }
   

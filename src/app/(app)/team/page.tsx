@@ -19,7 +19,7 @@ import Avatar from '@/components/ui/Avatar';
 
 // Lucide icons
 import { 
-  Plus, MoreVertical, Link2, Trash2, Users, Calendar
+  Plus, MoreVertical, Link2, Trash2, Users, Calendar, Mail
 } from 'lucide-react';
 
 export default function TeamPage() {
@@ -93,10 +93,47 @@ export default function TeamPage() {
 
   const handleCreate = async () => {
     if (!church || !name) return;
-    await store.teamMembers.create({ church_id: church.id, name, email, phone, roles: rolesStr.split(',').map((r) => r.trim()).filter(Boolean) });
+    const member = await store.teamMembers.create({ church_id: church.id, name, email, phone, roles: rolesStr.split(',').map((r) => r.trim()).filter(Boolean) });
     toast({ title: 'Team member added', status: 'success', duration: 2000 });
+    
+    // Send invitation email if email is provided
+    if (email) {
+      try {
+        await fetch('/api/notifications/send-team-invitation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamMemberId: member.id, churchId: church.id }),
+        });
+        toast({ title: 'Invitation email sent!', status: 'success', duration: 2000 });
+      } catch (error) {
+        console.error('Failed to send invitation email:', error);
+        toast({ title: 'Member added, but email failed', status: 'warning', duration: 3000 });
+      }
+    }
+    
     setName(''); setEmail(''); setPhone(''); setRolesStr('');
     onClose(); await loadMembers();
+  };
+
+  const handleSendInvitation = async (member: TeamMember) => {
+    if (!church || !member.email) return;
+    
+    try {
+      const response = await fetch('/api/notifications/send-team-invitation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamMemberId: member.id, churchId: church.id }),
+      });
+      
+      if (response.ok) {
+        toast({ title: 'Invitation email sent!', description: `Email sent to ${member.email}`, status: 'success', duration: 3000 });
+      } else {
+        throw new Error('Failed to send email');
+      }
+    } catch (error) {
+      console.error('Failed to send invitation email:', error);
+      toast({ title: 'Failed to send email', description: 'Please try again later', status: 'error', duration: 3000 });
+    }
   };
 
   const handleDelete = async () => {
@@ -243,6 +280,9 @@ export default function TeamPage() {
                             <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
                             </MenuItem>
+                            <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email}>
+                              <HStack><Mail size={16} /><Text>Send Invite Email</Text></HStack>
+                            </MenuItem>
                             <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
                               <HStack><Trash2 size={16} /><Text>Remove</Text></HStack>
                             </MenuItem>
@@ -323,6 +363,9 @@ export default function TeamPage() {
                             <MenuItem onClick={() => router.push(`/team/${member.id}`)}>View Profile</MenuItem>
                             <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
+                            </MenuItem>
+                            <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email}>
+                              <HStack><Mail size={16} /><Text>Send Invite Email</Text></HStack>
                             </MenuItem>
                             <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
                               <HStack><Trash2 size={16} /><Text>Remove</Text></HStack>
