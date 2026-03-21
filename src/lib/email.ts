@@ -2,15 +2,32 @@
  * Email Service Configuration
  * 
  * This module handles email sending via Resend
+ * Resend import is lazy to prevent module load failures if package isn't installed
  */
 
-import { Resend } from 'resend';
+let Resend: any = null;
+
+/**
+ * Lazy load Resend to prevent module load failures
+ */
+async function loadResend() {
+  if (Resend !== null) return Resend;
+  
+  try {
+    const module = await import('resend');
+    Resend = module.Resend;
+    return Resend;
+  } catch (error) {
+    console.error('[Email] Failed to load Resend package:', error);
+    return null;
+  }
+}
 
 /**
  * Initialize Resend client if API key is configured
  * Wrapped in try-catch to prevent errors during initialization
  */
-function getResendClient(): Resend | null {
+async function getResendClient(): Promise<any> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.warn('[Email] RESEND_API_KEY not configured - emails will not be sent');
@@ -18,7 +35,13 @@ function getResendClient(): Resend | null {
   }
 
   try {
-    const client = new Resend(apiKey);
+    const ResendClass = await loadResend();
+    if (!ResendClass) {
+      console.error('[Email] Resend package not available');
+      return null;
+    }
+    
+    const client = new ResendClass(apiKey);
     return client;
   } catch (error) {
     console.error('[Email] Failed to initialize Resend client:', error);
@@ -29,7 +52,7 @@ function getResendClient(): Resend | null {
 /**
  * Check if email service is configured
  */
-export function isEmailConfigured(): boolean {
+export async function isEmailConfigured(): Promise<boolean> {
   const hasApiKey = !!process.env.RESEND_API_KEY;
   const hasFromEmail = !!process.env.EMAIL_FROM;
   
@@ -63,15 +86,20 @@ export async function sendEmail({
   html: string;
   text: string;
 }): Promise<{ success: boolean; error?: string; messageId?: string }> {
-  const client = getResendClient();
   const from = process.env.EMAIL_FROM;
 
-  if (!client || !from) {
-    console.warn('[Email] Email service not configured - skipping email send');
-    return { success: false, error: 'Email service not configured' };
+  if (!from) {
+    console.warn('[Email] EMAIL_FROM not configured - skipping email send');
+    return { success: false, error: 'Email service not configured (missing EMAIL_FROM)' };
   }
 
   try {
+    const client = await getResendClient();
+    if (!client) {
+      console.warn('[Email] Resend client not available - skipping email send');
+      return { success: false, error: 'Email service not configured (Resend not available)' };
+    }
+
     const result = await client.emails.send({
       from,
       to,

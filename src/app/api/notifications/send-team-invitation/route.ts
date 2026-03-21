@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     console.log('[Send Team Invitation] Generated invite URL');
 
     // Check if email service is configured
-    const emailConfigured = isEmailConfigured();
+    const emailConfigured = await isEmailConfigured();
     console.log('[Send Team Invitation] Email service configured:', emailConfigured);
 
     // Send email if configured
