@@ -104,10 +104,9 @@ export default function TeamPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ teamMemberId: member.id, churchId: church.id }),
         });
-        toast({ title: 'Invitation email sent!', status: 'success', duration: 2000 });
+        // Email service not configured yet - silently continue
       } catch (error) {
-        console.error('Failed to send invitation email:', error);
-        toast({ title: 'Member added, but email failed', status: 'warning', duration: 3000 });
+        // Silently ignore email errors - member is still added successfully
       }
     }
     

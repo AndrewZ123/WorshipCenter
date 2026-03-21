@@ -40,13 +40,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = async (authUserId: string, useCache = true): Promise<'success' | 'not_found' | 'error' | 'aborted'> => {
     // If we're already loading this user, don't start another concurrent request
     if (pendingAuthId.current === authUserId) {
-      console.log('[Auth] Profile load already in progress for:', authUserId);
       return 'aborted';
     }
     
     // If we already have this user profile, skip reload
     if (user?.id === authUserId && church) {
-      console.log('[Auth] Profile already loaded for:', authUserId);
       return 'success';
     }
 
@@ -56,24 +54,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const cachedUser = localStorage.getItem(`wc_user_${authUserId}`);
         const cachedChurch = localStorage.getItem(`wc_church_${authUserId}`);
         if (cachedUser && cachedChurch) {
-          console.log('[Auth] Loading profile from cache for:', authUserId);
           setUser(JSON.parse(cachedUser));
           setChurch(JSON.parse(cachedChurch));
           
           // Load fresh data in background without blocking UI
           loadProfile(authUserId, false).catch(err => {
-            console.warn('[Auth] Background profile refresh failed:', err);
+            // Silent background refresh failure
           });
           
           return 'success';
         }
       } catch (err) {
-        console.warn('[Auth] Failed to load from cache:', err);
+        // Silent cache failure
       }
     }
     
     pendingAuthId.current = authUserId;
-    console.log('[Auth] Loading profile from database for:', authUserId);
     
     try {
       const { data: userData, error: userError } = await supabase
@@ -85,19 +81,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userError) {
         const isAbort = userError?.message?.includes('AbortError') || userError?.details?.includes('AbortError');
         if (isAbort) {
-          console.warn('[Auth] Profile load aborted (lock conflict).');
           return 'aborted';
         }
-        console.error('[Auth] Profile load error:', userError);
         return 'error';
       }
 
       if (!userData) {
-        console.warn('[Auth] No user profile found for ID:', authUserId);
         return 'not_found';
       }
       
-      console.log('[Auth] User profile loaded:', userData.email, userData.role);
       setUser(userData as User);
 
       const { data: churchData, error: churchError } = await supabase
@@ -107,10 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
         
       if (churchError) {
-        console.error('[Auth] Church load error:', churchError);
+        // Silent church load error
       }
-
-      console.log('[Auth] Church profile loaded:', churchData?.name);
       setChurch(churchData ? (churchData as Church) : null);
       
       // Cache the data for faster loads
@@ -134,19 +124,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Restore session and subscribe to auth changes
   useEffect(() => {
-    console.log('[Auth] Initializing AuthProvider...');
     let initialized = false;
 
     const handleAuthState = async (event: string, session: any) => {
-      console.log('[Auth] Handling auth state:', event, session?.user?.email || 'none');
-
       if (session?.user) {
         const status = await loadProfile(session.user.id);
         
         if (status === 'aborted') {
           // If aborted by lock, wait 500ms and try again once.
           // Don't set loading=false yet.
-          console.log('[Auth] Retrying profile load in 500ms...');
           setTimeout(() => handleAuthState('RETRY', session), 500);
           return;
         }
@@ -162,7 +148,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!initialized) {
         initialized = true;
-        console.log('[Auth] Initial session resolved, setting loading to false.');
       }
       setLoading(false);
     };

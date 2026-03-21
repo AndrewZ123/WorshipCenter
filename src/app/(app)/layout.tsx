@@ -15,11 +15,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   React.useEffect(() => {
-    console.log('[AppLayout] Check:', { loading, hasUser: !!user, role: user?.role, pathname });
-    
     if (!loading) {
       if (!user) {
-        console.log('[AppLayout] No user found, redirecting to /login');
         router.replace('/login');
         return;
       }
@@ -30,7 +27,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         const restrictedPrefixes = ['/team', '/templates', '/usage'];
         
         if (restrictedPrefixes.some(prefix => pathname === prefix || pathname.startsWith(prefix))) {
-          console.log('[AppLayout] Team role restricted, redirecting to /dashboard');
           router.replace('/dashboard');
         }
       }

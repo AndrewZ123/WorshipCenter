@@ -24,12 +24,11 @@ export function useSubscription() {
         const cachedSubscription = localStorage.getItem(cacheKey);
         if (cachedSubscription) {
           const parsed = JSON.parse(cachedSubscription);
-          console.log('[Subscription] Loading from cache:', parsed);
           setSubscription(parsed);
           setLoading(false);
         }
       } catch (err) {
-        console.warn('[Subscription] Failed to load from cache:', err);
+        // Silent cache load failure
       }
 
       // Fetch fresh data in background
@@ -41,20 +40,15 @@ export function useSubscription() {
 
       if (error) throw error;
       
-      console.log('[Subscription] Fetched from database:', data);
-      console.log('[Subscription] Status:', data?.status);
-      console.log('[Subscription] Trial end:', data?.trial_end);
-      
       setSubscription(data);
       
       // Cache the subscription data
       try {
         localStorage.setItem(cacheKey, JSON.stringify(data));
       } catch (err) {
-        console.warn('[Subscription] Failed to cache:', err);
+        // Silent cache save failure
       }
     } catch (error) {
-      console.error('[Subscription] Error:', error);
       setSubscription(null);
     } finally {
       setLoading(false);

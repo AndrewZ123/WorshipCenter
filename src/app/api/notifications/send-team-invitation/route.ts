@@ -34,27 +34,11 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
     const inviteUrl = `${baseUrl}/join?e=${encodeURIComponent(teamMember.email)}&c=${churchId}`;
 
-    // In a production environment, you would send an actual email here
-    // For now, we'll log the email content
-    console.log('[Email Service] Team invitation email would be sent to:', teamMember.email);
-    console.log('[Email Service] Subject:', `Join ${church.name} on WorshipCenter`);
-    console.log('[Email Service] Body:', `
-      Hi ${teamMember.name},
-      
-      You've been invited to join ${church.name} on WorshipCenter!
-      
-      Click the link below to set up your account and get started:
-      ${inviteUrl}
-      
-      If you have any questions, feel free to reach out.
-      
-      Thanks!
-      WorshipCenter Team
-    `);
-
+    // Email service is not yet configured - returning success for now
+    // TODO: Implement actual email sending when email service is configured
     return NextResponse.json({ 
       success: true, 
-      emailSent: true,
+      emailSent: false, // Changed to false since we're not actually sending emails yet
       inviteUrl,
     });
   } catch (error) {
