@@ -11,6 +11,7 @@ import { useStore } from '@/lib/StoreContext';
 import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment } from '@/lib/types';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatServiceDate, formatShortDate, getGreeting } from '@/lib/formatDate';
+import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
 
 // Lucide icons
 import { 
@@ -219,52 +220,8 @@ export default function DashboardPage() {
         </Text>
       </Box>
 
-      {/* Get Started Card */}
-      {!hasData && !dismissedPrompt && user?.role !== 'team' && (
-        <Card 
-          mb="8" 
-          bg="linear-gradient(135deg, teal.50 0%, rgba(153, 246, 228, 0.3) 100%)"
-          border="1px solid"
-          borderColor="teal.100"
-          borderRadius="xl" 
-          position="relative"
-          overflow="hidden"
-        >
-          <CardBody textAlign="center" py="8" position="relative">
-            <Box position="absolute" top="4" right="4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDismissPrompt}
-                minW="auto"
-                px="2"
-                color="teal.600"
-                _hover={{ bg: 'teal.100' }}
-              >
-                ✕
-              </Button>
-            </Box>
-            <Box color="teal.400" mb="3">
-              <Sparkles size={48} />
-            </Box>
-            <Text fontSize="lg" fontWeight="bold" color="teal.900" mb="2">
-              Get Started with WorshipCenter
-            </Text>
-            <Text color="teal.700" mb="4" maxW="400px" mx="auto" fontSize="sm">
-              Your workspace is empty. Create your first service to get started planning Sunday.
-            </Text>
-            <Button 
-              colorScheme="teal" 
-              onClick={() => router.push('/services')} 
-              size="md"
-              borderRadius="lg"
-              fontWeight="600"
-            >
-              Create First Service
-            </Button>
-          </CardBody>
-        </Card>
-      )}
+      {/* Onboarding Checklist */}
+      <OnboardingChecklist />
 
       {/* Stats Grid - Admin/Leader only */}
       {user?.role !== 'team' && (

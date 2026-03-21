@@ -20,7 +20,7 @@ import Avatar from '@/components/ui/Avatar';
 // Lucide icons
 import { 
   Calendar, Home, Music, Users, BarChart2, CreditCard, Menu as MenuIcon,
-  LogOut, Settings, Bell, Moon, Sun, Repeat, Church, Smartphone, X, MessageCircle
+  LogOut, Settings, Bell, Moon, Sun, Repeat, Church, Smartphone, X, MessageCircle, HelpCircle
 } from 'lucide-react';
 
 interface NavItem {
@@ -339,6 +339,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                   Billing
                 </MenuItem>
               )}
+              <MenuItem
+                icon={<HelpCircle size={16} />}
+                as="a"
+                href="mailto:support@worshipcenter.app"
+                fontSize="sm"
+              >
+                Help & Support
+              </MenuItem>
               <Divider my={1} />
               <MenuItem
                 icon={<LogOut size={16} />}
