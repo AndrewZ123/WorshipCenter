@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
     // Send email if configured
     let emailResult = null;
     if (isEmailConfigured()) {
+      console.log('[Send Team Invitation] Attempting to send email to:', teamMember.email);
       emailResult = await sendEmail({
         to: teamMember.email,
         subject: `You're invited to join ${church.name} on WorshipCenter`,
@@ -67,6 +68,9 @@ ${inviteUrl}
 
 If you didn't expect this invitation, you can safely ignore this email.`,
       });
+      console.log('[Send Team Invitation] Email result:', emailResult);
+    } else {
+      console.warn('[Send Team Invitation] Email service not configured');
     }
 
     return NextResponse.json({ 
