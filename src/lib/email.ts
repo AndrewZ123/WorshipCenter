@@ -6,24 +6,17 @@
 
 import { Resend } from 'resend';
 
-let resendClient: Resend | null = null;
-
 /**
  * Initialize Resend client if API key is configured
  */
 function getResendClient(): Resend | null {
-  if (resendClient) {
-    return resendClient;
-  }
-
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn('[Email] RESEND_API_KEY not configured - emails will not be sent');
+    console.error('[Email] RESEND_API_KEY not configured - emails will not be sent');
     return null;
   }
 
-  resendClient = new Resend(apiKey);
-  return resendClient;
+  return new Resend(apiKey);
 }
 
 /**

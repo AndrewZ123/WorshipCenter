@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
     // Send email if configured
     let emailResult = null;
     if (isEmailConfigured()) {
-      console.log('[Send Team Invitation] Attempting to send email to:', teamMember.email);
+      console.log('[Send Team Invitation] Email service configured. Attempting to send email to:', teamMember.email);
+      console.log('[Send Team Invitation] RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
+      console.log('[Send Team Invitation] EMAIL_FROM:', process.env.EMAIL_FROM);
+      
       emailResult = await sendEmail({
         to: teamMember.email,
         subject: `You're invited to join ${church.name} on WorshipCenter`,
@@ -68,19 +71,43 @@ ${inviteUrl}
 
 If you didn't expect this invitation, you can safely ignore this email.`,
       });
+      
       console.log('[Send Team Invitation] Email result:', emailResult);
     } else {
-      console.warn('[Send Team Invitation] Email service not configured');
+      const apiKeyExists = !!process.env.RESEND_API_KEY;
+      const emailFromExists = !!process.env.EMAIL_FROM;
+      console.error('[Send Team Invitation] Email service not configured!');
+      console.error('[Send Team Invitation] RESEND_API_KEY exists:', apiKeyExists);
+      console.error('[Send Team Invitation] EMAIL_FROM exists:', emailFromExists);
+      
+      return NextResponse.json(
+        { 
+          error: 'Email service not configured',
+          details: {
+            apiKeyExists,
+            emailFromExists,
+          }
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!emailResult?.success) {
+      console.error('[Send Team Invitation] Email failed to send:', emailResult?.error);
+      return NextResponse.json(
+        { 
+          error: 'Failed to send email',
+          details: emailResult?.error || 'Unknown error',
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ 
       success: true, 
-      emailSent: emailResult?.success || false,
-      emailError: emailResult?.error,
+      emailSent: true,
       inviteUrl,
-      message: emailResult?.success 
-        ? 'Invitation sent successfully' 
-        : `Email failed: ${emailResult?.error || 'Unknown error'}`,
+      message: 'Invitation sent successfully',
     });
   } catch (error) {
     console.error('[Send Team Invitation] Error:', error);
