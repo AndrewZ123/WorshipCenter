@@ -59,6 +59,18 @@ const ENV_VAR_DEFS = {
     required: true,
     public: true,
   },
+
+  // Email (Resend)
+  RESEND_API_KEY: {
+    description: 'Resend API key for sending emails',
+    required: false, // Optional - app works without email
+    public: false,
+  },
+  EMAIL_FROM: {
+    description: 'Sender email address for emails',
+    required: false, // Optional - app works without email
+    public: false,
+  },
 } as const;
 
 export type EnvVarName = keyof typeof ENV_VAR_DEFS;

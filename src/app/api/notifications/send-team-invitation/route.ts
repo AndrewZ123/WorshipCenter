@@ -39,8 +39,6 @@ export async function POST(request: NextRequest) {
     let emailResult = null;
     if (isEmailConfigured()) {
       console.log('[Send Team Invitation] Email service configured. Attempting to send email to:', teamMember.email);
-      console.log('[Send Team Invitation] RESEND_API_KEY exists:', !!process.env.RESEND_API_KEY);
-      console.log('[Send Team Invitation] EMAIL_FROM:', process.env.EMAIL_FROM);
       
       emailResult = await sendEmail({
         to: teamMember.email,
@@ -74,40 +72,16 @@ If you didn't expect this invitation, you can safely ignore this email.`,
       
       console.log('[Send Team Invitation] Email result:', emailResult);
     } else {
-      const apiKeyExists = !!process.env.RESEND_API_KEY;
-      const emailFromExists = !!process.env.EMAIL_FROM;
-      console.error('[Send Team Invitation] Email service not configured!');
-      console.error('[Send Team Invitation] RESEND_API_KEY exists:', apiKeyExists);
-      console.error('[Send Team Invitation] EMAIL_FROM exists:', emailFromExists);
-      
-      return NextResponse.json(
-        { 
-          error: 'Email service not configured',
-          details: {
-            apiKeyExists,
-            emailFromExists,
-          }
-        },
-        { status: 500 }
-      );
-    }
-
-    if (!emailResult?.success) {
-      console.error('[Send Team Invitation] Email failed to send:', emailResult?.error);
-      return NextResponse.json(
-        { 
-          error: 'Failed to send email',
-          details: emailResult?.error || 'Unknown error',
-        },
-        { status: 500 }
-      );
+      console.warn('[Send Team Invitation] Email service not configured - skipping email send');
     }
 
     return NextResponse.json({ 
       success: true, 
-      emailSent: true,
+      emailSent: !!emailResult?.success,
       inviteUrl,
-      message: 'Invitation sent successfully',
+      message: emailResult?.success 
+        ? 'Invitation sent successfully' 
+        : 'Invitation link generated (email not configured - copy the link below)',
     });
   } catch (error) {
     console.error('[Send Team Invitation] Error:', error);
