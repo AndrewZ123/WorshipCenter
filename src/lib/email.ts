@@ -8,22 +8,40 @@ import { Resend } from 'resend';
 
 /**
  * Initialize Resend client if API key is configured
+ * Wrapped in try-catch to prevent errors during initialization
  */
 function getResendClient(): Resend | null {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.error('[Email] RESEND_API_KEY not configured - emails will not be sent');
+    console.warn('[Email] RESEND_API_KEY not configured - emails will not be sent');
     return null;
   }
 
-  return new Resend(apiKey);
+  try {
+    const client = new Resend(apiKey);
+    return client;
+  } catch (error) {
+    console.error('[Email] Failed to initialize Resend client:', error);
+    return null;
+  }
 }
 
 /**
  * Check if email service is configured
  */
 export function isEmailConfigured(): boolean {
-  return !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
+  const hasApiKey = !!process.env.RESEND_API_KEY;
+  const hasFromEmail = !!process.env.EMAIL_FROM;
+  
+  if (!hasApiKey || !hasFromEmail) {
+    console.warn('[Email] Email service not fully configured:', {
+      hasApiKey,
+      hasFromEmail,
+      emailFrom: process.env.EMAIL_FROM ? `${process.env.EMAIL_FROM.substring(0, 5)}...` : 'missing'
+    });
+  }
+  
+  return hasApiKey && hasFromEmail;
 }
 
 /**
