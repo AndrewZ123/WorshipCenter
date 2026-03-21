@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/store';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
 
 interface SendTeamInvitationRequest {
   teamMemberId: string;
@@ -34,11 +35,44 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
     const inviteUrl = `${baseUrl}/join?e=${encodeURIComponent(teamMember.email)}&c=${churchId}`;
 
-    // Email service is not yet configured - returning success for now
-    // TODO: Implement actual email sending when email service is configured
+    // Send email if configured
+    let emailResult = null;
+    if (isEmailConfigured()) {
+      emailResult = await sendEmail({
+        to: teamMember.email,
+        subject: `You're invited to join ${church.name} on WorshipCenter`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>You're invited to join ${church.name}!</h2>
+            <p>You've been invited to join the team at ${church.name} on WorshipCenter.</p>
+            <p>Click the button below to accept your invitation and get started:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${inviteUrl}" 
+                 style="background-color: #4F46E5; color: white; padding: 12px 24px; 
+                        text-decoration: none; border-radius: 6px; display: inline-block;">
+                Accept Invitation
+              </a>
+            </div>
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #666;">${inviteUrl}</p>
+            <p style="margin-top: 30px; font-size: 14px; color: #666;">
+              If you didn't expect this invitation, you can safely ignore this email.
+            </p>
+          </div>
+        `,
+        text: `You're invited to join ${church.name} on WorshipCenter!
+
+Click the link below to accept your invitation:
+${inviteUrl}
+
+If you didn't expect this invitation, you can safely ignore this email.`,
+      });
+    }
+
     return NextResponse.json({ 
       success: true, 
-      emailSent: false, // Changed to false since we're not actually sending emails yet
+      emailSent: emailResult?.success || false,
+      emailError: emailResult?.error,
       inviteUrl,
     });
   } catch (error) {
