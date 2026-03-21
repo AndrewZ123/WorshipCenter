@@ -68,6 +68,16 @@ export default function BillingPage() {
     setShowPaymentForm(false);
     setSuccess(true);
     
+    // Clear subscription cache to force fresh data
+    if (user?.church_id) {
+      try {
+        localStorage.removeItem(`wc_subscription_${user.church_id}`);
+        console.log('[Billing] Subscription cache cleared');
+      } catch (err) {
+        console.warn('[Billing] Failed to clear cache:', err);
+      }
+    }
+    
     // Refetch subscription immediately
     refetch();
     

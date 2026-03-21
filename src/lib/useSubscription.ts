@@ -6,17 +6,33 @@ import { supabase } from '@/lib/supabase';
 import type { Subscription, BillingState } from '@/lib/types';
 
 export function useSubscription() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchSubscription = useCallback(async () => {
-    if (!user) {
-      setLoading(false);
+    // Don't fetch subscription until auth is complete and user is loaded
+    if (authLoading || !user) {
+      setLoading(true);
       return;
     }
 
     try {
+      // Try to load from cache first
+      const cacheKey = `wc_subscription_${user.church_id}`;
+      try {
+        const cachedSubscription = localStorage.getItem(cacheKey);
+        if (cachedSubscription) {
+          const parsed = JSON.parse(cachedSubscription);
+          console.log('[Subscription] Loading from cache:', parsed);
+          setSubscription(parsed);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('[Subscription] Failed to load from cache:', err);
+      }
+
+      // Fetch fresh data in background
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
@@ -25,18 +41,25 @@ export function useSubscription() {
 
       if (error) throw error;
       
-      console.log('Subscription data:', data);
-      console.log('Subscription status:', data?.status);
-      console.log('Trial end:', data?.trial_end);
+      console.log('[Subscription] Fetched from database:', data);
+      console.log('[Subscription] Status:', data?.status);
+      console.log('[Subscription] Trial end:', data?.trial_end);
       
       setSubscription(data);
+      
+      // Cache the subscription data
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      } catch (err) {
+        console.warn('[Subscription] Failed to cache:', err);
+      }
     } catch (error) {
-      console.error('Error fetching subscription:', error);
+      console.error('[Subscription] Error:', error);
       setSubscription(null);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     fetchSubscription();

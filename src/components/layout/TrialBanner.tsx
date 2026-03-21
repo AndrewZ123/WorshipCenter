@@ -12,8 +12,8 @@ export function TrialBanner() {
   const bgColor = useColorModeValue('teal.50', 'teal.900');
   const borderColor = useColorModeValue('teal.200', 'teal.700');
   
-  // Don't show banner while loading or if active subscription, not trialing, or more than 3 days remaining
-  if (loading || !billingState.isTrialing || billingState.isActive || billingState.daysRemaining > 3) {
+  // Don't show banner while loading, if active subscription, not trialing, or more than 3 days remaining
+  if (loading || billingState.isActive || !billingState.isTrialing || billingState.daysRemaining > 3) {
     return null;
   }
   

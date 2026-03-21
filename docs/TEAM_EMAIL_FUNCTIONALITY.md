@@ -55,8 +55,7 @@ Alternatively, admins can copy the invite link to share manually:
 }
 ```
 
-**Note:** Team members don't need user accounts to receive invitation emails, so no notification record is created in the database. The email itself serves as the invitation notification.
-
+**Note:**
 ## Email Content
 
 Currently, emails are logged to the console for development. In production, you would integrate with an email service like:

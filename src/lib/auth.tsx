@@ -331,6 +331,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         localStorage.removeItem(`wc_user_${user.id}`);
         localStorage.removeItem(`wc_church_${user.id}`);
+        // Clear subscription cache
+        if (user.church_id) {
+          localStorage.removeItem(`wc_subscription_${user.church_id}`);
+        }
       } catch (err) {
         console.warn('[Auth] Failed to clear cache on logout:', err);
       }
