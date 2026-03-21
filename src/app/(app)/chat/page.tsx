@@ -146,6 +146,7 @@ function MessageBubble({
           {showAvatar && (
             <Avatar
               name={message.user?.name || 'Unknown'}
+              src={message.user?.avatar_url}
               size="sm"
             />
           )}
@@ -279,7 +280,12 @@ export default function ChatPage() {
     const unsubscribe = db.chat.subscribe(
       church.id, 
       (newMessage) => {
-        setMessages((prev) => [...prev, newMessage]);
+        // Only add message if it doesn't already exist (prevents duplicates when sender)
+        setMessages((prev) => {
+          const exists = prev.some(m => m.id === newMessage.id);
+          if (exists) return prev;
+          return [...prev, newMessage];
+        });
         // Show typing indicator briefly when receiving a message from someone else
         if (newMessage.user?.id !== user?.id) {
           setIsTyping(true);
@@ -287,7 +293,6 @@ export default function ChatPage() {
         }
       },
       (error) => {
-        // WebSocket failed, fall back to polling
         console.warn('[Chat] WebSocket failed, falling back to polling:', error);
         setConnectionError(true);
         
@@ -333,7 +338,7 @@ export default function ChatPage() {
         content: messageContent,
       });
       
-      // Immediately add the message to state so the sender sees it right away
+      // Immediately add message to state so the sender sees it right away
       setMessages((prev) => [...prev, newMessage]);
       setInput('');
       inputRef.current?.focus();
