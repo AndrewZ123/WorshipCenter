@@ -26,10 +26,10 @@ The following environment variables must be configured in your production enviro
 
 ### Payment Processing (Stripe)
 - `STRIPE_SECRET_KEY` - Stripe secret key (server-only)
-- `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (public)
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (public)
 - `STRIPE_WEBHOOK_SECRET` - Stripe webhook secret for signature verification (server-only)
-- `NEXT_PUBLIC_STRIPE_PRICE_ID_MONTHLY` - Stripe price ID for monthly subscription (public)
-- `NEXT_PUBLIC_STRIPE_PRICE_ID_YEARLY` - Stripe price ID for yearly subscription (public)
+- `STRIPE_MONTHLY_PRICE_ID` - Stripe price ID for monthly subscription (server-only)
+- `STRIPE_YEARLY_PRICE_ID` - Stripe price ID for yearly subscription (server-only)
 
 ### Email (Resend)
 - `RESEND_API_KEY` - Resend API key for sending transactional emails (server-only)
