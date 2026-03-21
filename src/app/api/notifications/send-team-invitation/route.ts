@@ -34,17 +34,6 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
     const inviteUrl = `${baseUrl}/join?e=${encodeURIComponent(teamMember.email)}&c=${churchId}`;
 
-    // Create notification record (for admin users)
-    const notification = await db.notifications.create({
-      church_id: churchId,
-      user_id: '', // Team members may not have user accounts yet
-      type: 'invitation',
-      title: `Team Invitation: ${teamMember.name}`,
-      message: `Invitation sent to ${teamMember.email}`,
-      service_id: teamMemberId, // Using service_id to store team_member_id
-      read: false,
-    });
-
     // In a production environment, you would send an actual email here
     // For now, we'll log the email content
     console.log('[Email Service] Team invitation email would be sent to:', teamMember.email);
@@ -65,7 +54,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      notificationId: notification.id,
       emailSent: true,
       inviteUrl,
     });

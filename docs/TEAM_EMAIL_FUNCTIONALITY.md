@@ -50,11 +50,12 @@ Alternatively, admins can copy the invite link to share manually:
 ```json
 {
   "success": true,
-  "notificationId": "uuid",
   "emailSent": true,
   "inviteUrl": "https://app.worshipcenter.io/join?e=user@example.com&c=church-id"
 }
 ```
+
+**Note:** Team members don't need user accounts to receive invitation emails, so no notification record is created in the database. The email itself serves as the invitation notification.
 
 ## Email Content
 
