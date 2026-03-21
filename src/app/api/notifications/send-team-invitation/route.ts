@@ -78,6 +78,9 @@ If you didn't expect this invitation, you can safely ignore this email.`,
       emailSent: emailResult?.success || false,
       emailError: emailResult?.error,
       inviteUrl,
+      message: emailResult?.success 
+        ? 'Invitation sent successfully' 
+        : `Email failed: ${emailResult?.error || 'Unknown error'}`,
     });
   } catch (error) {
     console.error('[Send Team Invitation] Error:', error);

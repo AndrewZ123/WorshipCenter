@@ -124,24 +124,39 @@ export default function TeamPage() {
         body: JSON.stringify({ teamMemberId: member.id, churchId: church.id }),
       });
       
+      const data = await response.json();
+      
       if (response.ok) {
-        toast({ title: 'Invitation email sent!', description: `Email sent to ${member.email}`, status: 'success', duration: 3000 });
-      } else {
-        // Email service not configured or failed - in production, fail silently
-        // In development, show error for debugging
-        if (process.env.NODE_ENV === 'development') {
-          toast({ title: 'Failed to send email', description: 'Email service not configured', status: 'error', duration: 3000 });
+        if (data.emailSent) {
+          toast({ title: 'Invitation email sent!', description: `Email sent to ${member.email}`, status: 'success', duration: 3000 });
         } else {
-          // Silently fail in production - user can still use copy invite link
-          console.warn('Email service not configured');
+          // Email failed but API call succeeded
+          console.error('Email send failed:', data.emailError);
+          toast({ 
+            title: 'Email failed to send', 
+            description: data.message || data.emailError || 'Unknown error',
+            status: 'error', 
+            duration: 5000 
+          });
         }
+      } else {
+        // API call failed completely
+        console.error('API error:', data);
+        toast({ 
+          title: 'Failed to send invitation', 
+          description: data.error || 'Unknown error',
+          status: 'error', 
+          duration: 5000 
+        });
       }
     } catch (error) {
-      // Email service not configured or failed - in production, fail silently
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Failed to send invitation email:', error);
-        toast({ title: 'Failed to send email', description: 'Email service not configured', status: 'error', duration: 3000 });
-      }
+      console.error('Network error:', error);
+      toast({ 
+        title: 'Network error', 
+        description: 'Failed to connect to server',
+        status: 'error', 
+        duration: 5000 
+      });
     }
   };
 
