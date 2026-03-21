@@ -24,6 +24,11 @@ export function useSubscription() {
         .maybeSingle(); // Use maybeSingle() to handle no results gracefully
 
       if (error) throw error;
+      
+      console.log('Subscription data:', data);
+      console.log('Subscription status:', data?.status);
+      console.log('Trial end:', data?.trial_end);
+      
       setSubscription(data);
     } catch (error) {
       console.error('Error fetching subscription:', error);

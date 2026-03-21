@@ -95,6 +95,13 @@ export default function BillingPage() {
     return priceType === 'yearly' ? PRICING.yearlyPrice : PRICING.monthlyPrice;
   };
 
+  // Debug logging
+  console.log('Billing page render:', {
+    subscription,
+    billingState,
+    loading,
+  });
+
   if (loading) {
     return (
       <Container maxW="container.xl" py={8} centerContent>
