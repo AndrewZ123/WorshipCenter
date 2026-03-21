@@ -19,7 +19,7 @@ import Avatar from '@/components/ui/Avatar';
 
 // Lucide icons
 import { 
-  Plus, MoreVertical, Link2, Trash2, Users, Calendar
+  Plus, MoreVertical, Link2, Trash2, Users, Calendar, Mail
 } from 'lucide-react';
 
 export default function TeamPage() {
@@ -96,6 +96,19 @@ export default function TeamPage() {
     const member = await store.teamMembers.create({ church_id: church.id, name, email, phone, roles: rolesStr.split(',').map((r) => r.trim()).filter(Boolean) });
     toast({ title: 'Team member added', status: 'success', duration: 2000 });
     
+    // Send invitation email if email is provided
+    if (email) {
+      try {
+        await fetch('/api/notifications/send-team-invitation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
+        });
+      } catch (error) {
+        console.error('Failed to send invitation email:', error);
+      }
+    }
+    
     setName(''); setEmail(''); setPhone(''); setRolesStr('');
     onClose(); await loadMembers();
   };
@@ -116,6 +129,56 @@ export default function TeamPage() {
     const inviteUrl = `${baseUrl}/join?e=${encodeURIComponent(member.email)}&c=${church.id}`;
     navigator.clipboard.writeText(inviteUrl);
     toast({ title: 'Invite link copied!', description: 'Send this link to the team member to activate their account.', status: 'success', duration: 3000 });
+  };
+
+  const handleSendInvitation = async (member: TeamMember) => {
+    if (!church || !member.email) {
+      toast({ title: 'Email required', description: 'This member needs an email address to send an invitation.', status: 'error', duration: 3000 });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/notifications/send-team-invitation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.emailSent) {
+          toast({ 
+            title: 'Invitation sent!', 
+            description: `Email sent to ${member.email}`, 
+            status: 'success',
+            duration: 3000 
+          });
+        } else {
+          toast({ 
+            title: 'Email service not configured', 
+            description: 'Please copy the invite link manually',
+            status: 'warning',
+            duration: 5000 
+          });
+        }
+      } else {
+        toast({ 
+          title: 'Failed to send invitation', 
+          description: data.error || 'Please try again or use copy invite link',
+          status: 'error',
+          duration: 3000 
+        });
+      }
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      toast({ 
+        title: 'Failed to send invitation', 
+        description: 'Please use copy invite link instead',
+        status: 'error',
+        duration: 3000 
+      });
+    }
   };
 
   const formatRelativeDate = (d: string | null) => {
@@ -244,6 +307,9 @@ export default function TeamPage() {
                             <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
                             </MenuItem>
+                            <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email}>
+                              <HStack><Mail size={16} /><Text>Send Invite Email</Text></HStack>
+                            </MenuItem>
                             <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
                               <HStack><Trash2 size={16} /><Text>Remove</Text></HStack>
                             </MenuItem>
@@ -324,6 +390,9 @@ export default function TeamPage() {
                             <MenuItem onClick={() => router.push(`/team/${member.id}`)}>View Profile</MenuItem>
                             <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
+                            </MenuItem>
+                            <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email}>
+                              <HStack><Mail size={16} /><Text>Send Invite Email</Text></HStack>
                             </MenuItem>
                             <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
                               <HStack><Trash2 size={16} /><Text>Remove</Text></HStack>
