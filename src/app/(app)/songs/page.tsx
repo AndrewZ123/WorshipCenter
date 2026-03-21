@@ -99,8 +99,8 @@ export default function SongsPage() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
-    await store.songs.delete(deleteId);
+    if (!deleteId || !church) return;
+    await store.songs.delete(deleteId, church.id);
     toast({ title: 'Song deleted', status: 'info', duration: 2000 });
     setDeleteId(null); await loadSongs();
   };

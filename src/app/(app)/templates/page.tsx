@@ -83,8 +83,8 @@ export default function TemplatesPage() {
   };
 
   const handleGenerate = async () => {
-    if (!generateTemplateId || !generateDate) return;
-    const svc = await store.templates.createServiceFromTemplate(generateTemplateId, generateDate);
+    if (!generateTemplateId || !generateDate || !church) return;
+    const svc = await store.templates.createServiceFromTemplate(generateTemplateId, generateDate, church.id);
     if (svc) {
       toast({ title: 'Service created from template!', description: 'Items and roles have been pre-filled.', status: 'success', duration: 3000 });
       generateModal.onClose();
@@ -95,9 +95,9 @@ export default function TemplatesPage() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || !church) return;
     try {
-      await store.templates.delete(deleteId);
+      await store.templates.delete(deleteId, church.id);
       toast({ title: 'Template deleted', status: 'info', duration: 2000 });
       setDeleteId(null);
       await loadTemplates();

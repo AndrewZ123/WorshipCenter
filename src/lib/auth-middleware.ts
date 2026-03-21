@@ -6,26 +6,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { User } from '@/lib/types';
+import { env } from './env';
 
 // Lazy initialization of Supabase admin client for server-side operations
 let supabaseAdmin: SupabaseClient | null = null;
 
 const getSupabaseAdmin = (): SupabaseClient => {
   if (!supabaseAdmin) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!supabaseUrl || !serviceRoleKey) {
-      console.warn('Missing Supabase environment variables');
-      return null as any as SupabaseClient;
+    try {
+      const supabaseUrl = env.supabaseUrl();
+      const serviceRoleKey = env.supabaseServiceRoleKey();
+      
+      supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: true,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to initialize Supabase admin client:', error);
+      throw new Error('Server configuration error: Unable to initialize database client');
     }
-    
-    supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: true,
-      },
-    });
   }
   
   return supabaseAdmin;

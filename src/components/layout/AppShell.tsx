@@ -297,7 +297,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                       cursor="pointer"
                       _hover={{ bg: hoverBg }}
                       onClick={async () => {
-                        await db.notifications.markRead(n.id);
+                        await db.notifications.markRead(n.id, user.id);
                         setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
                         setUnreadCount((c) => Math.max(0, c - (n.read ? 0 : 1)));
                         if (n.service_id) router.push(`/services/${n.service_id}`);

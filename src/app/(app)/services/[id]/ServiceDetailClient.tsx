@@ -125,7 +125,7 @@ export default function ServiceDetailClient() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     
-    if (!over || active.id === over.id) {
+    if (!over || active.id === over.id || !church) {
       return;
     }
 
@@ -143,7 +143,7 @@ export default function ServiceDetailClient() {
     // Persist to database
     try {
       await Promise.all(
-        newItems.map((item, index) => store.serviceItems.update(item.id, { position: index }))
+        newItems.map((item, index) => store.serviceItems.update(item.id, church.id, { position: index }))
       );
       toast({ title: 'Order updated', status: 'success', duration: 1500 });
     } catch (error) {
@@ -163,7 +163,7 @@ export default function ServiceDetailClient() {
 
     try {
       setLoading(true);
-      const svc = await store.services.getById(serviceId);
+      const svc = await store.services.getById(serviceId, church.id);
       if (svc) {
         setService(svc);
         setTitle(svc.title);
@@ -178,7 +178,7 @@ export default function ServiceDetailClient() {
 
       const [itemsData, assignmentsData, songsData] = await Promise.all([
         store.serviceItems.getByService(serviceId),
-        store.assignments.getByService(serviceId),
+        store.assignments.getByService(serviceId, church.id),
         store.songs.getByChurch(church.id),
       ]);
       setItems(itemsData.sort((a, b) => a.position - b.position));
@@ -199,7 +199,7 @@ export default function ServiceDetailClient() {
     if (!church) return;
 
     try {
-      await store.services.update(serviceId, { title, date, time, status, notes });
+      await store.services.update(serviceId, church.id, { title, date, time, status, notes });
       setEditing(false);
       await loadData();
       toast({ title: 'Service updated', status: 'success', duration: 2000 });
@@ -213,7 +213,7 @@ export default function ServiceDetailClient() {
     if (!church) return;
 
     try {
-      await store.services.delete(serviceId);
+      await store.services.delete(serviceId, church.id);
       router.push('/services');
       toast({ title: 'Service deleted', status: 'info', duration: 2000 });
     } catch (error) {
@@ -332,7 +332,7 @@ export default function ServiceDetailClient() {
     if (!church || !service) return;
 
     try {
-      await store.serviceItems.delete(itemId);
+      await store.serviceItems.delete(itemId, church.id);
       await loadData();
       toast({ title: 'Item removed', status: 'info', duration: 2000 });
     } catch (error) {
@@ -346,7 +346,7 @@ export default function ServiceDetailClient() {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      const newService = await store.services.duplicate(serviceId, today);
+      const newService = await store.services.duplicate(serviceId, church.id, today);
       if (newService) {
         router.push(`/services/${newService.id}`);
       } else {
@@ -359,12 +359,14 @@ export default function ServiceDetailClient() {
   };
 
   const handleUpdateAssignmentStatus = async (assignmentId: string, newStatus: ServiceAssignment['status']) => {
+    if (!church) return;
+    
     try {
       const assignment = assignments.find(a => a.id === assignmentId);
       const member = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
       const memberName = member?.name || 'Team member';
       
-      await store.assignments.update(assignmentId, { status: newStatus });
+      await store.assignments.update(assignmentId, church.id, { status: newStatus });
       if (newStatus === 'confirmed' || newStatus === 'declined') {
         await store.notifications.create({
           church_id: church!.id,
@@ -388,7 +390,7 @@ export default function ServiceDetailClient() {
     if (!church || !service) return;
 
     try {
-      await store.assignments.delete(assignmentId);
+      await store.assignments.delete(assignmentId, church.id);
       await loadData();
       toast({ title: 'Assignment removed', status: 'info', duration: 2000 });
     } catch (error) {
@@ -408,7 +410,7 @@ export default function ServiceDetailClient() {
   };
 
   const handleSaveItem = async () => {
-    if (!editingItem) return;
+    if (!editingItem || !church) return;
 
     try {
       let newTitle = itemTitle;
@@ -419,7 +421,7 @@ export default function ServiceDetailClient() {
         }
       }
 
-      await store.serviceItems.update(editingItem.id, {
+      await store.serviceItems.update(editingItem.id, church.id, {
         title: newTitle,
         notes: itemNotes || undefined,
         duration_minutes: itemDuration ? parseInt(itemDuration) : undefined,

@@ -104,9 +104,9 @@ export default function ServicesPage() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || !church) return;
     try {
-      await store.services.delete(deleteId);
+      await store.services.delete(deleteId, church.id);
       toast({ title: 'Service deleted', status: 'info', duration: 2000 });
       setDeleteId(null);
       await loadData();
@@ -116,9 +116,9 @@ export default function ServicesPage() {
   };
 
   const handleDuplicate = async () => {
-    if (!dupSourceId || !dupDate) return;
+    if (!dupSourceId || !dupDate || !church) return;
     try {
-      const newSvc = await store.services.duplicate(dupSourceId, dupDate, dupTitle || undefined);
+      const newSvc = await store.services.duplicate(dupSourceId, church.id, dupDate, dupTitle || undefined);
       if (newSvc) {
         toast({ title: 'Service duplicated', description: 'Items and team assignments copied.', status: 'success', duration: 2000 });
         dupDisclosure.onClose();
@@ -156,9 +156,9 @@ export default function ServicesPage() {
   };
 
   const handleGenerate = async () => {
-    if (!generateTemplateId || !generateDate) return;
+    if (!generateTemplateId || !generateDate || !church) return;
     try {
-      const svc = await store.templates.createServiceFromTemplate(generateTemplateId, generateDate);
+      const svc = await store.templates.createServiceFromTemplate(generateTemplateId, generateDate, church.id);
       if (svc) {
         toast({ title: 'Service created from template!', status: 'success', duration: 3000 });
         generateModal.onClose();
@@ -172,9 +172,9 @@ export default function ServicesPage() {
   };
 
   const handleDeleteTemplate = async () => {
-    if (!deleteTemplateId) return;
+    if (!deleteTemplateId || !church) return;
     try {
-      await store.templates.delete(deleteTemplateId);
+      await store.templates.delete(deleteTemplateId, church.id);
       toast({ title: 'Template deleted', status: 'info', duration: 2000 });
       setDeleteTemplateId(null);
       await loadData();

@@ -71,11 +71,24 @@ const sanitizeInput = {
   }),
 };
 
+/**
+ * CRITICAL: All getById methods MUST verify church_id to prevent cross-tenant data access.
+ * This is a defense-in-depth measure. RLS policies should be the primary security layer,
+ * but application-level checks provide an additional safety net.
+ */
+
 export const db = {
   // Churches
   churches: {
-    getById: async (id: string) => {
-      const { data } = await supabase.from('churches').select('*').eq('id', id).single();
+    getById: async (id: string, churchId?: string) => {
+      const query = supabase.from('churches').select('*').eq('id', id);
+      
+      // If churchId is provided, verify it matches
+      if (churchId) {
+        query.eq('id', churchId);
+      }
+      
+      const { data } = await query.single();
       return data as Church | null;
     },
     create: async (c: Omit<Church, 'id' | 'created_at'>) => {
@@ -103,8 +116,13 @@ export const db = {
       const { data } = await supabase.from('services').select('*').eq('church_id', churchId).order('date', { ascending: false });
       return (data || []) as Service[];
     },
-    getById: async (id: string) => {
-      const { data } = await supabase.from('services').select('*').eq('id', id).single();
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('services')
+        .select('*')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
       return data as Service | null;
     },
     create: async (s: Omit<Service, 'id' | 'created_at' | 'updated_at'>) => {
@@ -112,21 +130,34 @@ export const db = {
       const { data } = await supabase.from('services').insert(sanitized).select().single();
       return data as Service;
     },
-    update: async (id: string, updates: Partial<Service>) => {
+    update: async (id: string, churchId: string, updates: Partial<Service>) => {
       const sanitized = sanitizeInput.service(updates);
-      const { data } = await supabase.from('services').update({ ...sanitized, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+      const { data } = await supabase
+        .from('services')
+        .update({ ...sanitized, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
       return data as Service;
     },
-    delete: async (id: string) => {
-      const { error } = await supabase.from('services').delete().eq('id', id);
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
       return !error;
     },
-    duplicate: async (sourceId: string, newDate: string, newTitle?: string) => {
-      const source = await db.services.getById(sourceId);
-      if (!source) return null;
+    duplicate: async (sourceId: string, churchId: string, newDate: string, newTitle?: string) => {
+      const source = await db.services.getById(sourceId, churchId);
+      if (!source) {
+        console.error('[Services] Duplicate failed: service not found or access denied', { sourceId, churchId });
+        return null;
+      }
 
       const { data: newService } = await supabase.from('services').insert({
-        church_id: source.church_id,
+        church_id: churchId,
         title: newTitle || `${source.title} (copy)`,
         date: newDate,
         time: source.time,
@@ -153,7 +184,7 @@ export const db = {
       }
 
       // Copy Assignments
-      const assignments = await db.assignments.getByService(sourceId);
+      const assignments = await db.assignments.getByService(sourceId, churchId);
       if (assignments.length > 0) {
         const newAssignments = assignments.map(a => ({
           service_id: newService.id,
@@ -174,21 +205,77 @@ export const db = {
       const { data } = await supabase.from('service_items').select('*').eq('service_id', serviceId).order('position');
       return (data || []) as ServiceItem[];
     },
+    getById: async (id: string, churchId: string) => {
+      // Verify the service belongs to this church
+      const { data } = await supabase
+        .from('service_items')
+        .select('*, services(church_id)')
+        .eq('id', id)
+        .single();
+      
+      if (!data || !data.services || data.services.church_id !== churchId) {
+        return null;
+      }
+      
+      return data as ServiceItem;
+    },
     create: async (si: Omit<ServiceItem, 'id'>) => {
       const sanitized = sanitizeInput.serviceItem(si);
       const { data } = await supabase.from('service_items').insert(sanitized).select().single();
       return data as ServiceItem;
     },
-    update: async (id: string, updates: Partial<ServiceItem>) => {
+    update: async (id: string, churchId: string, updates: Partial<ServiceItem>) => {
       const sanitized = sanitizeInput.serviceItem(updates);
-      const { data } = await supabase.from('service_items').update(sanitized).eq('id', id).select().single();
+      const { data } = await supabase
+        .from('service_items')
+        .update(sanitized)
+        .eq('id', id)
+        .select('*, services(church_id)')
+        .single();
+      
+      // Verify the service belongs to this church
+      if (!data || !data.services || data.services.church_id !== churchId) {
+        return null;
+      }
+      
       return data as ServiceItem;
     },
-    delete: async (id: string) => {
+    delete: async (id: string, churchId: string) => {
+      // First verify the item's service belongs to this church
+      const { data: item } = await supabase
+        .from('service_items')
+        .select('service_id, services(church_id)')
+        .eq('id', id)
+        .single();
+      
+      // When joining with services, Supabase returns an array for the related table
+      if (!item || !item.services) {
+        console.error('[ServiceItems] Delete failed: item not found or access denied', { id, churchId });
+        return false;
+      }
+      
+      const services = item.services as Array<{ church_id: string }>;
+      if (services.length === 0 || services[0].church_id !== churchId) {
+        console.error('[ServiceItems] Delete failed: service church_id mismatch', { id, churchId });
+        return false;
+      }
+      
       const { error } = await supabase.from('service_items').delete().eq('id', id);
       return !error;
     },
-    reorder: async (_serviceId: string, orderedIds: string[]) => {
+    reorder: async (serviceId: string, churchId: string, orderedIds: string[]) => {
+      // Verify the service belongs to this church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        console.error('[ServiceItems] Reorder failed: service not found or access denied', { serviceId, churchId });
+        return;
+      }
+      
       await Promise.all(
         orderedIds.map((id, index) =>
           supabase.from('service_items').update({ position: index }).eq('id', id)
@@ -203,8 +290,13 @@ export const db = {
       const { data } = await supabase.from('songs').select('*').eq('church_id', churchId).order('title');
       return (data || []) as Song[];
     },
-    getById: async (id: string) => {
-      const { data } = await supabase.from('songs').select('*').eq('id', id).single();
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('songs')
+        .select('*')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
       return data as Song | null;
     },
     create: async (s: Omit<Song, 'id' | 'created_at'>) => {
@@ -212,20 +304,41 @@ export const db = {
       const { data } = await supabase.from('songs').insert(sanitized).select().single();
       return data as Song;
     },
-    update: async (id: string, updates: Partial<Song>) => {
+    update: async (id: string, churchId: string, updates: Partial<Song>) => {
       const sanitized = sanitizeInput.song(updates);
-      const { data } = await supabase.from('songs').update(sanitized).eq('id', id).select().single();
+      const { data } = await supabase
+        .from('songs')
+        .update(sanitized)
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
       return data as Song;
     },
-    delete: async (id: string) => {
-      const { error } = await supabase.from('songs').delete().eq('id', id);
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('songs')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
       return !error;
     },
   },
 
   // Song Files
   songFiles: {
-    getBySong: async (songId: string) => {
+    getBySong: async (songId: string, churchId: string) => {
+      // Verify the song belongs to this church
+      const { data: song } = await supabase
+        .from('songs')
+        .select('church_id')
+        .eq('id', songId)
+        .single();
+      
+      if (!song || song.church_id !== churchId) {
+        return [];
+      }
+      
       const { data } = await supabase.from('song_files').select('*').eq('song_id', songId);
       return (data || []) as SongFile[];
     },
@@ -233,7 +346,26 @@ export const db = {
       const { data } = await supabase.from('song_files').insert(sf).select().single();
       return data as SongFile;
     },
-    delete: async (id: string) => {
+    delete: async (id: string, churchId: string) => {
+      // Verify the file's song belongs to this church
+      const { data: file } = await supabase
+        .from('song_files')
+        .select('song_id, songs(church_id)')
+        .eq('id', id)
+        .single();
+      
+      // When joining with songs, Supabase returns an array for the related table
+      if (!file || !file.songs) {
+        console.error('[SongFiles] Delete failed: file not found or access denied', { id, churchId });
+        return false;
+      }
+      
+      const songs = file.songs as Array<{ church_id: string }>;
+      if (songs.length === 0 || songs[0].church_id !== churchId) {
+        console.error('[SongFiles] Delete failed: song church_id mismatch', { id, churchId });
+        return false;
+      }
+      
       const { error } = await supabase.from('song_files').delete().eq('id', id);
       return !error;
     },
@@ -245,8 +377,13 @@ export const db = {
       const { data } = await supabase.from('team_members').select('*').eq('church_id', churchId).order('name');
       return (data || []) as TeamMember[];
     },
-    getById: async (id: string) => {
-      const { data } = await supabase.from('team_members').select('*').eq('id', id).single();
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('team_members')
+        .select('*')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
       return data as TeamMember | null;
     },
     create: async (tm: Omit<TeamMember, 'id' | 'created_at'>) => {
@@ -254,40 +391,119 @@ export const db = {
       const { data } = await supabase.from('team_members').insert(sanitized).select().single();
       return data as TeamMember;
     },
-    update: async (id: string, updates: Partial<TeamMember>) => {
+    update: async (id: string, churchId: string, updates: Partial<TeamMember>) => {
       const sanitized = sanitizeInput.teamMember(updates);
-      const { data } = await supabase.from('team_members').update(sanitized).eq('id', id).select().single();
+      const { data } = await supabase
+        .from('team_members')
+        .update(sanitized)
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
       return data as TeamMember;
     },
-    delete: async (id: string) => {
-      const { error } = await supabase.from('team_members').delete().eq('id', id);
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('team_members')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
       return !error;
     },
   },
 
   // Service Assignments
   assignments: {
-    getByService: async (serviceId: string) => {
+    getByService: async (serviceId: string, churchId: string) => {
+      // Verify the service belongs to this church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        return [];
+      }
+      
       const { data } = await supabase.from('service_assignments').select('*').eq('service_id', serviceId);
       return (data || []) as ServiceAssignment[];
     },
-    getByTeamMember: async (teamMemberId: string) => {
-      const { data } = await supabase.from('service_assignments').select('*').eq('team_member_id', teamMemberId);
-      return (data || []) as ServiceAssignment[];
+    getByTeamMember: async (teamMemberId: string, churchId: string) => {
+      // Verify the team member belongs to this church
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('church_id')
+        .eq('id', teamMemberId)
+        .single();
+      
+      if (!member || member.church_id !== churchId) {
+        return [];
+      }
+      
+      const { data } = await supabase
+        .from('service_assignments')
+        .select('*, service_id, services(church_id)')
+        .eq('team_member_id', teamMemberId);
+      
+      // Filter to only assignments for this church's services
+      return (data || []).filter(a => a.services && a.services.church_id === churchId) as ServiceAssignment[];
     },
     create: async (sa: Omit<ServiceAssignment, 'id'>) => {
       const { data } = await supabase.from('service_assignments').insert(sa).select().single();
       return data as ServiceAssignment;
     },
-    update: async (id: string, updates: Partial<ServiceAssignment>) => {
-      const { data } = await supabase.from('service_assignments').update(updates).eq('id', id).select().single();
+    update: async (id: string, churchId: string, updates: Partial<ServiceAssignment>) => {
+      const { data } = await supabase
+        .from('service_assignments')
+        .update(updates)
+        .eq('id', id)
+        .select('*, service_id, services(church_id)')
+        .single();
+      
+      // Verify the service belongs to this church
+      if (!data || !data.services || data.services.church_id !== churchId) {
+        return null;
+      }
+      
       return data as ServiceAssignment;
     },
-    delete: async (id: string) => {
+    delete: async (id: string, churchId: string) => {
+      // Verify the assignment's service belongs to this church
+      const { data: assignment } = await supabase
+        .from('service_assignments')
+        .select('service_id, services(church_id)')
+        .eq('id', id)
+        .single();
+      
+      // When joining with services, Supabase returns an array for the related table
+      if (!assignment || !assignment.services) {
+        console.error('[Assignments] Delete failed: assignment not found or access denied', { id, churchId });
+        return false;
+      }
+      
+      const services = assignment.services as Array<{ church_id: string }>;
+      if (services.length === 0 || services[0].church_id !== churchId) {
+        console.error('[Assignments] Delete failed: service church_id mismatch', { id, churchId });
+        return false;
+      }
+      
       const { error } = await supabase.from('service_assignments').delete().eq('id', id);
       return !error;
     },
-    deleteByService: async (serviceId: string) => {
+    deleteByService: async (serviceId: string, churchId: string) => {
+      // Verify the service belongs to this church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        console.error('[Assignments] DeleteByService failed: service not found or access denied', { serviceId, churchId });
+        return false;
+      }
+      
       const { error } = await supabase.from('service_assignments').delete().eq('service_id', serviceId);
       return !error;
     },
@@ -299,7 +515,18 @@ export const db = {
       const { data } = await supabase.from('song_usage').select('*').eq('church_id', churchId).order('date', { ascending: false });
       return (data || []) as SongUsage[];
     },
-    getBySong: async (songId: string) => {
+    getBySong: async (songId: string, churchId: string) => {
+      // Verify the song belongs to this church
+      const { data: song } = await supabase
+        .from('songs')
+        .select('church_id')
+        .eq('id', songId)
+        .single();
+      
+      if (!song || song.church_id !== churchId) {
+        return [];
+      }
+      
       const { data } = await supabase.from('song_usage').select('*').eq('song_id', songId).order('date', { ascending: false });
       return (data || []) as SongUsage[];
     },
@@ -308,14 +535,31 @@ export const db = {
       return data as SongUsage;
     },
     createForService: async (serviceId: string, churchId: string, date: string) => {
+      // Verify the service belongs to this church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        console.error('[SongUsage] CreateForService failed: service not found or access denied', { serviceId, churchId });
+        return;
+      }
+      
       const items = await db.serviceItems.getByService(serviceId);
       const songItems = items.filter((i) => i.type === 'song' && i.song_id);
 
       if (songItems.length > 0) {
-        const usages = songItems.map((item) => ({
+        const usages: Array<{
+          church_id: string;
+          service_id: string;
+          song_id: string;
+          date: string;
+        }> = songItems.map((item) => ({
           church_id: churchId,
           service_id: serviceId,
-          song_id: item.song_id,
+          song_id: item.song_id!,
           date,
         }));
         await supabase.from('song_usage').insert(usages);
@@ -329,8 +573,13 @@ export const db = {
       const { data } = await supabase.from('service_templates').select('*').eq('church_id', churchId).order('day_of_week');
       return (data || []) as ServiceTemplate[];
     },
-    getById: async (id: string) => {
-      const { data } = await supabase.from('service_templates').select('*').eq('id', id).single();
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('service_templates')
+        .select('*')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
       return data as ServiceTemplate | null;
     },
     create: async (t: Omit<ServiceTemplate, 'id' | 'created_at'>) => {
@@ -338,21 +587,34 @@ export const db = {
       const { data } = await supabase.from('service_templates').insert(sanitized).select().single();
       return data as ServiceTemplate;
     },
-    update: async (id: string, updates: Partial<ServiceTemplate>) => {
+    update: async (id: string, churchId: string, updates: Partial<ServiceTemplate>) => {
       const sanitized = sanitizeInput.template(updates);
-      const { data } = await supabase.from('service_templates').update(sanitized).eq('id', id).select().single();
+      const { data } = await supabase
+        .from('service_templates')
+        .update(sanitized)
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
       return data as ServiceTemplate;
     },
-    delete: async (id: string) => {
-      const { error } = await supabase.from('service_templates').delete().eq('id', id);
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('service_templates')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
       return !error;
     },
-    createServiceFromTemplate: async (templateId: string, dateString: string) => {
-      const template = await db.templates.getById(templateId);
-      if (!template) return null;
+    createServiceFromTemplate: async (templateId: string, churchId: string, dateString: string) => {
+      const template = await db.templates.getById(templateId, churchId);
+      if (!template) {
+        console.error('[Templates] CreateServiceFromTemplate failed: template not found or access denied', { templateId, churchId });
+        return null;
+      }
 
       const { data: svc } = await supabase.from('services').insert({
-        church_id: template.church_id,
+        church_id: churchId,
         title: template.title,
         date: dateString,
         time: template.time,
@@ -391,7 +653,19 @@ export const db = {
       const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('read', false);
       return count || 0;
     },
-    markRead: async (id: string) => {
+    markRead: async (id: string, userId: string) => {
+      // Verify the notification belongs to this user
+      const { data: notification } = await supabase
+        .from('notifications')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+      
+      if (!notification || notification.user_id !== userId) {
+        console.error('[Notifications] MarkRead failed: notification not found or access denied', { id, userId });
+        return;
+      }
+      
       await supabase.from('notifications').update({ read: true }).eq('id', id);
     },
     markAllRead: async (userId: string) => {
@@ -405,7 +679,7 @@ export const db = {
 
   // Invites
   invites: {
-    getByToken: async (token: string) => {
+    getByToken: async (token: string, churchId?: string) => {
       const { data, error } = await supabase
         .from('invites')
         .select('*')
@@ -420,6 +694,12 @@ export const db = {
         return null;
       }
 
+      // If churchId is provided, verify it matches
+      if (churchId && data.church_id !== churchId) {
+        console.warn('[Invites] Invite church mismatch:', { token, inviteChurchId: data.church_id, requestChurchId: churchId });
+        return null;
+      }
+
       // The query already filters for non-expired invites (expires_at > now)
       // This additional check ensures defense-in-depth
       if (new Date(data.expires_at).getTime() < new Date().getTime()) {
@@ -429,13 +709,25 @@ export const db = {
 
       return data as Invite | null;
     },
-    markUsed: async (id: string) => {
+    markUsed: async (id: string, churchId: string) => {
+      // Verify the invite belongs to this church
+      const { data: invite } = await supabase
+        .from('invites')
+        .select('church_id')
+        .eq('id', id)
+        .single();
+      
+      if (!invite || invite.church_id !== churchId) {
+        console.error('[Invites] MarkUsed failed: invite not found or access denied', { id, churchId });
+        return false;
+      }
+      
       const { error } = await supabase
         .from('invites')
         .update({ used_at: new Date().toISOString() })
         .eq('id', id);
 
-      if (error) return !error;
+      return !error;
     },
     create: async (invite: Omit<Invite, 'id' | 'used_at'>) => {
       const { data, error } = await supabase
@@ -457,15 +749,19 @@ export const db = {
 
       return (data || []) as Invite[];
     },
-    getByEmail: async (email: string) => {
-      const { data, error } = await supabase
+    getByEmail: async (email: string, churchId?: string) => {
+      let query = supabase
         .from('invites')
         .select('*')
         .eq('email', email)
         .is('used_at', null)
-        .limit(1)
-        .single();
+        .limit(1);
+      
+      if (churchId) {
+        query = query.eq('church_id', churchId);
+      }
 
+      const { data, error } = await query.single();
       if (error || !data) return null;
       return data as Invite | null;
     },
@@ -522,7 +818,7 @@ export const db = {
           },
           async (payload) => {
             try {
-              // Fetch the user data for the new message
+              // Fetch user data for new message
               const { data: userData } = await supabase
                 .from('users')
                 .select('*')

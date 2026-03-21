@@ -18,20 +18,22 @@ import {
   Clock, ChevronRight
 } from 'lucide-react';
 
-// --- Helper Component to load async stats for each service ---
-function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
-  const [stats, setStats] = useState({ songs: 0, duration: 0, assignments: 0 });
-  const store = useStore();
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.100', 'gray.700');
-  const textColor = useColorModeValue('gray.800', 'white');
-  const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  // --- Helper Component to load async stats for each service ---
+  function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
+    const [stats, setStats] = useState({ songs: 0, duration: 0, assignments: 0 });
+    const store = useStore();
+    const { church } = useAuth();
+    const cardBg = useColorModeValue('white', 'gray.800');
+    const borderColor = useColorModeValue('gray.100', 'gray.700');
+    const textColor = useColorModeValue('gray.800', 'white');
+    const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
   useEffect(() => {
     async function loadStats() {
+      if (!church) return;
       try {
         const items = await store.serviceItems.getByService(svc.id);
-        const assignments = await store.assignments.getByService(svc.id);
+        const assignments = await store.assignments.getByService(svc.id, church.id);
         setStats({
           songs: items.filter((i: ServiceItem) => i.type === 'song').length,
           duration: items.reduce((sum: number, i: ServiceItem) => sum + (i.duration_minutes || 0), 0),
@@ -42,7 +44,7 @@ function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
       }
     }
     loadStats();
-  }, [svc.id]);
+  }, [svc.id, church]);
 
   return (
     <Card

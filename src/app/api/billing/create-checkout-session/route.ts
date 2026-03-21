@@ -1,20 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, PRICING } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
+import { env } from '@/lib/env';
+import { withAuth, checkRateLimit, sanitizeRequestBody } from '@/lib/auth-middleware';
 
 // Lazy initialization of Supabase client
 const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.supabaseUrl(),
+  env.supabaseServiceRoleKey()
 );
 
+// Rate limit checkout session creation
+const MAX_CHECKOUT_ATTEMPTS = 5;
+const CHECKOUT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
-  const stripe = getStripe();
-  
   try {
-    const { priceType } = await request.json(); // 'monthly' or 'yearly'
+    const supabase = getSupabase();
+    const stripe = getStripe();
     
+    // Parse and validate request body
+    const body = await request.json();
+    const sanitized = sanitizeRequestBody(body);
+    const { priceType } = sanitized;
+
+    // Validate priceType
+    if (!priceType || typeof priceType !== 'string') {
+      return NextResponse.json(
+        { error: 'priceType is required (monthly or yearly)' },
+        { status: 400 }
+      );
+    }
+
+    if (priceType !== 'monthly' && priceType !== 'yearly') {
+      return NextResponse.json(
+        { error: 'Invalid priceType. Must be "monthly" or "yearly"' },
+        { status: 400 }
+      );
+    }
+
     // Get user from auth header
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
@@ -28,24 +52,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user's church and subscription
-    const { data: userData } = await supabase
+    // Rate limiting by user
+    const rateLimit = checkRateLimit(
+      `checkout-${user.id}`,
+      MAX_CHECKOUT_ATTEMPTS,
+      CHECKOUT_WINDOW_MS
+    );
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Too many checkout attempts. Please try again later.',
+          resetAt: rateLimit.resetAt 
+        },
+        { status: 429 }
+      );
+    }
+
+    // Get user's church
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('church_id')
       .eq('id', user.id)
       .single();
 
-    if (!userData?.church_id) {
-      return NextResponse.json({ error: 'Church not found' }, { status: 404 });
+    if (userError || !userData?.church_id) {
+      console.error('[Checkout] User not found or missing church:', user.id);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const { data: subscription } = await supabase
+    // Get subscription
+    const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('church_id', userData.church_id)
       .single();
 
-    if (!subscription) {
+    if (subError || !subscription) {
+      console.error('[Checkout] Subscription not found for church:', userData.church_id);
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
     }
 
@@ -53,48 +97,70 @@ export async function POST(request: NextRequest) {
     let customerId = subscription.stripe_customer_id;
     
     if (customerId.startsWith('cus_pending_')) {
-      // Create a new Stripe customer
-      const customer = await stripe.customers.create({
-        email: user.email,
-        metadata: {
-          church_id: userData.church_id,
-          user_id: user.id,
-        },
-      });
-      customerId = customer.id;
+      try {
+        // Create a new Stripe customer
+        const customer = await stripe.customers.create({
+          email: user.email,
+          metadata: {
+            church_id: userData.church_id,
+            user_id: user.id,
+          },
+        });
+        customerId = customer.id;
 
-      // Update subscription with real customer ID
-      await supabase
-        .from('subscriptions')
-        .update({ stripe_customer_id: customerId })
-        .eq('church_id', userData.church_id);
+        // Update subscription with real customer ID
+        const { error: updateError } = await supabase
+          .from('subscriptions')
+          .update({ stripe_customer_id: customerId })
+          .eq('church_id', userData.church_id);
+
+        if (updateError) {
+          console.error('[Checkout] Failed to update subscription:', updateError);
+          // Continue anyway since customer was created
+        }
+      } catch (stripeError) {
+        console.error('[Checkout] Failed to create Stripe customer:', stripeError);
+        return NextResponse.json(
+          { error: 'Failed to create customer account' },
+          { status: 500 }
+        );
+      }
     }
 
     // Create Checkout Session
     const priceId = priceType === 'yearly' ? PRICING.yearlyPriceId : PRICING.monthlyPriceId;
+    const appUrl = env.appUrl();
     
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        success_url: `${appUrl}/settings/billing?success=true`,
+        cancel_url: `${appUrl}/settings/billing?canceled=true`,
+        metadata: {
+          church_id: userData.church_id,
         },
-      ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?canceled=true`,
-      metadata: {
-        church_id: userData.church_id,
-      },
-    });
+      });
 
-    return NextResponse.json({ url: session.url });
+      return NextResponse.json({ url: session.url });
+    } catch (stripeError) {
+      console.error('[Checkout] Failed to create checkout session:', stripeError);
+      return NextResponse.json(
+        { error: 'Failed to create checkout session' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error('Error creating checkout session:', error);
+    console.error('[Checkout] Unexpected error:', error);
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      { error: 'An unexpected error occurred. Please try again.' },
       { status: 500 }
     );
   }

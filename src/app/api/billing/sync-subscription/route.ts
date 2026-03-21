@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
 import { hasPermission } from '@/lib/rbac';
+import { env } from '@/lib/env';
 
 // Lazy initialization of Supabase client
 const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.supabaseUrl(),
+  env.supabaseServiceRoleKey()
 );
 
 export async function POST(request: NextRequest) {
@@ -28,14 +29,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's church and subscription
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('church_id, role')
       .eq('id', user.id)
       .single();
 
-    if (!userData?.church_id) {
-      return NextResponse.json({ error: 'Church not found' }, { status: 404 });
+    if (userError || !userData?.church_id) {
+      console.error('[Sync Subscription] User not found or missing church:', user.id);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Check if user has permission to manage billing (admin only)
@@ -46,13 +48,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: subscription } = await supabase
+    const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('church_id', userData.church_id)
       .single();
 
-    if (!subscription) {
+    if (subError || !subscription) {
+      console.error('[Sync Subscription] Subscription not found for church:', userData.church_id);
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
     }
 
@@ -67,10 +70,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch all subscriptions for this customer from Stripe
-    const stripeSubscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      limit: 10,
-    });
+    let stripeSubscriptions;
+    try {
+      stripeSubscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        limit: 10,
+      });
+    } catch (stripeError) {
+      console.error('[Sync Subscription] Failed to fetch subscriptions from Stripe:', stripeError);
+      return NextResponse.json(
+        { error: 'Failed to fetch subscription data from Stripe' },
+        { status: 500 }
+      );
+    }
 
     const activeSubscription = stripeSubscriptions.data.find(sub => sub.status === 'active');
     const trialingSubscription = stripeSubscriptions.data.find(sub => sub.status === 'trialing');
@@ -134,10 +146,18 @@ export async function POST(request: NextRequest) {
 
     // Apply updates if status changed or we have subscription details
     if (newStatus !== subscription.status || activeSubscription || pastDueSubscription || trialingSubscription) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('subscriptions')
         .update(updates)
         .eq('church_id', userData.church_id);
+
+      if (updateError) {
+        console.error('[Sync Subscription] Failed to update subscription:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to update subscription in database' },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({
@@ -148,7 +168,7 @@ export async function POST(request: NextRequest) {
       stripeSubscriptionsFound: stripeSubscriptions.data.length,
     });
   } catch (error) {
-    console.error('Error syncing subscription:', error);
+    console.error('[Sync Subscription] Unexpected error:', error);
     return NextResponse.json(
       { error: 'Failed to sync subscription' },
       { status: 500 }

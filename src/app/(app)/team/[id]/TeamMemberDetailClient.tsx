@@ -53,7 +53,7 @@ export default function TeamMemberDetailClient() {
     if (!church) return;
     try {
       setLoading(true);
-      const m = await store.teamMembers.getById(memberId);
+      const m = await store.teamMembers.getById(memberId, church.id);
       setMember(m);
       if (m) {
         setName(m.name);
@@ -78,7 +78,7 @@ export default function TeamMemberDetailClient() {
     async function loadAssignments() {
       const results: { service: Service; role: string; status: string }[] = [];
       for (const svc of services) {
-        const svcAssignments = await store.assignments.getByService(svc.id);
+        const svcAssignments = await store.assignments.getByService(svc.id, church?.id || '');
         svcAssignments
           .filter((a) => a.team_member_id === memberId)
           .forEach((a) => {
@@ -88,8 +88,8 @@ export default function TeamMemberDetailClient() {
       results.sort((a, b) => new Date(b.service.date).getTime() - new Date(a.service.date).getTime());
       setRecentAssignments(results.slice(0, 5));
     }
-    if (services.length > 0) loadAssignments();
-  }, [services, memberId]);
+    if (services.length > 0 && church) loadAssignments();
+  }, [services, memberId, church]);
 
   if (loading) {
     return (
@@ -108,7 +108,8 @@ export default function TeamMemberDetailClient() {
   }
 
   const handleSave = async () => {
-    await store.teamMembers.update(memberId, {
+    if (!church) return;
+    await store.teamMembers.update(memberId, church.id, {
       name,
       email,
       phone,

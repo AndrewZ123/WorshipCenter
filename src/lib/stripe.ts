@@ -1,17 +1,20 @@
 import Stripe from 'stripe';
+import { env } from './env';
 
 // Lazy initialization of Stripe to avoid build-time errors
 let stripeInstance: Stripe | null = null;
 
 export const getStripe = (): Stripe => {
   if (!stripeInstance) {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) {
-      throw new Error('STRIPE_SECRET_KEY is not configured');
+    try {
+      const key = env.stripeSecretKey();
+      stripeInstance = new Stripe(key, {
+        apiVersion: '2026-02-25.clover',
+      });
+    } catch (error) {
+      console.error('Failed to initialize Stripe:', error);
+      throw new Error('Server configuration error: Unable to initialize payment provider');
     }
-    stripeInstance = new Stripe(key, {
-      apiVersion: '2026-02-25.clover',
-    });
   }
   return stripeInstance;
 };
@@ -27,8 +30,8 @@ export const stripe = {
 
 // Pricing configuration
 export const PRICING = {
-  monthlyPriceId: process.env.STRIPE_MONTHLY_PRICE_ID!,
-  yearlyPriceId: process.env.STRIPE_YEARLY_PRICE_ID!,
+  get monthlyPriceId() { return env.stripeMonthlyPriceId(); },
+  get yearlyPriceId() { return env.stripeYearlyPriceId(); },
   monthlyPrice: 2900, // $29.00 in cents
   yearlyPrice: 29000, // $290.00 in cents
   trialDays: 14,
@@ -36,5 +39,10 @@ export const PRICING = {
 
 // Helper to get Stripe public key for client
 export const getStripePublishableKey = () => {
-  return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!;
+  try {
+    return env.stripePublishableKey();
+  } catch (error) {
+    console.error('Failed to get Stripe publishable key:', error);
+    return ''; // Return empty string for client-side fallback
+  }
 };

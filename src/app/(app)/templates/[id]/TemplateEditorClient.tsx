@@ -77,7 +77,7 @@ export default function TemplateEditorClient() {
 
   const loadData = useCallback(async () => {
     if (!church) return;
-    const t = await store.templates.getById(templateId);
+    const t = await store.templates.getById(templateId, church.id);
     if (t) {
       setTemplate(t);
       setTitle(t.title);
@@ -119,8 +119,9 @@ export default function TemplateEditorClient() {
   }
 
   const saveItems = async (newItems: EditorItem[]) => {
+    if (!church) return;
     setItems(newItems);
-    await store.templates.update(templateId, {
+    await store.templates.update(templateId, church.id, {
       items: newItems.map(({ id, ...rest }, idx) => ({ ...rest, position: idx }))
     });
   };
@@ -155,13 +156,15 @@ export default function TemplateEditorClient() {
   };
 
   const handleSaveSettings = async () => {
-    await store.templates.update(templateId, { title, day_of_week: day, time });
+    if (!church) return;
+    await store.templates.update(templateId, church.id, { title, day_of_week: day, time });
     toast({ title: 'Template settings saved', status: 'success', duration: 2000 });
     await loadData();
   };
 
   const handleDeleteTemplate = async () => {
-    await store.templates.delete(templateId);
+    if (!church) return;
+    await store.templates.delete(templateId, church.id);
     toast({ title: 'Template deleted', status: 'info', duration: 2000 });
     router.push('/services');
   };

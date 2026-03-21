@@ -88,7 +88,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
           .filter(s => s.church_id === churchId)
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       },
-      getById: async (id: string): Promise<Service | null> => {
+      getById: async (id: string, _churchId?: string): Promise<Service | null> => {
         const demo = getDemoContext();
         return demo.services.find(s => s.id === id) || null;
       },
@@ -96,7 +96,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.createService(s);
       },
-      update: async (id: string, updates: Partial<Service>): Promise<Service> => {
+      update: async (id: string, _churchId: string, updates: Partial<Service>): Promise<Service> => {
         const demo = getDemoContext();
         return demo.updateService(id, updates);
       },
@@ -117,19 +117,23 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
           .filter(si => si.service_id === serviceId)
           .sort((a, b) => a.position - b.position);
       },
+      getById: async (id: string, _churchId: string): Promise<ServiceItem | null> => {
+        const demo = getDemoContext();
+        return demo.serviceItems.find(si => si.id === id) || null;
+      },
       create: async (si: Omit<ServiceItem, 'id'>): Promise<ServiceItem> => {
         const demo = getDemoContext();
         return demo.createServiceItem(si);
       },
-      update: async (id: string, updates: Partial<ServiceItem>): Promise<ServiceItem> => {
+      update: async (id: string, _churchId: string, updates: Partial<ServiceItem>): Promise<ServiceItem> => {
         const demo = getDemoContext();
         return demo.updateServiceItem(id, updates);
       },
-      delete: async (id: string): Promise<boolean> => {
+      delete: async (id: string, _churchId: string): Promise<boolean> => {
         const demo = getDemoContext();
         return demo.deleteServiceItem(id);
       },
-      reorder: async (serviceId: string, orderedIds: string[]): Promise<void> => {
+      reorder: async (serviceId: string, _churchId: string, orderedIds: string[]): Promise<void> => {
         const demo = getDemoContext();
         demo.reorderServiceItems(serviceId, orderedIds);
       },
@@ -140,7 +144,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.songs.filter(s => s.church_id === churchId).sort((a, b) => a.title.localeCompare(b.title));
       },
-      getById: async (id: string): Promise<Song | null> => {
+      getById: async (id: string, _churchId?: string): Promise<Song | null> => {
         const demo = getDemoContext();
         return demo.songs.find(s => s.id === id) || null;
       },
@@ -148,7 +152,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.createSong(s);
       },
-      update: async (id: string, updates: Partial<Song>): Promise<Song> => {
+      update: async (id: string, _churchId: string, updates: Partial<Song>): Promise<Song> => {
         const demo = getDemoContext();
         return demo.updateSong(id, updates);
       },
@@ -176,7 +180,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.teamMembers.filter(tm => tm.church_id === churchId).sort((a, b) => a.name.localeCompare(b.name));
       },
-      getById: async (id: string): Promise<TeamMember | null> => {
+      getById: async (id: string, _churchId?: string): Promise<TeamMember | null> => {
         const demo = getDemoContext();
         return demo.teamMembers.find(tm => tm.id === id) || null;
       },
@@ -184,7 +188,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.createTeamMember(tm);
       },
-      update: async (id: string, updates: Partial<TeamMember>): Promise<TeamMember> => {
+      update: async (id: string, _churchId: string, updates: Partial<TeamMember>): Promise<TeamMember> => {
         const demo = getDemoContext();
         return demo.updateTeamMember(id, updates);
       },
@@ -207,7 +211,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.createAssignment(sa);
       },
-      update: async (id: string, updates: Partial<ServiceAssignment>): Promise<ServiceAssignment> => {
+      update: async (id: string, _churchId: string, updates: Partial<ServiceAssignment>): Promise<ServiceAssignment | null> => {
         const demo = getDemoContext();
         return demo.updateAssignment(id, updates);
       },
@@ -251,7 +255,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
           .filter(t => t.church_id === churchId)
           .sort((a, b) => a.day_of_week - b.day_of_week);
       },
-      getById: async (id: string): Promise<ServiceTemplate | null> => {
+      getById: async (id: string, _churchId?: string): Promise<ServiceTemplate | null> => {
         const demo = getDemoContext();
         return demo.templates.find(t => t.id === id) || null;
       },
@@ -259,7 +263,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.createTemplate(t);
       },
-      update: async (id: string, updates: Partial<ServiceTemplate>): Promise<ServiceTemplate> => {
+      update: async (id: string, _churchId: string, updates: Partial<ServiceTemplate>): Promise<ServiceTemplate> => {
         const demo = getDemoContext();
         return demo.updateTemplate(id, updates);
       },
@@ -267,7 +271,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.deleteTemplate(id);
       },
-      createServiceFromTemplate: async (templateId: string, dateString: string): Promise<Service | null> => {
+      createServiceFromTemplate: async (templateId: string, dateString: string, _churchId: string): Promise<Service | null> => {
         const demo = getDemoContext();
         return demo.createServiceFromTemplate(templateId, dateString);
       },
@@ -296,7 +300,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       getByToken: async (_token: string): Promise<Invite | null> => {
         return null;
       },
-      markUsed: async (_id: string): Promise<false | undefined> => {
+      markUsed: async (_id: string): Promise<boolean> => {
         return false;
       },
       create: async (_invite: Omit<Invite, 'id' | 'used_at'>): Promise<Invite> => {

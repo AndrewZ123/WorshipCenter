@@ -114,7 +114,7 @@ export default function SongDetailClient() {
     if (!church) return;
     try {
       setLoading(true);
-      const s = await store.songs.getById(songId);
+      const s = await store.songs.getById(songId, church.id);
       if (s) {
         setSong(s);
         setTitle(s.title);
@@ -124,8 +124,8 @@ export default function SongDetailClient() {
         setTagsStr(s.tags.join(', '));
         setYoutubeId(s.youtube_video_id || '');
       }
-      setFiles(await store.songFiles.getBySong(songId));
-      setAllUsage(await store.songUsage.getBySong(songId));
+      setFiles(await store.songFiles.getBySong(songId, church.id));
+      setAllUsage(await store.songUsage.getBySong(songId, church.id));
       setServices(await store.services.getByChurch(church.id));
     } catch (error) {
       console.error('Error loading song:', error);
@@ -186,8 +186,9 @@ export default function SongDetailClient() {
   };
 
   const handleSave = async () => {
+    if (!church) return;
     const extractedId = extractYoutubeId(youtubeId);
-    await store.songs.update(songId, {
+    await store.songs.update(songId, church.id, {
       title, artist, default_key: defaultKey || 'C', ccli_number: ccli,
       tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
       youtube_video_id: extractedId || undefined,
@@ -198,7 +199,8 @@ export default function SongDetailClient() {
   };
 
   const handleDelete = async () => {
-    await store.songs.delete(songId);
+    if (!church) return;
+    await store.songs.delete(songId, church.id);
     toast({ title: 'Song deleted', status: 'info', duration: 2000 });
     router.push('/songs');
   };
@@ -217,7 +219,8 @@ export default function SongDetailClient() {
   };
 
   const handleDeleteFile = async (fileId: string) => { 
-    await store.songFiles.delete(fileId); 
+    if (!church) return;
+    await store.songFiles.delete(fileId, church.id); 
     await loadData(); 
     toast({ title: 'File removed', status: 'info', duration: 2000 }); 
   };

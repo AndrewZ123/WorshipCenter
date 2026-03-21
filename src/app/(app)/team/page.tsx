@@ -70,12 +70,13 @@ export default function TeamPage() {
 
   useEffect(() => {
     async function loadAssignments() {
+      if (!church) return;
       const map: Record<string, string | null> = {};
       
       for (const m of members) {
         let latestDate: string | null = null;
         for (const svc of services) {
-          const assignments = await store.assignments.getByService(svc.id);
+          const assignments = await store.assignments.getByService(svc.id, church.id);
           if (assignments.some((a) => a.team_member_id === m.id)) {
             if (!latestDate || svc.date > latestDate) latestDate = svc.date;
           }
@@ -85,10 +86,10 @@ export default function TeamPage() {
       setLastScheduledMap(map);
     }
     
-    if (members.length > 0 && services.length > 0) {
+    if (members.length > 0 && services.length > 0 && church) {
       loadAssignments();
     }
-  }, [members, services]);
+  }, [members, services, church]);
 
   const handleCreate = async () => {
     if (!church || !name) return;
@@ -99,8 +100,8 @@ export default function TeamPage() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
-    await store.teamMembers.delete(deleteId);
+    if (!deleteId || !church) return;
+    await store.teamMembers.delete(deleteId, church.id);
     toast({ title: 'Team member removed', status: 'info', duration: 2000 });
     setDeleteId(null); await loadMembers();
   };

@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, PRICING } from '@/lib/stripe';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { env } from '@/lib/env';
 
 // Lazy initialization helpers
 const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.supabaseUrl(),
+  env.supabaseServiceRoleKey()
 );
 
-const getWebhookSecret = () => process.env.STRIPE_WEBHOOK_SECRET!;
+const getWebhookSecret = () => env.stripeWebhookSecret();
 
 export async function POST(request: NextRequest) {
   const supabase = getSupabase();
