@@ -108,13 +108,22 @@ export default function TeamPage() {
         
         console.log('[Team Page] Response status:', response.status);
         
+        // Clone the response before reading to avoid "body already consumed" error
+        const clonedResponse = response.clone();
+        
         let data;
         try {
           data = await response.json();
           console.log('[Team Page] Response data:', data);
         } catch (parseError) {
           console.error('[Team Page] Failed to parse response JSON:', parseError);
-          console.error('[Team Page] Response text:', await response.text());
+          // Use cloned response to get text if JSON parsing fails
+          try {
+            const errorText = await clonedResponse.text();
+            console.error('[Team Page] Response text:', errorText);
+          } catch (textError) {
+            console.error('[Team Page] Failed to read response text:', textError);
+          }
           toast({ 
             title: 'Email warning', 
             description: 'Team member added, but there was an issue sending the invitation email',
@@ -200,13 +209,22 @@ export default function TeamPage() {
       
       console.log('[Team Page] Response status:', response.status);
       
+      // Clone the response before reading to avoid "body already consumed" error
+      const clonedResponse = response.clone();
+      
       let data;
       try {
         data = await response.json();
         console.log('[Team Page] Response data:', data);
       } catch (parseError) {
         console.error('[Team Page] Failed to parse response JSON:', parseError);
-        console.error('[Team Page] Response text:', await response.text());
+        // Use cloned response to get text if JSON parsing fails
+        try {
+          const errorText = await clonedResponse.text();
+          console.error('[Team Page] Response text:', errorText);
+        } catch (textError) {
+          console.error('[Team Page] Failed to read response text:', textError);
+        }
         toast({ 
           title: 'Email warning', 
           description: 'There was an issue sending the invitation email',
