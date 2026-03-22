@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}` 
       : 'http://localhost:3000');
-    const inviteUrl = `${baseUrl}/join?church=${churchId}&email=${encodeURIComponent(teamMember.email)}`;
+    const inviteUrl = `${baseUrl}/join?e=${encodeURIComponent(teamMember.email)}&c=${churchId}`;
 
     const emailConfigured = await isEmailConfigured();
     console.log('[Send Team Invitation] Email service configured:', emailConfigured);
