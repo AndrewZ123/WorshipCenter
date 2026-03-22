@@ -269,7 +269,7 @@ export default function TeamPage() {
                   >
                     <Td>
                       <HStack spacing="3">
-                        <Avatar name={member.name} size="sm" />
+                        <Avatar name={member.name} src={member.avatar_url} size="sm" />
                         <Text fontWeight="600" color={headingColor}>{member.name}</Text>
                       </HStack>
                     </Td>

@@ -87,6 +87,8 @@ export interface TeamMember {
   email: string;
   phone: string;
   roles: string[];
+  user_id?: string;
+  avatar_url?: string;
   created_at: string;
 }
 

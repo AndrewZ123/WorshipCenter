@@ -99,6 +99,17 @@ export default function SettingsPage() {
       
       if (updateError) throw updateError;
       
+      // Also update the team_member record linked to this user
+      const { error: teamMemberError } = await supabase
+        .from('team_members')
+        .update({ avatar_url: publicUrl })
+        .eq('user_id', user.id);
+      
+      if (teamMemberError) {
+        console.error('Error updating team_member avatar:', teamMemberError);
+        // Don't throw - the user update succeeded, team_member update is secondary
+      }
+      
       setAvatarUrl(publicUrl);
       toast({ title: 'Avatar updated!', status: 'success', duration: 3000 });
     } catch (error) {
