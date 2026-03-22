@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/store';
-import { sendEmail, isEmailConfigured, getEmailConfigStatus } from '@/lib/email';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
 import type { TeamMember, Church } from '@/lib/types';
 
 interface SendTeamInvitationRequest {
@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
   try {
     console.log('[Send Team Invitation] Starting request');
     
-    // Parse request body with error handling
     let body: SendTeamInvitationRequest;
     try {
       body = await request.json();
@@ -29,7 +28,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: teamMemberId and churchId' }, { status: 400 });
     }
 
-    // Get team member details with error handling
     let teamMember: TeamMember | null;
     try {
       console.log('[Send Team Invitation] Fetching team member:', teamMemberId, 'for church:', churchId);
@@ -46,13 +44,9 @@ export async function POST(request: NextRequest) {
 
     if (!teamMember.email) {
       console.warn('[Send Team Invitation] Team member has no email');
-      return NextResponse.json(
-        { error: 'Team member has no email address' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Team member has no email address' }, { status: 400 });
     }
 
-    // Get church details with error handling
     let church: Church | null;
     try {
       console.log('[Send Team Invitation] Fetching church:', churchId);
@@ -67,39 +61,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Database error fetching church', details: String(dbError) }, { status: 500 });
     }
 
-    // Generate invite link
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
-    const inviteUrl = `${baseUrl}/join?e=${encodeURIComponent(teamMember.email)}&c=${churchId}`;
-    console.log('[Send Team Invitation] Generated invite URL');
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : 'http://localhost:3000');
+    const inviteUrl = `${baseUrl}/join?church=${churchId}&email=${encodeURIComponent(teamMember.email)}`;
 
-    // Check if email service is configured
     const emailConfigured = await isEmailConfigured();
-    console.log('[SendlTea. Invitltoon] Emaig service c'[Senared:',nitionConfigured);] Email service configured:', emailConfigured);
+    console.log('[Send Team Invitation] Email service configured:', emailConfigured);
 
-    // Send email if configured
     let emailResult = null;
     if (emailConfigured) {
       try {
-        console.log('[Send Team Invitation] Attempting to send email to:', teamMember.email);
-        
         emailResult = await sendEmail({
           to: teamMember.email,
           subject: `You're invited to join ${church.name} on WorshipCenter`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>You're invited to join ${church.name}!</h2>
+              <h2 style="color: #319795;">You're invited to join ${church.name}!</h2>
+              <p>Hello ${teamMember.name || 'there'},</p>
               <p>You've been invited to join the team at ${church.name} on WorshipCenter.</p>
-              <p>Click the button below to accept your invitation and get started:</p>
-              <div style="text-align: center; margin: 30px 0;">
+              <p style="margin: 30px 0;">
                 <a href="${inviteUrl}" 
-                   style="background-color: #4F46E5; color: white; padding: 12px 24px; 
-                          text-decoration: none; border-radius: 6px; display: inline-block;">
+                   style="background-color: #319795; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
                   Accept Invitation
                 </a>
-              </div>
-              <p>Or copy and paste this link into your browser:</p>
-              <p style="word-break: break-all; color: #666;">${inviteUrl}</p>
-              <p style="margin-top: 30px; font-size: 14px; color: #666;">
+              </p>
+              <p style="color: #666; font-size: 14px;">
                 If you didn't expect this invitation, you can safely ignore this email.
               </p>
             </div>
@@ -115,7 +102,6 @@ If you didn't expect this invitation, you can safely ignore this email.`,
         console.log('[Send Team Invitation] Email result:', emailResult);
       } catch (emailError) {
         console.error('[Send Team Invitation] Error sending email:', emailError);
-        // Don't fail the entire request - just mark email as not sent
         emailResult = { success: false, error: emailError instanceof Error ? emailError.message : 'Unknown error' };
       }
     } else {
