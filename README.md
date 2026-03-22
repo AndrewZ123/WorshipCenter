@@ -131,6 +131,10 @@ Required environment variables:
 - `STRIPE_SECRET_KEY`: Stripe secret key
 - `STRIPE_WEBHOOK_SECRET`: Stripe webhook secret
 
+Optional environment variables:
+- `RESEND_API_KEY`: Resend API key for email service (get from https://resend.com/api-keys)
+- `EMAIL_FROM`: Sender email address with display name in format: `"Name <email>"` (e.g., `"WorshipCenter <hello@worshipcenter.app>"`)
+
 ## Project Structure
 
 ```
