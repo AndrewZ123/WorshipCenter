@@ -916,20 +916,19 @@ export default function ServiceDetailClient() {
               
               <FormControl>
                 <FormLabel fontWeight="600" fontSize="sm">Assigned To</FormLabel>
-                <Select 
+                <Input 
+                  list="team-members-datalist"
                   value={itemAssignedTo} 
                   onChange={(e) => setItemAssignedTo(e.target.value)}
-                  placeholder="Select team member or type name"
+                  placeholder="Type any name or select from team"
                   borderRadius="lg"
-                >
-                  <option value="">None</option>
+                />
+                <datalist id="team-members-datalist">
                   {teamMembers.map(member => (
-                    <option key={member.id} value={member.name}>
-                      {member.name}
-                    </option>
+                    <option key={member.id} value={member.name} />
                   ))}
-                </Select>
-                <Text fontSize="xs" color="gray.500" mt="1">Who is doing this segment? (informational only)</Text>
+                </datalist>
+                <Text fontSize="xs" color="gray.500" mt="1">Type any name (team members, guests, or roles)</Text>
               </FormControl>
             </VStack>
           </ModalBody>
