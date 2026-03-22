@@ -8,6 +8,18 @@ interface SendTeamInvitationRequest {
   churchId: string;
 }
 
+/**
+ * Helper function to create JSON response with explicit Content-Type header
+ */
+function jsonResponse(data: any, status: number = 200): NextResponse {
+  return new NextResponse(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('[Send Team Invitation] Starting request');
@@ -18,17 +30,20 @@ export async function POST(request: NextRequest) {
       console.log('[Send Team Invitation] Request body:', body);
     } catch (parseError) {
       console.error('[Send Team Invitation] Failed to parse request body:', parseError);
-      return NextResponse.json({ 
-        error: 'Invalid request body',
-        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
-      }, { status: 400 });
+      return jsonResponse(
+        { 
+          error: 'Invalid request body',
+          details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+        }, 
+        400
+      );
     }
     
     const { teamMemberId, churchId } = body;
 
     if (!teamMemberId || !churchId) {
       console.error('[Send Team Invitation] Missing required fields:', { teamMemberId, churchId });
-      return NextResponse.json({ error: 'Missing required fields: teamMemberId and churchId' }, { status: 400 });
+      return jsonResponse({ error: 'Missing required fields: teamMemberId and churchId' }, 400);
     }
 
     let teamMember: TeamMember | null;
@@ -37,20 +52,23 @@ export async function POST(request: NextRequest) {
       teamMember = await db.teamMembers.getById(teamMemberId, churchId);
       if (!teamMember) {
         console.warn('[Send Team Invitation] Team member not found');
-        return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
+        return jsonResponse({ error: 'Team member not found' }, 404);
       }
       console.log('[Send Team Invitation] Team member found:', teamMember.name);
     } catch (dbError) {
       console.error('[Send Team Invitation] Database error fetching team member:', dbError);
-      return NextResponse.json({ 
-        error: 'Database error fetching team member', 
-        details: String(dbError) 
-      }, { status: 500 });
+      return jsonResponse(
+        { 
+          error: 'Database error fetching team member', 
+          details: String(dbError) 
+        }, 
+        500
+      );
     }
 
     if (!teamMember.email) {
       console.warn('[Send Team Invitation] Team member has no email');
-      return NextResponse.json({ error: 'Team member has no email address' }, { status: 400 });
+      return jsonResponse({ error: 'Team member has no email address' }, 400);
     }
 
     let church: Church | null;
@@ -59,15 +77,18 @@ export async function POST(request: NextRequest) {
       church = await db.churches.getById(churchId);
       if (!church) {
         console.warn('[Send Team Invitation] Church not found');
-        return NextResponse.json({ error: 'Church not found' }, { status: 404 });
+        return jsonResponse({ error: 'Church not found' }, 404);
       }
       console.log('[Send Team Invitation] Church found:', church.name);
     } catch (dbError) {
       console.error('[Send Team Invitation] Database error fetching church:', dbError);
-      return NextResponse.json({ 
-        error: 'Database error fetching church', 
-        details: String(dbError) 
-      }, { status: 500 });
+      return jsonResponse(
+        { 
+          error: 'Database error fetching church', 
+          details: String(dbError) 
+        }, 
+        500
+      );
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL 
@@ -81,7 +102,7 @@ export async function POST(request: NextRequest) {
     if (!emailConfigured) {
       console.warn('[Send Team Invitation] Email service not configured - returning early with invite link');
       console.warn('[Send Team Invitation] Check environment variables: RESEND_API_KEY and EMAIL_FROM');
-      return NextResponse.json({ 
+      return jsonResponse({
         success: true, 
         emailSent: false,
         emailError: 'Email service not configured (RESEND_API_KEY or EMAIL_FROM missing in environment variables)',
@@ -137,7 +158,7 @@ If you didn't expect this invitation, you can safely ignore this email.`,
 
     console.log('[Send Team Invitation] Request completed successfully');
     
-    return NextResponse.json({ 
+    return jsonResponse({
       success: true, 
       emailSent: !!emailResult?.success,
       emailError: emailResult?.error,
@@ -158,13 +179,13 @@ If you didn't expect this invitation, you can safely ignore this email.`,
       constructor: error instanceof Error ? error.constructor.name : 'Unknown'
     });
     
-    return NextResponse.json(
+    return jsonResponse(
       { 
         error: 'Failed to send team invitation', 
         details: error instanceof Error ? error.message : 'Unknown error',
         type: error instanceof Error ? error.constructor.name : 'Unknown'
       },
-      { status: 500 }
+      500
     );
   }
 }

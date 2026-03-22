@@ -1,16 +1,8 @@
 /**
  * Input Sanitization Utilities for WorshipCenter
  * Provides XSS protection and input validation for all user inputs
+ * Using lightweight regex-based sanitization for server-side compatibility
  */
-
-import DOMPurify from 'isomorphic-dompurify';
-
-// Configure DOMPurify to be strict
-DOMPurify.setConfig({
-  ALLOWED_TAGS: [], // Strip all HTML tags by default
-  ALLOWED_ATTR: [], // Strip all attributes
-  KEEP_CONTENT: true, // Keep text content
-});
 
 /**
  * Sanitize a string input to prevent XSS attacks
@@ -19,14 +11,29 @@ DOMPurify.setConfig({
 export function sanitizeString(input: string): string {
   if (typeof input !== 'string') return '';
   
-  // First pass: DOMPurify strips HTML
-  let sanitized = DOMPurify.sanitize(input);
+  // Remove all HTML tags
+  let sanitized = input.replace(/<[^>]*>/g, '');
+  
+  // Decode HTML entities
+  sanitized = sanitized
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/&/g, '&')
+    .replace(/"/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&#x3D;/g, '=')
+    .replace(/&#x60;/g, '`');
   
   // Normalize unicode and trim
   sanitized = sanitized.normalize('NFC').trim();
   
   // Remove null bytes and other control characters (except newlines/tabs)
   sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  
+  // Remove extra whitespace
+  sanitized = sanitized.replace(/\s+/g, ' ');
   
   return sanitized;
 }
@@ -38,14 +45,50 @@ export function sanitizeString(input: string): string {
 export function sanitizeHtml(input: string): string {
   if (typeof input !== 'string') return '';
   
-  // Configure for limited HTML
-  const clean = DOMPurify.sanitize(input, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'u', 'br', 'p', 'span'],
-    ALLOWED_ATTR: [],
-    KEEP_CONTENT: true,
+  // Allowed tags with their corresponding opening/closing patterns
+  const allowedTags = ['b', 'i', 'em', 'strong', 'u', 'br', 'p', 'span'];
+  const allowedTagsPattern = new RegExp(`^(${allowedTags.join('|')})$`, 'i');
+  
+  // Step 1: Remove all attributes from HTML tags
+  let sanitized = input.replace(/<([a-zA-Z][a-zA-Z0-9]*)(\s+[^>]*)?>/g, (match, tagName) => {
+    // Keep only the tag name if it's allowed
+    if (allowedTagsPattern.test(tagName)) {
+      return `<${tagName.toLowerCase()}>`;
+    }
+    // Remove disallowed tags entirely
+    return '';
   });
   
-  return clean;
+  // Step 2: Remove closing tags for disallowed elements
+  sanitized = sanitized.replace(/<\/([a-zA-Z][a-zA-Z0-9]*)>/g, (match, tagName) => {
+    if (allowedTagsPattern.test(tagName)) {
+      return `</${tagName.toLowerCase()}>`;
+    }
+    return '';
+  });
+  
+  // Step 3: Remove potentially dangerous patterns that might have slipped through
+  // Remove script-like content
+  sanitized = sanitized.replace(/javascript:/gi, '');
+  sanitized = sanitized.replace(/on\w+\s*=/gi, '');
+  sanitized = sanitized.replace(/data:/gi, '');
+  
+  // Step 4: Decode HTML entities
+  sanitized = sanitized
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/&/g, '&')
+    .replace(/"/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+    .replace(/&#x3D;/g, '=')
+    .replace(/&#x60;/g, '`');
+  
+  // Normalize unicode and trim
+  sanitized = sanitized.normalize('NFC').trim();
+  
+  return sanitized;
 }
 
 /**
