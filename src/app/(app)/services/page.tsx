@@ -226,7 +226,7 @@ export default function ServicesPage() {
                     <span>Create Service</span>
                   </HStack>
                 </MenuButton>
-                <MenuList borderRadius="xl">
+                <MenuList borderRadius="xl" zIndex={50}>
                   <MenuItem onClick={createModal.onOpen} fontWeight="500" icon={<Plus size={16} />}>Blank Service</MenuItem>
                   <Divider my="2" />
                   <Text px="3" py="1" fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase">From Template</Text>
@@ -433,7 +433,7 @@ export default function ServicesPage() {
                             color="gray.400"
                             _hover={{ color: 'gray.600', bg: 'gray.100' }}
                           />
-                          <MenuList borderRadius="xl">
+                          <MenuList borderRadius="xl" zIndex={50}>
                             <MenuItem onClick={() => { setDupSourceId(service.id); setDupTitle(service.title); setDupDate(''); dupDisclosure.onOpen(); }} icon={<Copy size={16} />}>Duplicate</MenuItem>
                             <MenuItem color="red.500" onClick={() => { setDeleteId(service.id); deleteDisclosure.onOpen(); }} icon={<Trash2 size={16} />}>Delete</MenuItem>
                           </MenuList>
@@ -491,7 +491,7 @@ export default function ServicesPage() {
                               color="gray.400"
                               _hover={{ color: 'gray.600', bg: 'gray.100' }}
                             />
-                            <MenuList borderRadius="xl">
+                            <MenuList borderRadius="xl" zIndex={50}>
                               <MenuItem onClick={() => { setDupSourceId(service.id); setDupTitle(service.title); setDupDate(''); dupDisclosure.onOpen(); }} icon={<Copy size={16} />}>Duplicate</MenuItem>
                               <MenuItem color="red.500" onClick={() => { setDeleteId(service.id); deleteDisclosure.onOpen(); }} icon={<Trash2 size={16} />}>Delete</MenuItem>
                             </MenuList>

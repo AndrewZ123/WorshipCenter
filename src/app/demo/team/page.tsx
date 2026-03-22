@@ -214,8 +214,8 @@ export default function DemoTeamPage() {
                           _hover={{ color: 'gray.600', bg: 'gray.100' }}
                           minW="32px"
                         />
-                        <MenuList borderRadius="xl">
-                          <MenuItem 
+                        <MenuList borderRadius="xl" zIndex={50}>
+                          <MenuItem
                             onClick={() => router.push(`/demo/team/${member.id}`)}
                             borderRadius="lg"
                           >
@@ -304,7 +304,7 @@ export default function DemoTeamPage() {
                           color="gray.400"
                           minW="32px"
                         />
-                        <MenuList borderRadius="xl">
+                        <MenuList borderRadius="xl" zIndex={50}>
                           <MenuItem 
                             onClick={() => router.push(`/demo/team/${member.id}`)}
                             borderRadius="lg"

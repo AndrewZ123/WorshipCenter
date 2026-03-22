@@ -269,7 +269,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                 )}
               </HStack>
             </PopoverTrigger>
-            <PopoverContent borderRadius="xl" maxW="320px">
+            <PopoverContent borderRadius="xl" maxW="320px" zIndex={50}>
               <PopoverCloseButton />
               <PopoverHeader fontWeight="700" borderBottom="1px solid" borderColor={borderColor}>
                 <HStack justify="space-between" pr="8">
@@ -322,7 +322,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                 </Box>
               </HStack>
             </MenuButton>
-            <MenuList>
+            <MenuList zIndex={50}>
               <MenuItem
                 icon={<Settings size={16} />}
                 onClick={() => { router.push('/settings'); onClose?.(); }}

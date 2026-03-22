@@ -105,14 +105,18 @@ export async function sendEmail({
   html: string;
   text: string;
 }): Promise<{ success: boolean; error?: string; messageId?: string }> {
-  const from = process.env.EMAIL_FROM;
+  const fromEmail = process.env.EMAIL_FROM;
+  const fromName = process.env.EMAIL_FROM_NAME || 'WorshipCenter';
 
-  if (!from) {
+  if (!fromEmail) {
     console.warn('[Email] EMAIL_FROM not configured - skipping email send');
     return { success: false, error: 'Email service not configured (missing EMAIL_FROM)' };
   }
 
-  console.log('[Email] Preparing to send email:', { to, subject });
+  // Combine name and email in proper RFC 5322 format
+  const from = `${fromName} <${fromEmail}>`;
+
+  console.log('[Email] Preparing to send email:', { to, subject, from });
 
   try {
     const client = getResendClient();

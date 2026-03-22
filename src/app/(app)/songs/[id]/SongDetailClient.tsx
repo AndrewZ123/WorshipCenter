@@ -288,7 +288,7 @@ export default function SongDetailClient() {
               color="gray.400"
               _hover={{ color: 'gray.600', bg: 'gray.100' }}
             />
-            <MenuList borderRadius="xl">
+            <MenuList borderRadius="xl" zIndex={50}>
               <MenuItem onClick={() => setEditing(true)}><HStack><Edit size={16} /><Text>Edit Song</Text></HStack></MenuItem>
               <MenuItem color="red.500" onClick={deleteDisclosure.onOpen}><HStack><Trash2 size={16} /><Text>Delete</Text></HStack></MenuItem>
             </MenuList>

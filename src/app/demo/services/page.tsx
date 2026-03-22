@@ -209,7 +209,7 @@ export default function DemoServicesPage() {
                   <Text>Create Service</Text>
                 </HStack>
               </MenuButton>
-              <MenuList borderRadius="xl">
+              <MenuList borderRadius="xl" zIndex={50}>
                 <MenuItem onClick={createModal.onOpen} fontWeight="500" borderRadius="lg">Blank Service</MenuItem>
                 <Divider my="2" />
                 <Text px="3" py="1" fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase">From Template</Text>
@@ -417,7 +417,7 @@ export default function DemoServicesPage() {
                           _hover={{ color: 'gray.600', bg: 'gray.100' }}
                           minW="32px"
                         />
-                        <MenuList borderRadius="xl">
+                        <MenuList borderRadius="xl" zIndex={50}>
                           <MenuItem 
                             icon={<Copy size={16} />} 
                             onClick={() => { setDupSourceId(service.id); setDupTitle(service.title); setDupDate(''); dupDisclosure.onOpen(); }}
@@ -489,7 +489,7 @@ export default function DemoServicesPage() {
                           color="gray.400"
                           minW="32px"
                         />
-                        <MenuList borderRadius="xl">
+                        <MenuList borderRadius="xl" zIndex={50}>
                           <MenuItem 
                             icon={<Copy size={16} />}
                             onClick={() => { setDupSourceId(service.id); setDupTitle(service.title); setDupDate(''); dupDisclosure.onOpen(); }}

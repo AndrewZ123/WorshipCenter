@@ -342,8 +342,8 @@ export default function DemoSongsPage() {
                             _hover={{ color: 'gray.600', bg: 'gray.100' }}
                             minW="32px"
                           />
-                          <MenuList borderRadius="xl">
-                            <MenuItem 
+                          <MenuList borderRadius="xl" zIndex={50}>
+                            <MenuItem
                               icon={<Trash2 size={16} />} 
                               color="red.500" 
                               onClick={() => { setDeleteId(song.id); deleteDisclosure.onOpen(); }}
@@ -437,7 +437,7 @@ export default function DemoSongsPage() {
                             color="gray.400"
                             minW="32px"
                           />
-                          <MenuList borderRadius="xl">
+                          <MenuList borderRadius="xl" zIndex={50}>
                             <MenuItem 
                               icon={<Trash2 size={16} />}
                               color="red.500" 

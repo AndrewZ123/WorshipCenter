@@ -329,7 +329,7 @@ export default function SongsPage() {
                               color="gray.400"
                               _hover={{ color: 'gray.600', bg: 'gray.100' }}
                             />
-                            <MenuList borderRadius="xl">
+                            <MenuList borderRadius="xl" zIndex={50}>
                               <MenuItem onClick={() => router.push(`/songs/${song.id}`)}>View Details</MenuItem>
                               <MenuItem color="red.500" onClick={() => { setDeleteId(song.id); deleteDisclosure.onOpen(); }}>Delete</MenuItem>
                             </MenuList>
@@ -418,7 +418,7 @@ export default function SongsPage() {
                               color="gray.400"
                               _hover={{ color: 'gray.600', bg: 'gray.100' }}
                             />
-                            <MenuList borderRadius="xl">
+                            <MenuList borderRadius="xl" zIndex={50}>
                               <MenuItem onClick={() => router.push(`/songs/${song.id}`)}>View Details</MenuItem>
                               <MenuItem color="red.500" onClick={() => { setDeleteId(song.id); deleteDisclosure.onOpen(); }}>Delete</MenuItem>
                             </MenuList>

@@ -525,7 +525,7 @@ export default function ServiceDetailClient() {
               _hover={{ color: 'gray.600', bg: 'gray.100' }}
             />
             <Portal>
-              <MenuList borderRadius="xl">
+              <MenuList borderRadius="xl" zIndex={50}>
                 <MenuItem onClick={() => setEditing(true)} icon={<Edit size={16} />}>Edit Service</MenuItem>
                 <MenuItem onClick={handleDuplicateService} icon={<Copy size={16} />}>Duplicate</MenuItem>
                 <Divider />
@@ -699,7 +699,7 @@ export default function ServiceDetailClient() {
                                   _hover={{ color: 'gray.600', bg: 'gray.100' }}
                                 />
                                 <Portal>
-                                  <MenuList borderRadius="xl">
+                                  <MenuList borderRadius="xl" zIndex={50}>
                                     <MenuItem onClick={() => openEditItem(item)}>Edit</MenuItem>
                                     <MenuItem color="red.500" onClick={() => handleDeleteItem(item.id)}>Delete</MenuItem>
                                   </MenuList>
@@ -774,7 +774,7 @@ export default function ServiceDetailClient() {
                               _hover={{ color: 'gray.600', bg: 'gray.100' }}
                             />
                             <Portal>
-                              <MenuList borderRadius="xl">
+                              <MenuList borderRadius="xl" zIndex={50}>
                                 {a.status === 'pending' && (
                                   <>
                                     <MenuItem onClick={() => handleUpdateAssignmentStatus(a.id, 'confirmed')} icon={<CheckCircle size={16} />}>Confirm</MenuItem>

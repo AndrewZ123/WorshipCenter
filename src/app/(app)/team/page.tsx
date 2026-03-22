@@ -381,7 +381,7 @@ export default function TeamPage() {
                             color="gray.400"
                             _hover={{ color: 'gray.600', bg: 'gray.100' }}
                           />
-                          <MenuList borderRadius="xl">
+                          <MenuList borderRadius="xl" zIndex={50}>
                             <MenuItem onClick={() => router.push(`/team/${member.id}`)}>View Profile</MenuItem>
                             <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
@@ -472,7 +472,7 @@ export default function TeamPage() {
                             color="gray.400"
                             _hover={{ color: 'gray.600', bg: 'gray.100' }}
                           />
-                          <MenuList borderRadius="xl">
+                          <MenuList borderRadius="xl" zIndex={50}>
                             <MenuItem onClick={() => router.push(`/team/${member.id}`)}>View Profile</MenuItem>
                             <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>

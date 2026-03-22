@@ -172,7 +172,7 @@ export default function TeamMemberDetailClient() {
               color="gray.400"
               _hover={{ color: 'gray.600', bg: 'gray.100' }}
             />
-            <MenuList borderRadius="xl">
+            <MenuList borderRadius="xl" zIndex={50}>
               <MenuItem onClick={() => setEditing(true)}><HStack><Edit size={16} /><Text>Edit</Text></HStack></MenuItem>
               <MenuDivider />
               <MenuItem onClick={() => setDeleting(true)} color="red.500"><HStack><UserMinus size={16} /><Text>Remove Team Member</Text></HStack></MenuItem>

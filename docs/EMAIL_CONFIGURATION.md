@@ -32,35 +32,35 @@ RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxx
 
 ### EMAIL_FROM
 
-This is the sender name and email address that recipients will see.
+This is the sender email address. Must be from a verified domain in Resend.
 
-**Format**: `"Display Name <email@example.com>"`
-
-**Examples**:
-```
-# Recommended format with display name
-EMAIL_FROM="WorshipCenter <hello@worshipcenter.app>"
-
-# Alternative with your church name
-EMAIL_FROM="Your Church Name <no-reply@yourchurch.com>"
-```
-
-**Why include the display name?**
-- Professional appearance in recipient's inbox
-- Clear identification of the sender
-- Builds trust with team members
-
-**Without display name** (not recommended):
+**Example**:
 ```
 EMAIL_FROM=hello@worshipcenter.app
 ```
-This will show as "hello" in the recipient's inbox, which is less professional.
 
-## Testing Email Configuration
+**Important:** The domain must be verified in Resend dashboard at https://resend.com/domains
 
-You can test if email is configured correctly by visiting:
+### EMAIL_FROM_NAME (Optional)
+
+This is the sender name that will appear in recipients' inboxes. If not set, defaults to "WorshipCenter".
+
+**Example**:
 ```
-https://app.worshipcenter.app/api/debug/email-config
+EMAIL_FROM_NAME=WorshipCenter
+```
+
+**Why use a separate variable?**
+- Cleaner configuration without worrying about quote escaping
+- Easy to customize for different environments
+- Defaults to "WorshipCenter" if not set
+
+**Alternative with your church name**:
+```
+EMAIL_FROM_NAME=Your Church Name
+```
+
+The sender
 ```
 
 This endpoint returns the email configuration status and any missing variables.

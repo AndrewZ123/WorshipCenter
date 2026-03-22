@@ -238,7 +238,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                 </Box>
               </HStack>
             </MenuButton>
-            <MenuList borderRadius="xl">
+            <MenuList borderRadius="xl" zIndex={50}>
               <MenuItem
                 icon={<ExternalLink size={16} />}
                 as={NextLink}
