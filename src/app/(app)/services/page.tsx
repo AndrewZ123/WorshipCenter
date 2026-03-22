@@ -158,7 +158,7 @@ export default function ServicesPage() {
   const handleGenerate = async () => {
     if (!generateTemplateId || !generateDate || !church) return;
     try {
-      const svc = await store.templates.createServiceFromTemplate(generateTemplateId, generateDate, church.id);
+      const svc = await store.templates.createServiceFromTemplate(generateTemplateId, church.id, generateDate);
       if (svc) {
         toast({ title: 'Service created from template!', status: 'success', duration: 3000 });
         generateModal.onClose();
