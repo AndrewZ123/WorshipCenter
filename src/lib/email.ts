@@ -2,32 +2,22 @@
  * Email Service Configuration
  * 
  * This module handles email sending via Resend
- * Resend import is lazy to prevent module load failures if package isn't installed
+ * Using static import for reliability in production/Vercel environment
  */
+import { Resend } from 'resend';
 
-let Resend: any = null;
-
-/**
- * Lazy load Resend to prevent module load failures
- */
-async function loadResend() {
-  if (Resend !== null) return Resend;
-  
-  try {
-    const module = await import('resend');
-    Resend = module.Resend;
-    return Resend;
-  } catch (error) {
-    console.error('[Email] Failed to load Resend package:', error);
-    return null;
-  }
-}
+let resendClient: any = null;
 
 /**
  * Initialize Resend client if API key is configured
- * Wrapped in try-catch to prevent errors during initialization
+ * Returns the same client instance for subsequent calls (singleton pattern)
  */
-async function getResendClient(): Promise<any> {
+function getResendClient(): any {
+  // Return cached client if already initialized
+  if (resendClient !== null) {
+    return resendClient;
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.warn('[Email] RESEND_API_KEY not configured - emails will not be sent');
@@ -35,16 +25,13 @@ async function getResendClient(): Promise<any> {
   }
 
   try {
-    const ResendClass = await loadResend();
-    if (!ResendClass) {
-      console.error('[Email] Resend package not available');
-      return null;
-    }
-    
-    const client = new ResendClass(apiKey);
-    return client;
+    console.log('[Email] Initializing Resend client');
+    resendClient = new Resend(apiKey);
+    console.log('[Email] Resend client initialized successfully');
+    return resendClient;
   } catch (error) {
     console.error('[Email] Failed to initialize Resend client:', error);
+    resendClient = null;
     return null;
   }
 }
@@ -125,13 +112,16 @@ export async function sendEmail({
     return { success: false, error: 'Email service not configured (missing EMAIL_FROM)' };
   }
 
+  console.log('[Email] Preparing to send email:', { to, subject });
+
   try {
-    const client = await getResendClient();
+    const client = getResendClient();
     if (!client) {
-      console.warn('[Email] Resend client not available - skipping email send');
-      return { success: false, error: 'Email service not configured (Resend not available)' };
+      console.error('[Email] Resend client initialization failed - check RESEND_API_KEY');
+      return { success: false, error: 'Email service not configured (Resend client failed to initialize)' };
     }
 
+    console.log('[Email] Sending email via Resend...');
     const result = await client.emails.send({
       from,
       to,
@@ -141,17 +131,30 @@ export async function sendEmail({
     });
 
     if (result.error) {
-      console.error('[Email] Failed to send email:', result.error);
+      console.error('[Email] Resend API returned error:', {
+        message: result.error.message,
+        statusCode: result.error.statusCode,
+        name: result.error.name,
+      });
       return { success: false, error: result.error.message };
     }
 
-    console.log('[Email] Email sent successfully:', result.data?.id);
+    console.log('[Email] Email sent successfully:', {
+      messageId: result.data?.id,
+      to,
+      subject,
+    });
     return { success: true, messageId: result.data?.id };
   } catch (error) {
-    console.error('[Email] Error sending email:', error);
+    console.error('[Email] Unexpected error sending email:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      to,
+      subject,
+    });
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error occurred while sending email',
     };
   }
 }

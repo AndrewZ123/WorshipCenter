@@ -129,12 +129,24 @@ export default function SettingsPage() {
     setIsLoading(true);
     
     try {
-      const { error } = await supabase
+      // Update user profile
+      const { error: userError } = await supabase
         .from('users')
         .update({ name: userName.trim() })
         .eq('id', user.id);
       
-      if (error) throw error;
+      if (userError) throw userError;
+      
+      // Also update the team_member record linked to this user
+      const { error: teamMemberError } = await supabase
+        .from('team_members')
+        .update({ name: userName.trim() })
+        .eq('user_id', user.id);
+      
+      if (teamMemberError) {
+        console.error('Error updating team_member name:', teamMemberError);
+        // Don't throw - the user update succeeded, team_member update is secondary
+      }
       
       toast({ title: 'Profile updated!', status: 'success', duration: 3000 });
     } catch (error) {
