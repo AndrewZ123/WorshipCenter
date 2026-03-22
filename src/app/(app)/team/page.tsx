@@ -19,7 +19,8 @@ import Avatar from '@/components/ui/Avatar';
 
 // Lucide icons
 import { 
-  Plus, MoreVertical, Link2, Trash2, Users, Calendar, Mail
+  Plus, MoreVertical, Link2, Trash2, Users, Calendar, Mail,
+  CheckCircle2, Clock
 } from 'lucide-react';
 
 export default function TeamPage() {
@@ -99,14 +100,11 @@ export default function TeamPage() {
     // Send invitation email if email is provided
     if (email) {
       try {
-        console.log('[Team Page] Sending invitation email for member:', member.name);
         const response = await fetch('/api/notifications/send-team-invitation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
         });
-        
-        console.log('[Team Page] Response status:', response.status);
         
         // Clone the response before reading to avoid "body already consumed" error
         const clonedResponse = response.clone();
@@ -114,15 +112,12 @@ export default function TeamPage() {
         let data;
         try {
           data = await response.json();
-          console.log('[Team Page] Response data:', data);
         } catch (parseError) {
-          console.error('[Team Page] Failed to parse response JSON:', parseError);
           // Use cloned response to get text if JSON parsing fails
           try {
-            const errorText = await clonedResponse.text();
-            console.error('[Team Page] Response text:', errorText);
+            await clonedResponse.text();
           } catch (textError) {
-            console.error('[Team Page] Failed to read response text:', textError);
+            // Silently handle text error
           }
           toast({ 
             title: 'Email warning', 
@@ -135,7 +130,6 @@ export default function TeamPage() {
         
         if (data.success) {
           if (data.emailSent) {
-            console.log('[Team Page] Email sent successfully to:', email);
             toast({ 
               title: 'Invitation sent!', 
               description: `Email sent to ${email}`, 
@@ -143,7 +137,6 @@ export default function TeamPage() {
               duration: 3000 
             });
           } else {
-            console.warn('[Team Page] Email not sent:', data.emailError);
             toast({ 
               title: 'Email service not configured', 
               description: data.emailError || 'Please copy the invite link manually',
@@ -152,7 +145,6 @@ export default function TeamPage() {
             });
           }
         } else {
-          console.error('[Team Page] Failed to send invitation:', data.error);
           toast({ 
             title: 'Email warning', 
             description: data.error || 'There was an issue sending the invitation email',
@@ -161,7 +153,6 @@ export default function TeamPage() {
           });
         }
       } catch (error) {
-        console.error('[Team Page] Failed to send invitation email:', error);
         toast({ 
           title: 'Email warning', 
           description: 'Team member added, but there was an issue sending the invitation email',
@@ -200,14 +191,11 @@ export default function TeamPage() {
     }
 
     try {
-      console.log('[Team Page] Sending invitation email for member:', member.name);
       const response = await fetch('/api/notifications/send-team-invitation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
       });
-      
-      console.log('[Team Page] Response status:', response.status);
       
       // Clone the response before reading to avoid "body already consumed" error
       const clonedResponse = response.clone();
@@ -215,15 +203,12 @@ export default function TeamPage() {
       let data;
       try {
         data = await response.json();
-        console.log('[Team Page] Response data:', data);
       } catch (parseError) {
-        console.error('[Team Page] Failed to parse response JSON:', parseError);
         // Use cloned response to get text if JSON parsing fails
         try {
-          const errorText = await clonedResponse.text();
-          console.error('[Team Page] Response text:', errorText);
+          await clonedResponse.text();
         } catch (textError) {
-          console.error('[Team Page] Failed to read response text:', textError);
+          // Silently handle text error
         }
         toast({ 
           title: 'Email warning', 
@@ -236,7 +221,6 @@ export default function TeamPage() {
       
       if (data.success) {
         if (data.emailSent) {
-          console.log('[Team Page] Email sent successfully to:', member.email);
           toast({ 
             title: 'Invitation sent!', 
             description: `Email sent to ${member.email}`, 
@@ -244,7 +228,6 @@ export default function TeamPage() {
             duration: 3000 
           });
         } else {
-          console.warn('[Team Page] Email not sent:', data.emailError);
           toast({ 
             title: 'Email service not configured', 
             description: data.emailError || 'Please copy the invite link manually',
@@ -253,7 +236,6 @@ export default function TeamPage() {
           });
         }
       } else {
-        console.error('[Team Page] Failed to send invitation:', data.error);
         toast({ 
           title: 'Failed to send invitation', 
           description: data.error || 'Please try again or use copy invite link',
@@ -262,7 +244,6 @@ export default function TeamPage() {
         });
       }
     } catch (error) {
-      console.error('[Team Page] Error sending invitation:', error);
       toast({ 
         title: 'Failed to send invitation', 
         description: 'Please use copy invite link instead',
@@ -361,7 +342,14 @@ export default function TeamPage() {
                     <Td>
                       <HStack spacing="3">
                         <Avatar name={member.name} src={member.avatar_url} size="sm" />
-                        <Text fontWeight="600" color={headingColor}>{member.name}</Text>
+                        <HStack spacing="2" align="center">
+                          <Text fontWeight="600" color={headingColor}>{member.name}</Text>
+                          {member.user_id ? (
+                            <CheckCircle2 size={14} color="green.500" />
+                          ) : (
+                            <Clock size={14} color="gray.400" />
+                          )}
+                        </HStack>
                       </HStack>
                     </Td>
                     <Td>
@@ -450,7 +438,14 @@ export default function TeamPage() {
                     <HStack spacing="3" flex="1">
                       <Avatar name={member.name} size="md" />
                       <Box>
-                        <Text fontWeight="600" color={headingColor}>{member.name}</Text>
+                        <HStack spacing="2" align="center">
+                          <Text fontWeight="600" color={headingColor}>{member.name}</Text>
+                          {member.user_id ? (
+                            <CheckCircle2 size={14} color="green.500" />
+                          ) : (
+                            <Clock size={14} color="gray.400" />
+                          )}
+                        </HStack>
                         <HStack spacing="1" mt="1" flexWrap="wrap">
                           {member.roles.slice(0, 2).map((role) => (
                             <Badge key={role} variant="subtle" colorScheme="gray" fontSize="xs" borderRadius="full" px="2">{role}</Badge>
