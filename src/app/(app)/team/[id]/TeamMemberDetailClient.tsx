@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Box, Text, HStack, Button, VStack, Input,
   FormControl, FormLabel, Card, CardBody, useToast, IconButton,
   Badge, Table, Thead, Tbody, Tr, Th, Td,
   Spinner, Center, Flex, useColorModeValue, Menu, MenuButton, MenuList, MenuItem,
+  AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, MenuDivider,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
@@ -18,7 +19,7 @@ import { formatShortDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  ArrowLeft, MoreVertical, Edit, Trash2, Mail, Phone, Briefcase, Calendar
+  ArrowLeft, MoreVertical, Edit, Trash2, Mail, Phone, Briefcase, Calendar, UserMinus
 } from 'lucide-react';
 
 const roleLabel = (r: string) => r.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -34,8 +35,10 @@ export default function TeamMemberDetailClient() {
 
   const [member, setMember] = useState<TeamMember | null>(null);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   // Edit form
   const [name, setName] = useState('');
@@ -120,6 +123,18 @@ export default function TeamMemberDetailClient() {
     toast({ title: 'Member updated', status: 'success', duration: 2000 });
   };
 
+  const handleDelete = async () => {
+    if (!church) return;
+    try {
+      await store.teamMembers.delete(memberId, church.id);
+      toast({ title: 'Team member removed', status: 'success', duration: 2000 });
+      router.push('/team');
+    } catch (error) {
+      console.error('Error deleting member:', error);
+      toast({ title: 'Error removing member', status: 'error', duration: 3000 });
+    }
+  };
+
   return (
     <Box p={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       {/* Header */}
@@ -159,6 +174,8 @@ export default function TeamMemberDetailClient() {
             />
             <MenuList borderRadius="xl">
               <MenuItem onClick={() => setEditing(true)}><HStack><Edit size={16} /><Text>Edit</Text></HStack></MenuItem>
+              <MenuDivider />
+              <MenuItem onClick={() => setDeleting(true)} color="red.500"><HStack><UserMinus size={16} /><Text>Remove Team Member</Text></HStack></MenuItem>
             </MenuList>
           </Menu>
         )}
@@ -307,6 +324,22 @@ export default function TeamMemberDetailClient() {
           </VStack>
         </>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog isOpen={deleting} leastDestructiveRef={cancelRef} onClose={() => setDeleting(false)}>
+        <AlertDialogOverlay>
+          <AlertDialogContent borderRadius="xl">
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">Remove Team Member</AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to remove <strong>{member?.name}</strong> from the team? This action cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={() => setDeleting(false)}>Cancel</Button>
+              <Button colorScheme="red" onClick={handleDelete} ml={3}>Remove</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 }

@@ -56,6 +56,7 @@ export interface ServiceItem {
   notes: string;
   duration_minutes: number | null;
   key: string | null;   // For songs — can override default_key
+  assigned_to?: string | null;  // Optional - who is doing this segment (informational only, no notifications)
 }
 
 export interface Song {

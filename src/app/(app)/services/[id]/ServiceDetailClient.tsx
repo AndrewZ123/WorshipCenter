@@ -83,6 +83,7 @@ export default function ServiceDetailClient() {
   const [itemDuration, setItemDuration] = useState('');
   const [itemKey, setItemKey] = useState('');
   const [itemSongId, setItemSongId] = useState<string | null>(null);
+  const [itemAssignedTo, setItemAssignedTo] = useState('');
   
   // Add song modal state
   const addSongModal = useDisclosure();
@@ -406,6 +407,7 @@ export default function ServiceDetailClient() {
     setItemDuration(item.duration_minutes?.toString() || '');
     setItemKey(item.key || '');
     setItemSongId(item.song_id || null);
+    setItemAssignedTo(item.assigned_to || '');
     editItemModal.onOpen();
   };
 
@@ -427,6 +429,7 @@ export default function ServiceDetailClient() {
         duration_minutes: itemDuration ? parseInt(itemDuration) : undefined,
         key: itemKey || undefined,
         song_id: editingItem.type === 'song' ? (itemSongId || undefined) : undefined,
+        assigned_to: itemAssignedTo || null,
       });
       
       editItemModal.onClose();
@@ -663,7 +666,15 @@ export default function ServiceDetailClient() {
                           <Text fontSize="sm" fontWeight="600" color="gray.400" w="20px">{index + 1}.</Text>
 
                           {/* Title */}
-                          <Text fontWeight="600" flex="1" color={itemTitleColor}>{item.title}</Text>
+                          <VStack spacing="0" align="start" flex="1">
+                            <Text fontWeight="600" color={itemTitleColor}>{item.title}</Text>
+                            {item.assigned_to && (
+                              <HStack spacing="1">
+                                <UserCheck size={12} className="text-gray-400" />
+                                <Text fontSize="xs" color="gray.500">{item.assigned_to}</Text>
+                              </HStack>
+                            )}
+                          </VStack>
 
                           {/* Key badge for songs */}
                           {item.type === 'song' && item.key && (
@@ -901,6 +912,24 @@ export default function ServiceDetailClient() {
                   rows={3}
                   borderRadius="lg"
                 />
+              </FormControl>
+              
+              <FormControl>
+                <FormLabel fontWeight="600" fontSize="sm">Assigned To</FormLabel>
+                <Select 
+                  value={itemAssignedTo} 
+                  onChange={(e) => setItemAssignedTo(e.target.value)}
+                  placeholder="Select team member or type name"
+                  borderRadius="lg"
+                >
+                  <option value="">None</option>
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.name}>
+                      {member.name}
+                    </option>
+                  ))}
+                </Select>
+                <Text fontSize="xs" color="gray.500" mt="1">Who is doing this segment? (informational only)</Text>
               </FormControl>
             </VStack>
           </ModalBody>

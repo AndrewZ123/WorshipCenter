@@ -35,6 +35,7 @@ const sanitizeInput = {
     title: si.title ? sanitizeString(si.title) : si.title,
     notes: si.notes ? sanitizeHtml(si.notes) : si.notes,
     key: si.key ? sanitizeString(si.key) : si.key,
+    assigned_to: si.assigned_to ? sanitizeString(si.assigned_to) : si.assigned_to,
   }),
   song: (s: Partial<Song>): Partial<Song> => ({
     ...s,
@@ -179,6 +180,7 @@ export const db = {
           notes: i.notes,
           duration_minutes: i.duration_minutes,
           key: i.key,
+          assigned_to: i.assigned_to,
         }));
         await supabase.from('service_items').insert(newItems);
       }

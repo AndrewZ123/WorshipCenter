@@ -51,6 +51,7 @@ async function getResendClient(): Promise<any> {
 
 /**
  * Check if email service is configured
+ * @returns Object with configuration status and details
  */
 export async function isEmailConfigured(): Promise<boolean> {
   const hasApiKey = !!process.env.RESEND_API_KEY;
@@ -65,6 +66,37 @@ export async function isEmailConfigured(): Promise<boolean> {
   }
   
   return hasApiKey && hasFromEmail;
+}
+
+/**
+ * Get detailed email configuration status for debugging
+ * @returns Object with detailed configuration status
+ */
+export function getEmailConfigStatus(): {
+  configured: boolean;
+  hasApiKey: boolean;
+  hasFromEmail: boolean;
+  emailFrom: string | null;
+  missingVariables: string[];
+  instructions: string;
+} {
+  const hasApiKey = !!process.env.RESEND_API_KEY;
+  const hasFromEmail = !!process.env.EMAIL_FROM;
+  const missingVariables: string[] = [];
+  
+  if (!hasApiKey) missingVariables.push('RESEND_API_KEY');
+  if (!hasFromEmail) missingVariables.push('EMAIL_FROM');
+  
+  return {
+    configured: hasApiKey && hasFromEmail,
+    hasApiKey,
+    hasFromEmail,
+    emailFrom: process.env.EMAIL_FROM || null,
+    missingVariables,
+    instructions: missingVariables.length > 0 
+      ? `Add the following environment variables to Vercel: ${missingVariables.join(', ')}. See https://resend.com for setup instructions.`
+      : 'Email service is fully configured.',
+  };
 }
 
 /**

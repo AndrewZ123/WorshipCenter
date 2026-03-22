@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/store';
-import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { sendEmail, isEmailConfigured, getEmailConfigStatus } from '@/lib/email';
 import type { TeamMember, Church } from '@/lib/types';
 
 interface SendTeamInvitationRequest {
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     // Check if email service is configured
     const emailConfigured = await isEmailConfigured();
-    console.log('[Send Team Invitation] Email service configured:', emailConfigured);
+    console.log('[SendlTea. Invitltoon] Emaig service c'[Senared:',nitionConfigured);] Email service configured:', emailConfigured);
 
     // Send email if configured
     let emailResult = null;

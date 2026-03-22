@@ -365,7 +365,7 @@ export default function ChatPage() {
       p={{ base: '0', md: '4' }} 
       maxW="900px" 
       mx="auto" 
-      h={{ base: 'calc(100vh - 56px)', md: 'auto' }}
+      minH={{ base: '100%', md: 'auto' }}
       display="flex"
       flexDirection="column"
     >
@@ -376,9 +376,6 @@ export default function ChatPage() {
         borderColor={borderColor}
         p={{ base: '4', md: '0' }}
         pb={{ base: '4', md: '6' }}
-        position={{ base: 'sticky', md: 'relative' }}
-        top={{ base: '0', md: 'auto' }}
-        zIndex="10"
       >
         <Flex justify="space-between" align="center">
           <HStack spacing="3">
