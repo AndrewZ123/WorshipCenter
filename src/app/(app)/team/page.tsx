@@ -99,13 +99,66 @@ export default function TeamPage() {
     // Send invitation email if email is provided
     if (email) {
       try {
-        await fetch('/api/notifications/send-team-invitation', {
+        console.log('[Team Page] Sending invitation email for member:', member.name);
+        const response = await fetch('/api/notifications/send-team-invitation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
         });
+        
+        console.log('[Team Page] Response status:', response.status);
+        
+        let data;
+        try {
+          data = await response.json();
+          console.log('[Team Page] Response data:', data);
+        } catch (parseError) {
+          console.error('[Team Page] Failed to parse response JSON:', parseError);
+          console.error('[Team Page] Response text:', await response.text());
+          toast({ 
+            title: 'Email warning', 
+            description: 'Team member added, but there was an issue sending the invitation email',
+            status: 'warning',
+            duration: 5000 
+          });
+          return;
+        }
+        
+        if (data.success) {
+          if (data.emailSent) {
+            console.log('[Team Page] Email sent successfully to:', email);
+            toast({ 
+              title: 'Invitation sent!', 
+              description: `Email sent to ${email}`, 
+              status: 'success',
+              duration: 3000 
+            });
+          } else {
+            console.warn('[Team Page] Email not sent:', data.emailError);
+            toast({ 
+              title: 'Email service not configured', 
+              description: data.emailError || 'Please copy the invite link manually',
+              status: 'warning',
+              duration: 5000 
+            });
+          }
+        } else {
+          console.error('[Team Page] Failed to send invitation:', data.error);
+          toast({ 
+            title: 'Email warning', 
+            description: data.error || 'There was an issue sending the invitation email',
+            status: 'warning',
+            duration: 5000 
+          });
+        }
       } catch (error) {
-        console.error('Failed to send invitation email:', error);
+        console.error('[Team Page] Failed to send invitation email:', error);
+        toast({ 
+          title: 'Email warning', 
+          description: 'Team member added, but there was an issue sending the invitation email',
+          status: 'warning',
+          duration: 5000 
+        });
       }
     }
     
@@ -138,16 +191,34 @@ export default function TeamPage() {
     }
 
     try {
+      console.log('[Team Page] Sending invitation email for member:', member.name);
       const response = await fetch('/api/notifications/send-team-invitation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
       });
-
-      const data = await response.json();
-
+      
+      console.log('[Team Page] Response status:', response.status);
+      
+      let data;
+      try {
+        data = await response.json();
+        console.log('[Team Page] Response data:', data);
+      } catch (parseError) {
+        console.error('[Team Page] Failed to parse response JSON:', parseError);
+        console.error('[Team Page] Response text:', await response.text());
+        toast({ 
+          title: 'Email warning', 
+          description: 'There was an issue sending the invitation email',
+          status: 'warning',
+          duration: 5000 
+        });
+        return;
+      }
+      
       if (data.success) {
         if (data.emailSent) {
+          console.log('[Team Page] Email sent successfully to:', member.email);
           toast({ 
             title: 'Invitation sent!', 
             description: `Email sent to ${member.email}`, 
@@ -155,14 +226,16 @@ export default function TeamPage() {
             duration: 3000 
           });
         } else {
+          console.warn('[Team Page] Email not sent:', data.emailError);
           toast({ 
             title: 'Email service not configured', 
-            description: 'Please copy the invite link manually',
+            description: data.emailError || 'Please copy the invite link manually',
             status: 'warning',
             duration: 5000 
           });
         }
       } else {
+        console.error('[Team Page] Failed to send invitation:', data.error);
         toast({ 
           title: 'Failed to send invitation', 
           description: data.error || 'Please try again or use copy invite link',
@@ -171,7 +244,7 @@ export default function TeamPage() {
         });
       }
     } catch (error) {
-      console.error('Error sending invitation:', error);
+      console.error('[Team Page] Error sending invitation:', error);
       toast({ 
         title: 'Failed to send invitation', 
         description: 'Please use copy invite link instead',
