@@ -18,6 +18,8 @@ export interface User {
   name: string;
   role: UserRole;
   avatar_url?: string;
+  phone?: string;
+  phone_verified?: boolean;
   created_at: string;
 }
 export type ServiceItemType = 'song' | 'segment';
@@ -98,6 +100,10 @@ export interface ServiceAssignment {
   team_member_id: string;
   role: string;
   status: AssignmentStatus;
+  created_at?: string;
+  updated_at?: string;
+  confirmed_at?: string;
+  declined_at?: string;
 }
 
 export interface SongUsage {
@@ -112,11 +118,19 @@ export interface Notification {
   id: string;
   church_id: string;
   user_id: string;
-  type: 'invitation' | 'status_change' | 'service_reminder' | 'general';
+  type: 'invitation' | 'status_change' | 'service_reminder' | 'general' | 'assignment_created' | 'assignment_reminder' | 'assignment_changed' | 'assignment_declined' | 'initial_reminder' | 'pre_rehearsal_reminder' | 'pre_service_reminder' | 'escalation';
   title: string;
   message: string;
   read: boolean;
   service_id?: string;
+  assignment_id?: string;
+  link_url?: string;
+  sent_at?: string;
+  channels_sent?: {
+    in_app: boolean;
+    email: boolean;
+    sms: boolean;
+  };
   created_at: string;
 }
 
@@ -197,3 +211,43 @@ export interface ChatUserInfo {
 export interface ChatMessagePopulated extends ChatMessage {
   user: ChatUserInfo;
 }
+
+// Service Chat Types
+export interface ServiceChat {
+  id: string;
+  service_id: string;
+  church_id: string;
+  created_at: string;
+}
+
+export interface ServiceChatMessage {
+  id: string;
+  chat_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+export interface ServiceChatMessagePopulated extends ServiceChatMessage {
+  user: ChatUserInfo;
+}
+
+// Reminder Settings Types
+export interface ReminderSettings {
+  id: string;
+  church_id: string;
+  initial_reminder_hours: number;
+  pre_rehearsal_reminder_hours: number;
+  pre_service_reminder_hours: number;
+  escalation_hours: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Notification Channel Types
+export type NotificationChannel = 'in_app' | 'email' | 'sms';
+export type NotificationChannels = {
+  in_app: boolean;
+  email: boolean;
+  sms: boolean;
+};

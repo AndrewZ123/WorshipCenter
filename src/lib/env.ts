@@ -71,6 +71,23 @@ const ENV_VAR_DEFS = {
     required: false, // Optional - app works without email
     public: false,
   },
+
+  // SMS (Twilio)
+  TWILIO_ACCOUNT_SID: {
+    description: 'Twilio account SID for sending SMS',
+    required: false, // Optional - app works without SMS
+    public: false,
+  },
+  TWILIO_AUTH_TOKEN: {
+    description: 'Twilio auth token for sending SMS',
+    required: false, // Optional - app works without SMS
+    public: false,
+  },
+  TWILIO_PHONE_NUMBER: {
+    description: 'Twilio phone number for sending SMS',
+    required: false, // Optional - app works without SMS
+    public: false,
+  },
 } as const;
 
 export type EnvVarName = keyof typeof ENV_VAR_DEFS;
@@ -181,4 +198,9 @@ export const env = {
 
   // Application
   appUrl: () => getAppUrl(),
+
+  // SMS (Twilio)
+  twilioAccountSid: () => getEnvVarWithDefault('TWILIO_ACCOUNT_SID', ''),
+  twilioAuthToken: () => getEnvVarWithDefault('TWILIO_AUTH_TOKEN', ''),
+  twilioPhoneNumber: () => getEnvVarWithDefault('TWILIO_PHONE_NUMBER', ''),
 };

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ChakraProviderWrapper } from '@/components/providers/ChakraProvider';
 import { AuthProvider } from '@/lib/auth';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: 'WorshipCenter — Plan Services, Build Setlists, Coordinate Your Team',
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </AuthProvider>
         </ChakraProviderWrapper>
+        <Analytics />
       </body>
     </html>
   );

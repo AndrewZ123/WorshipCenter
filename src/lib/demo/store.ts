@@ -199,13 +199,17 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
     },
     
     assignments: {
-      getByService: async (serviceId: string): Promise<ServiceAssignment[]> => {
+      getByService: async (serviceId: string, _churchId: string): Promise<ServiceAssignment[]> => {
         const demo = getDemoContext();
         return demo.assignments.filter(a => a.service_id === serviceId);
       },
-      getByTeamMember: async (teamMemberId: string): Promise<ServiceAssignment[]> => {
+      getByTeamMember: async (teamMemberId: string, _churchId: string): Promise<ServiceAssignment[]> => {
         const demo = getDemoContext();
         return demo.assignments.filter(a => a.team_member_id === teamMemberId);
+      },
+      getById: async (_id: string, _churchId: string): Promise<ServiceAssignment | null> => {
+        const demo = getDemoContext();
+        return demo.assignments.find(a => a.id === _id) || null;
       },
       create: async (sa: Omit<ServiceAssignment, 'id'>): Promise<ServiceAssignment> => {
         const demo = getDemoContext();
@@ -215,11 +219,19 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.updateAssignment(id, updates);
       },
-      delete: async (id: string): Promise<boolean> => {
+      confirm: async (id: string, _churchId: string): Promise<ServiceAssignment | null> => {
+        const demo = getDemoContext();
+        return demo.updateAssignment(id, { status: 'confirmed', confirmed_at: new Date().toISOString() });
+      },
+      decline: async (id: string, _churchId: string): Promise<ServiceAssignment | null> => {
+        const demo = getDemoContext();
+        return demo.updateAssignment(id, { status: 'declined', declined_at: new Date().toISOString() });
+      },
+      delete: async (id: string, _churchId: string): Promise<boolean> => {
         const demo = getDemoContext();
         return demo.deleteAssignment(id);
       },
-      deleteByService: async (serviceId: string): Promise<boolean> => {
+      deleteByService: async (serviceId: string, _churchId: string): Promise<boolean> => {
         const demo = getDemoContext();
         return demo.deleteAssignmentsByService(serviceId);
       },
@@ -365,6 +377,40 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       },
       subscribe: (_churchId: string, _callback: (message: ChatMessagePopulated) => void) => {
         // Demo doesn't support real-time subscriptions
+        return () => {};
+      },
+    },
+
+    serviceChat: {
+      getOrCreate: async (_serviceId: string, _churchId: string): Promise<any> => {
+        return { id: 'demo-chat-1', service_id: _serviceId, created_at: new Date().toISOString() };
+      },
+      getMessages: async (_serviceId: string, _churchId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        if (!demo.user) return [];
+        return [
+          {
+            id: '1',
+            chat_id: 'demo-chat-1',
+            content: 'Let\'s run through the new worship set before the service.',
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+            sender_user_id: demo.user.id,
+            sender: { id: demo.user.id, name: demo.user.name, avatar_url: demo.user.avatar_url },
+          },
+        ];
+      },
+      createMessage: async (_serviceId: string, _churchId: string, senderUserId: string, content: string): Promise<any> => {
+        const demo = getDemoContext();
+        return {
+          id: `demo-msg-${Date.now()}`,
+          chat_id: 'demo-chat-1',
+          content,
+          created_at: new Date().toISOString(),
+          sender_user_id: senderUserId,
+          sender: { id: demo.user?.id || 'unknown', name: demo.user?.name || 'Unknown', avatar_url: demo.user?.avatar_url },
+        };
+      },
+      subscribe: (_serviceId: string, _churchId: string, _callback: (message: any) => void) => {
         return () => {};
       },
     },

@@ -414,103 +414,6 @@ export const db = {
     },
   },
 
-  // Service Assignments
-  assignments: {
-    getByService: async (serviceId: string, churchId: string) => {
-      // Verify the service belongs to this church
-      const { data: service } = await supabase
-        .from('services')
-        .select('church_id')
-        .eq('id', serviceId)
-        .single();
-      
-      if (!service || service.church_id !== churchId) {
-        return [];
-      }
-      
-      const { data } = await supabase.from('service_assignments').select('*').eq('service_id', serviceId);
-      return (data || []) as ServiceAssignment[];
-    },
-    getByTeamMember: async (teamMemberId: string, churchId: string) => {
-      // Verify the team member belongs to this church
-      const { data: member } = await supabase
-        .from('team_members')
-        .select('church_id')
-        .eq('id', teamMemberId)
-        .single();
-      
-      if (!member || member.church_id !== churchId) {
-        return [];
-      }
-      
-      const { data } = await supabase
-        .from('service_assignments')
-        .select('*, service_id, services(church_id)')
-        .eq('team_member_id', teamMemberId);
-      
-      // Filter to only assignments for this church's services
-      return (data || []).filter(a => a.services && a.services.church_id === churchId) as ServiceAssignment[];
-    },
-    create: async (sa: Omit<ServiceAssignment, 'id'>) => {
-      const { data } = await supabase.from('service_assignments').insert(sa).select().single();
-      return data as ServiceAssignment;
-    },
-    update: async (id: string, churchId: string, updates: Partial<ServiceAssignment>) => {
-      const { data } = await supabase
-        .from('service_assignments')
-        .update(updates)
-        .eq('id', id)
-        .select('*, service_id, services(church_id)')
-        .single();
-      
-      // Verify the service belongs to this church
-      if (!data || !data.services || data.services.church_id !== churchId) {
-        return null;
-      }
-      
-      return data as ServiceAssignment;
-    },
-    delete: async (id: string, churchId: string) => {
-      // Verify the assignment's service belongs to this church
-      const { data: assignment } = await supabase
-        .from('service_assignments')
-        .select('service_id, services(church_id)')
-        .eq('id', id)
-        .single();
-      
-      // When joining with services, Supabase returns an array for the related table
-      if (!assignment || !assignment.services) {
-        console.error('[Assignments] Delete failed: assignment not found or access denied', { id, churchId });
-        return false;
-      }
-      
-      const services = assignment.services as Array<{ church_id: string }>;
-      if (services.length === 0 || services[0].church_id !== churchId) {
-        console.error('[Assignments] Delete failed: service church_id mismatch', { id, churchId });
-        return false;
-      }
-      
-      const { error } = await supabase.from('service_assignments').delete().eq('id', id);
-      return !error;
-    },
-    deleteByService: async (serviceId: string, churchId: string) => {
-      // Verify the service belongs to this church
-      const { data: service } = await supabase
-        .from('services')
-        .select('church_id')
-        .eq('id', serviceId)
-        .single();
-      
-      if (!service || service.church_id !== churchId) {
-        console.error('[Assignments] DeleteByService failed: service not found or access denied', { serviceId, churchId });
-        return false;
-      }
-      
-      const { error } = await supabase.from('service_assignments').delete().eq('service_id', serviceId);
-      return !error;
-    },
-  },
-
   // Song Usage
   songUsage: {
     getByChurch: async (churchId: string) => {
@@ -864,6 +767,325 @@ export const db = {
           console.warn('[Chat Subscribe] Error removing channel:', error);
         }
       };
+    },
+  },
+
+  // Service Chat
+  serviceChat: {
+    // Get or create service chat
+    getOrCreate: async (serviceId: string, churchId: string) => {
+      // Verify service belongs to church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        console.error('[ServiceChat] GetOrCreate failed: service not found or access denied', { serviceId, churchId });
+        return null;
+      }
+
+      // Try to get existing chat
+      const { data: existingChat } = await supabase
+        .from('service_chats')
+        .select('*')
+        .eq('service_id', serviceId)
+        .single();
+
+      if (existingChat) {
+        return existingChat;
+      }
+
+      // Create new chat
+      const { data: newChat } = await supabase
+        .from('service_chats')
+        .insert({ service_id: serviceId })
+        .select()
+        .single();
+
+      return newChat;
+    },
+
+    // Get messages for a service chat
+    getMessages: async (serviceId: string, churchId: string) => {
+      // Verify service belongs to church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        console.error('[ServiceChat] GetMessages failed: service not found or access denied', { serviceId, churchId });
+        return [];
+      }
+
+      // Get chat ID
+      const { data: chat } = await supabase
+        .from('service_chats')
+        .select('id')
+        .eq('service_id', serviceId)
+        .single();
+
+      if (!chat) {
+        return [];
+      }
+
+      // Get messages
+      const { data } = await supabase
+        .from('service_chat_messages')
+        .select('*, profiles!inner(id, name, avatar_url)')
+        .eq('chat_id', chat.id)
+        .order('created_at', { ascending: true });
+
+      return (data || []).map((msg: any) => ({
+        id: msg.id,
+        chat_id: msg.chat_id,
+        content: msg.content,
+        created_at: msg.created_at,
+        sender_user_id: msg.sender_user_id,
+        sender: {
+          id: msg.profiles.id,
+          name: msg.profiles.name,
+          avatar_url: msg.profiles.avatar_url,
+        },
+      }));
+    },
+
+    // Create a message
+    createMessage: async (serviceId: string, churchId: string, senderUserId: string, content: string) => {
+      // Verify service belongs to church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        console.error('[ServiceChat] CreateMessage failed: service not found or access denied', { serviceId, churchId });
+        return null;
+      }
+
+      // Get or create chat
+      const chat = await db.serviceChat.getOrCreate(serviceId, churchId);
+      if (!chat) {
+        return null;
+      }
+
+      // Create message
+      const { data } = await supabase
+        .from('service_chat_messages')
+        .insert({
+          chat_id: chat.id,
+          sender_user_id: senderUserId,
+          content: sanitizeInput.chatMessage({ content }).content,
+        })
+        .select('*, profiles(id, name, avatar_url)')
+        .single();
+
+      return data ? {
+        id: data.id,
+        chat_id: data.chat_id,
+        content: data.content,
+        created_at: data.created_at,
+        sender_user_id: data.sender_user_id,
+        sender: {
+          id: data.profiles.id,
+          name: data.profiles.name,
+          avatar_url: data.profiles.avatar_url,
+        },
+      } : null;
+    },
+
+    // Subscribe to new messages
+    subscribe: (serviceId: string, churchId: string, callback: (message: any) => void, onError?: (error: Error) => void) => {
+      const channelName = `service-chat:${serviceId}`;
+      let channel = supabase.channel(channelName);
+
+      // Get chat ID first
+      db.serviceChat.getOrCreate(serviceId, churchId).then((chat) => {
+        if (!chat) return;
+
+        channel
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'service_chat_messages',
+              filter: `chat_id=eq.${chat.id}`,
+            },
+            async (payload) => {
+              try {
+                const { data: userData } = await supabase
+                  .from('profiles')
+                  .select('id, name, avatar_url')
+                  .eq('id', payload.new.sender_user_id)
+                  .single();
+
+                const message = {
+                  id: payload.new.id,
+                  chat_id: payload.new.chat_id,
+                  content: payload.new.content,
+                  created_at: payload.new.created_at,
+                  sender_user_id: payload.new.sender_user_id,
+                  sender: userData || {
+                    id: payload.new.sender_user_id,
+                    name: 'Unknown',
+                    avatar_url: undefined,
+                  },
+                };
+
+                callback(message);
+              } catch (error) {
+                console.error('[ServiceChat Subscribe] Error processing message:', error);
+                if (onError) onError(error as Error);
+              }
+            }
+          )
+          .subscribe((status) => {
+            const statusStr = String(status);
+            if (statusStr === 'SUBSCRIPTION_ERROR' || statusStr === 'TIMED_OUT' || statusStr === 'CLOSED') {
+              console.warn(`[ServiceChat Subscribe] Subscription failed with status: ${statusStr}`);
+              if (onError) onError(new Error(`WebSocket subscription failed: ${statusStr}`));
+            }
+          });
+      }).catch((error) => {
+        console.error('[ServiceChat Subscribe] Error getting chat:', error);
+        if (onError) onError(error as Error);
+      });
+
+      return () => {
+        try {
+          supabase.removeChannel(channel);
+        } catch (error) {
+          console.warn('[ServiceChat Subscribe] Error removing channel:', error);
+        }
+      };
+    },
+  },
+
+  // Assignments - Update to support confirm/decline
+  assignments: {
+    getByService: async (serviceId: string, churchId: string) => {
+      // Verify: service belongs to church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        return [];
+      }
+      
+      const { data } = await supabase.from('service_assignments').select('*').eq('service_id', serviceId);
+      return (data || []) as ServiceAssignment[];
+    },
+    getByTeamMember: async (teamMemberId: string, churchId: string) => {
+      // Verify: team member belongs to church
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('church_id')
+        .eq('id', teamMemberId)
+        .single();
+      
+      if (!member || member.church_id !== churchId) {
+        return [];
+      }
+      
+      const { data } = await supabase
+        .from('service_assignments')
+        .select('*, service_id, services(church_id)')
+        .eq('team_member_id', teamMemberId);
+      
+      // Filter to only assignments for this church's services
+      return (data || []).filter(a => a.services && a.services.church_id === churchId) as ServiceAssignment[];
+    },
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('service_assignments')
+        .select('*, service_id, services(church_id)')
+        .eq('id', id)
+        .single();
+      
+      // Verify: service belongs to this church
+      if (!data || !data.services || data.services.church_id !== churchId) {
+        return null;
+      }
+      
+      return data as ServiceAssignment;
+    },
+    create: async (sa: Omit<ServiceAssignment, 'id'>) => {
+      const { data } = await supabase.from('service_assignments').insert(sa).select().single();
+      return data as ServiceAssignment;
+    },
+    update: async (id: string, churchId: string, updates: Partial<ServiceAssignment>) => {
+      const { data } = await supabase
+        .from('service_assignments')
+        .update(updates)
+        .eq('id', id)
+        .select('*, service_id, services(church_id)')
+        .single();
+      
+      // Verify: service belongs to this church
+      if (!data || !data.services || data.services.church_id !== churchId) {
+        return null;
+      }
+      
+      return data as ServiceAssignment;
+    },
+    confirm: async (id: string, churchId: string) => {
+      return db.assignments.update(id, churchId, {
+        status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+      });
+    },
+    decline: async (id: string, churchId: string) => {
+      return db.assignments.update(id, churchId, {
+        status: 'declined',
+        declined_at: new Date().toISOString(),
+      });
+    },
+    delete: async (id: string, churchId: string) => {
+      // Verify: assignment's service belongs to this church
+      const { data: assignment } = await supabase
+        .from('service_assignments')
+        .select('service_id, services(church_id)')
+        .eq('id', id)
+        .single();
+      
+      // When joining with services, Supabase returns an array for the related table
+      if (!assignment || !assignment.services) {
+        console.error('[Assignments] Delete failed: assignment not found or access denied', { id, churchId });
+        return false;
+      }
+      
+      const services = assignment.services as Array<{ church_id: string }>;
+      if (services.length === 0 || services[0].church_id !== churchId) {
+        console.error('[Assignments] Delete failed: service church_id mismatch', { id, churchId });
+        return false;
+      }
+      
+      const { error } = await supabase.from('service_assignments').delete().eq('id', id);
+      return !error;
+    },
+    deleteByService: async (serviceId: string, churchId: string) => {
+      // Verify: service belongs to this church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      
+      if (!service || service.church_id !== churchId) {
+        console.error('[Assignments] DeleteByService failed: service not found or access denied', { serviceId, churchId });
+        return false;
+      }
+      
+      const { error } = await supabase.from('service_assignments').delete().eq('service_id', serviceId);
+      return !error;
     },
   },
 };
