@@ -219,7 +219,14 @@ export default function TeamPage() {
         return;
       }
       
-      if (data.success) {
+      if (data.alreadyVerified) {
+        toast({ 
+          title: 'Already verified', 
+          description: 'This team member has already accepted their invitation and verified their account.',
+          status: 'info',
+          duration: 4000 
+        });
+      } else if (data.success) {
         if (data.emailSent) {
           toast({ 
             title: 'Invitation sent!', 
@@ -383,10 +390,10 @@ export default function TeamPage() {
                           />
                           <MenuList borderRadius="xl" zIndex={50}>
                             <MenuItem onClick={() => router.push(`/team/${member.id}`)}>View Profile</MenuItem>
-                            <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email}>
+                            <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email || !!member.user_id}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
                             </MenuItem>
-                            <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email}>
+                            <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email || !!member.user_id}>
                               <HStack><Mail size={16} /><Text>Send Invite Email</Text></HStack>
                             </MenuItem>
                             <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
@@ -474,10 +481,10 @@ export default function TeamPage() {
                           />
                           <MenuList borderRadius="xl" zIndex={50}>
                             <MenuItem onClick={() => router.push(`/team/${member.id}`)}>View Profile</MenuItem>
-                            <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email}>
+                            <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email || !!member.user_id}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
                             </MenuItem>
-                            <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email}>
+                            <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email || !!member.user_id}>
                               <HStack><Mail size={16} /><Text>Send Invite Email</Text></HStack>
                             </MenuItem>
                             <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>

@@ -71,6 +71,15 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ error: 'Team member has no email address' }, 400);
     }
 
+    // Check if the team member is already verified (has a user_id)
+    if (teamMember.user_id) {
+      console.warn('[Send Team Invitation] Team member is already verified:', teamMember.name);
+      return jsonResponse({ 
+        error: 'This team member is already verified and cannot receive an invitation',
+        alreadyVerified: true
+      }, 400);
+    }
+
     let church: Church | null;
     try {
       console.log('[Send Team Invitation] Fetching church:', churchId);
