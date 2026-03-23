@@ -6,7 +6,7 @@ import type { ServiceAssignment } from '@/lib/types';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { assignmentId: string } }
+  { params }: { params: Promise<{ assignmentId: string }> }
 ) {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -15,7 +15,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const assignmentId = params.assignmentId;
+    const { assignmentId } = await params;
 
     // Get user's church_id from the users table
     const { data: userData } = await supabase

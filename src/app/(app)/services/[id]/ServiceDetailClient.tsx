@@ -796,12 +796,18 @@ export default function ServiceDetailClient() {
 
                 {/* Schedule Tab */}
                 <TabPanel p="0">
-                  <ServiceSchedule
-                    service={service}
-                    churchId={church.id}
-                    currentUserId={user?.id || ''}
-                    highlightedAssignmentId={highlightedAssignmentId}
-                  />
+                  {church ? (
+                    <ServiceSchedule
+                      service={service}
+                      churchId={church.id}
+                      currentUserId={user?.id || ''}
+                      highlightedAssignmentId={highlightedAssignmentId}
+                    />
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="text-gray-500">Loading...</div>
+                    </div>
+                  )}
                 </TabPanel>
 
                 {/* Chat Tab */}

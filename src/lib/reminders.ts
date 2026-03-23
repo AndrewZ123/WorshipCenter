@@ -6,7 +6,7 @@
  */
 
 import { db } from './store';
-import { sendNotification } from './notifications';
+import { sendNotification, NotificationType } from './notifications';
 import { env } from './env';
 import type { ServiceAssignment } from './types';
 
@@ -53,6 +53,7 @@ async function findInitialReminderAssignments(churchId: string, settings: Remind
   }
   
   return allAssignments.filter(assignment => {
+    if (!assignment.created_at) return false;
     const createdAt = new Date(assignment.created_at);
     return (
       assignment.status === 'pending' &&
@@ -109,12 +110,12 @@ async function sendInitialReminders(churchId: string): Promise<void> {
     
     await sendNotification({
       userId: member.user_id,
-      type: 'initial_reminder',
-      title: 'Reminder: Please confirm your schedule',
-      message: `You're scheduled for ${roleLabel} at ${service.title} on ${service.date}. Please confirm or decline your availability.`,
+      type: NotificationType.ASSIGNMENT_REMINDER,
+      subject: 'Reminder: Please confirm your schedule',
+      body: `You're scheduled for ${roleLabel} at ${service.title} on ${service.date}. Please confirm or decline your availability.`,
       linkUrl,
-      churchId,
-      assignmentId: assignment.id,
+      organizationId: churchId,
+      metadata: { assignmentId: assignment.id },
     });
     
     console.log(`[Reminders] Sent initial reminder for assignment ${assignment.id}`);
@@ -169,12 +170,12 @@ async function sendPreServiceReminders(churchId: string): Promise<void> {
           
           await sendNotification({
             userId: member.user_id,
-            type: 'pre_rehearsal_reminder',
-            title: `Rehearsal tomorrow: ${service.title}`,
-            message: `Rehearsal is at ${service.rehearsal_time} on ${service.date}. You're scheduled for ${roleLabel}.`,
+            type: NotificationType.REHEARSAL_REMINDER,
+            subject: `Rehearsal tomorrow: ${service.title}`,
+            body: `Rehearsal is at ${service.rehearsal_time} on ${service.date}. You're scheduled for ${roleLabel}.`,
             linkUrl: `${env.appUrl}/services/${service.id}`,
-            churchId,
-            serviceId: service.id,
+            organizationId: churchId,
+            metadata: { serviceId: service.id },
           });
         }
         
@@ -209,12 +210,12 @@ async function sendPreServiceReminders(churchId: string): Promise<void> {
         
         await sendNotification({
           userId: member.user_id,
-          type: 'pre_service_reminder',
-          title: `Service this weekend: ${service.title}`,
-          message: `Service is at ${service.time} on ${service.date}. You're scheduled for ${roleLabel}.`,
+          type: NotificationType.SERVICE_REMINDER,
+          subject: `Service this weekend: ${service.title}`,
+          body: `Service is at ${service.time} on ${service.date}. You're scheduled for ${roleLabel}.`,
           linkUrl: `${env.appUrl}/services/${service.id}`,
-          churchId,
-          serviceId: service.id,
+          organizationId: churchId,
+          metadata: { serviceId: service.id },
         });
       }
       
@@ -283,23 +284,23 @@ async function sendEscalations(churchId: string): Promise<void> {
     // if (worshipLeader) {
     //   await sendNotification({
     //     userId: worshipLeader.id,
-    //     type: 'escalation',
-    //     title: `Unconfirmed team members for ${service.title}`,
-    //     message: `The following team members haven't confirmed yet:\n${pendingMembers.join('\n')}`,
+    //     type: NotificationType.ESCALATION,
+    //     subject: `Unconfirmed team members for ${service.title}`,
+    //     body: `The following team members haven't confirmed yet:\n${pendingMembers.join('\n')}`,
     //     linkUrl: `${env.appUrl}/services/${service.id}/schedule`,
-    //     churchId,
-    //     serviceId: service.id,
+    //     organizationId: churchId,
+    //     metadata: { serviceId: service.id },
     //   });
     // }
   }
 }
 
-/**
+  /**
  * Main entry point for reminder job
  * Call this from a scheduled cron job
  * 
  * Example cron schedule: every 15 minutes
- * 0 */15 * * * * node -e "require('./dist/lib/reminders.js').runReminders()"
+ * node -e "require('./dist/lib/reminders.js').runReminders()"
  */
 export async function runReminders(): Promise<void> {
   try {
