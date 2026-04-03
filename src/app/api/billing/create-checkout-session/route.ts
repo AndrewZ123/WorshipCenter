@@ -90,7 +90,10 @@ export async function POST(request: NextRequest) {
 
     if (subError) {
       console.error('[Checkout] Subscription query error:', subError);
-      return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
+      return NextResponse.json({ 
+        error: 'Subscription not found', 
+        debug: { code: subError.code, message: subError.message, details: subError.details }
+      }, { status: 404 });
     }
 
     // Get or create Stripe customer
@@ -118,10 +121,10 @@ export async function POST(request: NextRequest) {
           console.error('[Checkout] Failed to update subscription:', updateError);
           // Continue anyway since customer was created
         }
-      } catch (stripeError) {
+      } catch (stripeError: any) {
         console.error('[Checkout] Failed to create Stripe customer:', stripeError);
         return NextResponse.json(
-          { error: 'Failed to create customer account' },
+          { error: 'Failed to create customer account', debug: { message: stripeError?.message, type: stripeError?.type } },
           { status: 500 }
         );
       }
@@ -130,6 +133,8 @@ export async function POST(request: NextRequest) {
     // Create Checkout Session
     const priceId = priceType === 'yearly' ? PRICING.yearlyPriceId : PRICING.monthlyPriceId;
     const appUrl = env.appUrl();
+    
+    console.log('[Checkout] Creating session with priceId:', priceId, 'customerId:', customerId, 'appUrl:', appUrl);
     
     try {
       const session = await stripe.checkout.sessions.create({
@@ -150,17 +155,17 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ url: session.url });
-    } catch (stripeError) {
+    } catch (stripeError: any) {
       console.error('[Checkout] Failed to create checkout session:', stripeError);
       return NextResponse.json(
-        { error: 'Failed to create checkout session' },
+        { error: 'Failed to create checkout session', debug: { message: stripeError?.message, type: stripeError?.type, raw: stripeError?.raw?.message } },
         { status: 500 }
       );
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Checkout] Unexpected error:', error);
     return NextResponse.json(
-      { error: 'An unexpected error occurred. Please try again.' },
+      { error: 'An unexpected error occurred. Please try again.', debug: { message: error?.message, stack: error?.stack?.split('\n').slice(0, 3) } },
       { status: 500 }
     );
   }
