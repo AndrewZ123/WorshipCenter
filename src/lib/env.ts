@@ -101,12 +101,13 @@ export function getEnvVar(name: EnvVarName): string {
   const def = ENV_VAR_DEFS[name];
 
   if (!value && def?.required) {
+    const note = def.public
+      ? `Note: This is a public variable (NEXT_PUBLIC_) and should be set in both .env and your hosting platform.`
+      : `Note: This is a server-side variable and should be set in your hosting platform's environment settings.`;
     throw new Error(
       `Missing required environment variable: ${name}\n` +
       `Description: ${def.description}\n` +
-      def.public
-        ? `Note: This is a public variable (NEXT_PUBLIC_) and should be set in both .env and your hosting platform.`
-        : `Note: This is a server-side variable and should be set in your hosting platform's environment settings.`
+      note
     );
   }
 
