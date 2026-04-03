@@ -8,9 +8,7 @@ export const getStripe = (): Stripe => {
   if (!stripeInstance) {
     try {
       const key = env.stripeSecretKey();
-      stripeInstance = new Stripe(key, {
-        apiVersion: '2026-02-25.clover',
-      });
+      stripeInstance = new Stripe(key);
     } catch (error) {
       console.error('Failed to initialize Stripe:', error);
       throw new Error('Server configuration error: Unable to initialize payment provider');

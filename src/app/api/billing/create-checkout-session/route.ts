@@ -88,15 +88,15 @@ export async function POST(request: NextRequest) {
       .eq('church_id', userData.church_id)
       .single();
 
-    if (subError || !subscription) {
-      console.error('[Checkout] Subscription not found for church:', userData.church_id);
+    if (subError) {
+      console.error('[Checkout] Subscription query error:', subError);
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
     }
 
     // Get or create Stripe customer
-    let customerId = subscription.stripe_customer_id;
+    let customerId = subscription?.stripe_customer_id;
     
-    if (customerId.startsWith('cus_pending_')) {
+    if (!customerId || customerId.startsWith('cus_pending_')) {
       try {
         // Create a new Stripe customer
         const customer = await stripe.customers.create({
