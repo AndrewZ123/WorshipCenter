@@ -18,14 +18,19 @@ export function useSubscription() {
     }
 
     try {
-      // Try to load from cache first
+      // Try to load from cache first (5-minute TTL)
       const cacheKey = `wc_subscription_${user.church_id}`;
+      const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
       try {
-        const cachedSubscription = localStorage.getItem(cacheKey);
-        if (cachedSubscription) {
-          const parsed = JSON.parse(cachedSubscription);
-          setSubscription(parsed);
-          setLoading(false);
+        const cachedRaw = localStorage.getItem(cacheKey);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          const cacheAge = Date.now() - (cached._cachedAt || 0);
+          if (cacheAge < CACHE_TTL) {
+            setSubscription(cached.data || cached);
+            setLoading(false);
+          }
+          // If cache is stale, we still fetch fresh data below
         }
       } catch (err) {
         // Silent cache load failure
@@ -42,9 +47,12 @@ export function useSubscription() {
       
       setSubscription(data);
       
-      // Cache the subscription data
+      // Cache the subscription data with timestamp
       try {
-        localStorage.setItem(cacheKey, JSON.stringify(data));
+        localStorage.setItem(cacheKey, JSON.stringify({
+          data,
+          _cachedAt: Date.now(),
+        }));
       } catch (err) {
         // Silent cache save failure
       }

@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
         let stripeSub = null;
         let stripeError = null;
         
-        if (sub.stripe_subscription_id && !sub.stripe_subscription_id.startsWith('cus_pending_')) {
+        if (sub.stripe_subscription_id && !sub.stripe_subscription_id.startsWith('sub_pending_')) {
           try {
             const response = await stripe.subscriptions.retrieve(sub.stripe_subscription_id);
             stripeSub = response as any;

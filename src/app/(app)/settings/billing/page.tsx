@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -23,27 +23,21 @@ import {
   ListItem,
   ListIcon,
   useColorModeValue,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
+  useToast,
 } from '@chakra-ui/react';
-import { FiCheck, FiCreditCard, FiCalendar, FiClock } from 'react-icons/fi';
+import { FiCheck, FiCreditCard, FiCalendar, FiRefreshCw } from 'react-icons/fi';
 import { useAuth } from '@/lib/auth';
 import { useSubscription } from '@/lib/useSubscription';
-import { usePermissions } from '@/lib/usePermissions';
 import { supabase } from '@/lib/supabase';
-import EmbeddedPaymentForm from '@/components/billing/EmbeddedPaymentForm';
+import SyncSubscriptionButton from '@/components/billing/SyncSubscriptionButton';
 import { PRICING } from '@/lib/stripe';
 
 export default function BillingPage() {
   const { user } = useAuth();
   const { subscription, billingState, loading, refetch } = useSubscription();
-  const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [selectedPriceType, setSelectedPriceType] = useState<'monthly' | 'yearly'>('monthly');
+  const [checkoutLoading, setCheckoutLoading] = useState<'monthly' | 'yearly' | null>(null);
   const [success, setSuccess] = useState(false);
+  const toast = useToast();
 
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -53,64 +47,50 @@ export default function BillingPage() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('success') === 'true') {
       setSuccess(true);
+      // Clear the URL param so it doesn't persist on re-renders
+      window.history.replaceState({}, '', '/settings/billing');
       refetch();
     }
   }, [refetch]);
 
-  const handleSubscribe = (priceType: 'monthly' | 'yearly') => {
-    console.log('Subscribe clicked:', priceType);
-    setSelectedPriceType(priceType);
-    setShowPaymentForm(true);
-    console.log('Modal state set to true');
-  };
-
-  const handlePaymentSuccess = () => {
-    setShowPaymentForm(false);
-    setSuccess(true);
-    
-    // Clear subscription cache to force fresh data
-    if (user?.church_id) {
-      try {
-        localStorage.removeItem(`wc_subscription_${user.church_id}`);
-        console.log('[Billing] Subscription cache cleared');
-      } catch (err) {
-        console.warn('[Billing] Failed to clear cache:', err);
+  const handleSubscribe = useCallback(async (priceType: 'monthly' | 'yearly') => {
+    setCheckoutLoading(priceType);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({ title: 'Please log in to subscribe', status: 'error' });
+        return;
       }
+
+      const response = await fetch('/api/billing/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ priceType }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        toast({ title: data.error || 'Failed to start checkout', status: 'error' });
+        return;
+      }
+
+      // Redirect to Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast({ title: 'Failed to get checkout URL', status: 'error' });
+      }
+    } catch (err) {
+      console.error('[Billing] Checkout error:', err);
+      toast({ title: 'Failed to start checkout. Please try again.', status: 'error' });
+    } finally {
+      setCheckoutLoading(null);
     }
-    
-    // Refetch subscription immediately
-    refetch();
-    
-    // Poll for subscription updates to catch webhook processing
-    let attempts = 0;
-    const maxAttempts = 10;
-    const pollInterval = setInterval(async () => {
-      attempts++;
-      await refetch();
-      
-      if (attempts >= maxAttempts) {
-        clearInterval(pollInterval);
-      }
-    }, 1000);
-    
-    // Clean up interval after max attempts
-    setTimeout(() => clearInterval(pollInterval), maxAttempts * 1000);
-  };
-
-  const handlePaymentCancel = () => {
-    setShowPaymentForm(false);
-  };
-
-  const getAmountForPriceType = (priceType: 'monthly' | 'yearly') => {
-    return priceType === 'yearly' ? PRICING.yearlyPrice : PRICING.monthlyPrice;
-  };
-
-  // Debug logging
-  console.log('Billing page render:', {
-    subscription,
-    billingState,
-    loading,
-  });
+  }, [toast]);
 
   if (loading) {
     return (
@@ -244,6 +224,7 @@ export default function BillingPage() {
                       colorScheme="teal"
                       variant="outline"
                       type="button"
+                      isLoading={checkoutLoading === 'monthly'}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -300,6 +281,7 @@ export default function BillingPage() {
                     <Button
                       colorScheme="teal"
                       type="button"
+                      isLoading={checkoutLoading === 'yearly'}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -345,35 +327,13 @@ export default function BillingPage() {
             </Card>
           </VStack>
         </Box>
+        {/* Sync Subscription - for troubleshooting */}
+        {billingState.isActive && (
+          <Box textAlign="right">
+            <SyncSubscriptionButton />
+          </Box>
+        )}
       </VStack>
-
-      {/* Embedded Payment Modal */}
-      <Modal
-        isOpen={showPaymentForm}
-        onClose={handlePaymentCancel}
-        size="lg"
-        isCentered
-        closeOnOverlayClick={false}
-      >
-        <ModalOverlay />
-        <ModalContent>
-          <ModalCloseButton />
-          <ModalHeader>
-            <HStack>
-              <Icon as={FiCreditCard} color="teal.500" />
-              <Text>Complete Your Subscription</Text>
-            </HStack>
-          </ModalHeader>
-          <ModalBody pb={6}>
-            <EmbeddedPaymentForm
-              priceType={selectedPriceType}
-              amount={getAmountForPriceType(selectedPriceType)}
-              onSuccess={handlePaymentSuccess}
-              onCancel={handlePaymentCancel}
-            />
-          </ModalBody>
-        </ModalContent>
-      </Modal>
     </Container>
   );
 }
