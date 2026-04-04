@@ -1,17 +1,12 @@
 -- Fix: Resolve duplicate key error on subscriptions.church_id during signup
 -- 
--- Problem: When creating a new church via signup_church(), triggers on the churches and/or 
--- users tables both try to create a subscription for the same church_id. The second insert 
--- fails with: "duplicate key value violates unique constraint subscriptions_church_id_key"
---
--- Root Cause: The signup_church() function inserts into churches (trigger fires → subscription 
--- created), then inserts into users (another trigger fires → tries to create another subscription
--- for the same church_id → duplicate key violation).
+-- Problem: When creating a new church, triggers on the churches and/or 
+-- users tables both try to create a subscription for the same church_id.
 --
 -- Solution: 
 -- 1. Drop ALL existing triggers on churches/users that insert into subscriptions
 -- 2. Replace with idempotent versions using ON CONFLICT (church_id) DO NOTHING
--- 3. Update signup_church() to also be resilient
+-- 3. Update signup_church() to not reference non-existent slug column
 
 -- ============================================================
 -- Step 1: Create the fixed trigger functions with ON CONFLICT
@@ -90,8 +85,6 @@ $$;
 
 -- ============================================================
 -- Step 2: Drop ALL existing triggers on churches and users 
---         that relate to subscriptions (we don't know the exact
---         names since the original migration 002 isn't in the repo)
 -- ============================================================
 
 DO $$
@@ -99,7 +92,7 @@ DECLARE
   trig_name TEXT;
   trig_table TEXT;
 BEGIN
-  -- Drop all triggers on churches table
+  -- Drop all triggers on churches and users tables
   FOR trig_name, trig_table IN
     SELECT t.tgname, c.relname
     FROM pg_trigger t
@@ -129,8 +122,8 @@ CREATE TRIGGER on_user_created
   EXECUTE FUNCTION create_subscription_for_user();
 
 -- ============================================================
--- Step 4: Update the signup_church function to be resilient
---         (in case triggers behave unexpectedly)
+-- Step 4: Update the signup_church function (fix slug column error)
+--         churches table only has: id, name, created_at
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION signup_church(
@@ -146,27 +139,12 @@ SET search_path = public
 AS $$
 DECLARE
   v_church_id UUID;
-  v_slug TEXT;
-  v_slug_base TEXT;
-  v_counter INTEGER := 0;
   v_success BOOLEAN := false;
   v_error_message TEXT;
 BEGIN
-  -- Generate a unique slug from the church name
-  v_slug_base := lower(regexp_replace(p_church_name, '[^a-zA-Z0-9]', '-', 'g'));
-  v_slug_base := regexp_replace(v_slug_base, '-+', '-', 'g');
-  v_slug_base := trim(both '-' from v_slug_base);
-  v_slug := v_slug_base;
-  
-  -- Check if slug exists and make it unique if needed
-  WHILE EXISTS (SELECT 1 FROM churches WHERE slug = v_slug) LOOP
-    v_counter := v_counter + 1;
-    v_slug := v_slug_base || '-' || v_counter;
-  END LOOP;
-  
   -- Create the church (trigger will auto-create subscription with ON CONFLICT DO NOTHING)
-  INSERT INTO churches (id, name, slug)
-  VALUES (gen_random_uuid(), p_church_name, v_slug)
+  INSERT INTO churches (id, name)
+  VALUES (gen_random_uuid(), p_church_name)
   RETURNING id INTO v_church_id;
   
   -- Ensure subscription exists (idempotent - safe even if trigger already created it)
@@ -193,7 +171,6 @@ BEGIN
   ON CONFLICT (church_id) DO NOTHING;
   
   -- Create the user profile (admin/worship leader)
-  -- (trigger on users will also try to create subscription but ON CONFLICT DO NOTHING)
   INSERT INTO users (id, church_id, name, email, role)
   VALUES (p_auth_user_id, v_church_id, p_user_name, p_user_email, 'admin');
   
@@ -219,21 +196,21 @@ BEGIN
     'error', NULL
   );
   
-EXCEPTION
-  WHEN OTHERS THEN
-    v_success := false;
-    v_error_message := SQLERRM;
-    
-    RETURN json_build_object(
-      'success', v_success,
-      'church_id', NULL,
-      'error', v_error_message
-    );
+  EXCEPTION
+    WHEN OTHERS THEN
+      v_success := false;
+      v_error_message := SQLERRM;
+      
+      RETURN json_build_object(
+        'success', v_success,
+        'church_id', NULL,
+        'error', v_error_message
+      );
 END;
 $$;
 
 -- ============================================================
--- Step 5: Grant permissions and add comments
+-- Step 5: Grant permissions
 -- ============================================================
 
 GRANT EXECUTE ON FUNCTION create_subscription_for_church TO authenticated;
@@ -242,13 +219,4 @@ GRANT EXECUTE ON FUNCTION signup_church TO authenticated;
 
 COMMENT ON FUNCTION create_subscription_for_church IS 'Auto-creates a 14-day trial subscription when a new church is created. Uses ON CONFLICT to prevent duplicate key errors.';
 COMMENT ON FUNCTION create_subscription_for_user IS 'Safety net: ensures a trial subscription exists for the users church. Uses ON CONFLICT to prevent duplicate key errors.';
-COMMENT ON FUNCTION signup_church IS 'Creates a church, user profile, team member entry, and ensures subscription exists. Resilient to duplicate subscription attempts.';
-</task_progress>
-<task_progress>- [x] Read current signup_church function and related code
-- [x] Read schema.sql for trigger definition
-- [x] Read full auth.tsx signup implementation
-- [x] Understand subscription schema and types
-- [x] Re-analyze root cause in signup_church function
-- [x] Fix migration file with robust solution
-- [ ] Apply migration and verify</task_progress>
-</write_to_file>
+COMMENT ON FUNCTION signup_church IS 'Creates a church, user profile, team member entry, and ensures subscription exists. No slug column - churches table only has id, name, created_at.';
