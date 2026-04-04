@@ -194,28 +194,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      // 2. Use SECURITY DEFINER function to create church + user profile (bypasses RLS)
-      const { data: signupResult, error: signupError } = await supabase.rpc('signup_church', {
-        p_church_name: churchName,
-        p_user_name: userName,
-        p_user_email: email,
-        p_auth_user_id: authData.user.id
+      // 2. Call server-side API to create church, subscription, user profile, and team member
+      //    (bypasses the buggy signup_church RPC function that causes duplicate key errors)
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+      const signupResponse = await fetch(`${appUrl}/api/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          churchName,
+          userName,
+          email,
+          password,
+          authUserId: authData.user.id,
+        }),
       });
 
-      if (signupError) {
-        console.error('[Auth] Signup RPC error:', signupError.message);
-        return false;
-      }
+      const signupResult = await signupResponse.json();
 
-      if (!signupResult?.success) {
-        console.error('[Auth] Signup function error:', signupResult?.error || 'Unknown error');
+      if (!signupResponse.ok || !signupResult.success) {
+        console.error('[Auth] Signup API error:', signupResult.error || 'Unknown error');
         return false;
       }
 
       console.log('[Auth] Signup successful, church created:', signupResult.church_id);
-
-      // Note: Subscription is auto-created by database trigger (see supabase/migrations/002_add_subscriptions.sql)
-      // This creates a 14-day trial automatically when a church is created.
 
       // Send welcome email
       try {
