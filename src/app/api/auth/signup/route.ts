@@ -22,32 +22,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Generate a unique slug from the church name
-    let slugBase = churchName
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-    let slug = slugBase;
-    let counter = 0;
-
-    // Check slug uniqueness using admin client
-    while (true) {
-      const { data: existing } = await supabaseAdmin
-        .from('churches')
-        .select('id')
-        .eq('slug', slug)
-        .maybeSingle();
-
-      if (!existing) break;
-      counter++;
-      slug = `${slugBase}-${counter}`;
-    }
-
-    // 2. Create the church
+    // 1. Create the church (churches table only has id, name, created_at)
     const { data: churchData, error: churchError } = await supabaseAdmin
       .from('churches')
-      .insert({ name: churchName, slug })
+      .insert({ name: churchName })
       .select('id')
       .single();
 
