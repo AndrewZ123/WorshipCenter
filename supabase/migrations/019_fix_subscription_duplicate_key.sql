@@ -124,7 +124,10 @@ CREATE TRIGGER on_user_created
 -- ============================================================
 -- Step 4: Update the signup_church function (fix slug column error)
 --         churches table only has: id, name, created_at
+--         Must DROP first because return type may differ
 -- ============================================================
+
+DROP FUNCTION IF EXISTS signup_church(TEXT, TEXT, TEXT, UUID);
 
 CREATE OR REPLACE FUNCTION signup_church(
   p_church_name TEXT,
