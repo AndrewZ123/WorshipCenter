@@ -328,11 +328,9 @@ export default function BillingPage() {
           </VStack>
         </Box>
         {/* Sync Subscription - for troubleshooting */}
-        {billingState.isActive && (
-          <Box textAlign="right">
-            <SyncSubscriptionButton />
-          </Box>
-        )}
+        <Box textAlign="right">
+          <SyncSubscriptionButton />
+        </Box>
       </VStack>
     </Container>
   );

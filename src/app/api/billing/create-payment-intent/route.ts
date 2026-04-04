@@ -94,15 +94,42 @@ export async function POST(request: NextRequest) {
       .from('subscriptions')
       .select('*')
       .eq('church_id', userData.church_id)
-      .single();
+      .maybeSingle();
 
-    if (subError || !subscription) {
+    // Auto-create subscription if missing
+    let sub = subscription;
+    if (!sub && !subError) {
+      console.log('[Payment Intent] No subscription found, auto-creating for church:', userData.church_id);
+      const { data: newSub, error: createSubError } = await supabase
+        .from('subscriptions')
+        .insert({
+          church_id: userData.church_id,
+          stripe_customer_id: 'cus_pending_' + crypto.randomUUID().replace(/-/g, ''),
+          stripe_subscription_id: null,
+          status: 'trialing',
+          trial_start: new Date().toISOString(),
+          trial_end: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          current_period_start: null,
+          current_period_end: null,
+          cancel_at_period_end: false,
+        })
+        .select('*')
+        .single();
+
+      if (createSubError || !newSub) {
+        console.error('[Payment Intent] Failed to auto-create subscription:', createSubError);
+        return NextResponse.json({ error: 'Failed to initialize subscription' }, { status: 500 });
+      }
+      sub = newSub;
+    }
+
+    if (subError || !sub) {
       console.error('[Payment Intent] Subscription not found for church:', userData.church_id);
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
     }
 
     // Prevent creating payment intent if user already has active subscription
-    if (subscription.status === 'active') {
+    if (sub.status === 'active') {
       return NextResponse.json(
         { error: 'You already have an active subscription' },
         { status: 400 }
@@ -110,9 +137,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create Stripe customer
-    let customerId = subscription.stripe_customer_id;
+    let customerId = sub.stripe_customer_id;
     
-    if (customerId.startsWith('cus_pending_')) {
+    if (!customerId || customerId.startsWith('cus_pending_')) {
       try {
         // Create a new Stripe customer
         const customer = await stripe.customers.create({

@@ -81,23 +81,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get subscription
+    // Get or create subscription
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('church_id', userData.church_id)
-      .single();
+      .maybeSingle();
 
     if (subError) {
       console.error('[Checkout] Subscription query error:', subError);
       return NextResponse.json({ 
-        error: 'Subscription not found', 
+        error: 'Failed to lookup subscription', 
         debug: { code: subError.code, message: subError.message, details: subError.details }
-      }, { status: 404 });
+      }, { status: 500 });
+    }
+
+    // Auto-create subscription if missing (e.g., race condition during signup)
+    let sub = subscription;
+    if (!sub) {
+      console.log('[Checkout] No subscription found for church, auto-creating:', userData.church_id);
+      const { data: newSub, error: createSubError } = await supabase
+        .from('subscriptions')
+        .insert({
+          church_id: userData.church_id,
+          stripe_customer_id: 'cus_pending_' + crypto.randomUUID().replace(/-/g, ''),
+          stripe_subscription_id: null,
+          status: 'trialing',
+          trial_start: new Date().toISOString(),
+          trial_end: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          current_period_start: null,
+          current_period_end: null,
+          cancel_at_period_end: false,
+        })
+        .select('*')
+        .single();
+
+      if (createSubError || !newSub) {
+        console.error('[Checkout] Failed to auto-create subscription:', createSubError);
+        return NextResponse.json({ 
+          error: 'Failed to initialize subscription. Please try again.',
+          debug: { message: createSubError?.message }
+        }, { status: 500 });
+      }
+      sub = newSub;
     }
 
     // Get or create Stripe customer
-    let customerId = subscription?.stripe_customer_id;
+    let customerId = sub?.stripe_customer_id;
     
     if (!customerId || customerId.startsWith('cus_pending_')) {
       try {

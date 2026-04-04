@@ -52,21 +52,52 @@ export async function POST(request: NextRequest) {
       .from('subscriptions')
       .select('*')
       .eq('church_id', userData.church_id)
-      .single();
+      .maybeSingle();
 
-    if (subError || !subscription) {
+    // Auto-create subscription if missing
+    let sub = subscription;
+    if (!sub && !subError) {
+      console.log('[Sync Subscription] No subscription found, auto-creating for church:', userData.church_id);
+      const { data: newSub, error: createSubError } = await supabase
+        .from('subscriptions')
+        .insert({
+          church_id: userData.church_id,
+          stripe_customer_id: 'cus_pending_' + crypto.randomUUID().replace(/-/g, ''),
+          stripe_subscription_id: null,
+          status: 'trialing',
+          trial_start: new Date().toISOString(),
+          trial_end: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          current_period_start: null,
+          current_period_end: null,
+          cancel_at_period_end: false,
+        })
+        .select('*')
+        .single();
+
+      if (createSubError || !newSub) {
+        console.error('[Sync Subscription] Failed to auto-create subscription:', createSubError);
+        return NextResponse.json({ error: 'Failed to initialize subscription' }, { status: 500 });
+      }
+      sub = newSub;
+    }
+
+    if (subError || !sub) {
       console.error('[Sync Subscription] Subscription not found for church:', userData.church_id);
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 });
     }
 
-    let customerId = subscription.stripe_customer_id;
+    let customerId = sub.stripe_customer_id;
 
-    // If still using pending customer ID, we can't sync yet
-    if (customerId.startsWith('cus_pending_')) {
+    // If no customer ID or still using pending customer ID, we can't sync with Stripe yet
+    if (!customerId || customerId.startsWith('cus_pending_')) {
       return NextResponse.json({ 
-        error: 'Cannot sync: Customer not yet created in Stripe',
-        needsCustomer: true 
-      }, { status: 400 });
+        success: true,
+        previousStatus: sub.status,
+        newStatus: sub.status,
+        updates: {},
+        message: 'No Stripe customer yet. Subscription is in local state only.',
+        stripeSubscriptionsFound: 0,
+      });
     }
 
     // Fetch all subscriptions for this customer from Stripe
@@ -89,7 +120,7 @@ export async function POST(request: NextRequest) {
     const pastDueSubscription = stripeSubscriptions.data.find(sub => sub.status === 'past_due');
 
     // Determine the correct status
-    let newStatus = subscription.status;
+    let newStatus = sub.status;
     let updates: any = {
       updated_at: new Date().toISOString(),
     };
@@ -132,8 +163,8 @@ export async function POST(request: NextRequest) {
       };
     } else {
       // No active subscriptions found - check if trial has expired
-      if (subscription.status === 'trialing') {
-        const trialEnded = new Date(subscription.trial_end) < new Date();
+      if (sub.status === 'trialing') {
+        const trialEnded = sub.trial_end && new Date(sub.trial_end) < new Date();
         if (trialEnded) {
           newStatus = 'canceled';
           updates = {
@@ -145,7 +176,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Apply updates if status changed or we have subscription details
-    if (newStatus !== subscription.status || activeSubscription || pastDueSubscription || trialingSubscription) {
+    if (newStatus !== sub.status || activeSubscription || pastDueSubscription || trialingSubscription) {
       const { error: updateError } = await supabase
         .from('subscriptions')
         .update(updates)
@@ -162,7 +193,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      previousStatus: subscription.status,
+      previousStatus: sub.status,
       newStatus,
       updates,
       stripeSubscriptionsFound: stripeSubscriptions.data.length,
