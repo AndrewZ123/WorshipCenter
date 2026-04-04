@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe, PRICING } from '@/lib/stripe';
+import { getStripe, PRICING, isStripeConfigured, getMissingStripeVars } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
 import { withAuth, checkRateLimit, sanitizeRequestBody } from '@/lib/auth-middleware';
@@ -16,6 +16,20 @@ const CHECKOUT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 export async function POST(request: NextRequest) {
   try {
+    // Check Stripe configuration first
+    if (!isStripeConfigured()) {
+      const missing = getMissingStripeVars();
+      console.error('[Checkout] Stripe not configured. Missing:', missing);
+      return NextResponse.json(
+        { 
+          error: 'Payment system is not configured. Please contact support.',
+          code: 'STRIPE_NOT_CONFIGURED',
+          missingVars: missing,
+        },
+        { status: 503 }
+      );
+    }
+
     const supabase = getSupabase();
     const stripe = getStripe();
     
@@ -194,6 +208,18 @@ export async function POST(request: NextRequest) {
     }
   } catch (error: any) {
     console.error('[Checkout] Unexpected error:', error);
+    
+    // Check if it's a Stripe configuration error
+    if (error?.message?.includes('Stripe is not configured') || error?.message?.includes('Missing environment variable')) {
+      return NextResponse.json(
+        { 
+          error: 'Payment system is not configured. Please add Stripe environment variables in your Vercel project settings.',
+          code: 'STRIPE_NOT_CONFIGURED',
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'An unexpected error occurred. Please try again.', debug: { message: error?.message, stack: error?.stack?.split('\n').slice(0, 3) } },
       { status: 500 }

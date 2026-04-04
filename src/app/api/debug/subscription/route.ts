@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getStripe } from '@/lib/stripe';
+import { getStripe, isStripeConfigured, getMissingStripeVars } from '@/lib/stripe';
 import { env } from '@/lib/env';
 
 // Lazy initialization of Supabase client
@@ -21,10 +21,16 @@ const getSupabase = () => createClient(
  */
 
 export async function GET(request: NextRequest) {
-  const supabase = getSupabase();
-  const stripe = getStripe();
-  
   try {
+    // Check Stripe configuration first
+    const stripeConfigured = isStripeConfigured();
+    const missingStripeVars = getMissingStripeVars();
+    
+    const supabase = getSupabase();
+    let stripe: ReturnType<typeof getStripe> | null = null;
+    if (stripeConfigured) {
+      try { stripe = getStripe(); } catch (e) { /* ignore */ }
+    }
     // Get user from auth header
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
@@ -75,7 +81,7 @@ export async function GET(request: NextRequest) {
         let stripeSub = null;
         let stripeError = null;
         
-        if (sub.stripe_subscription_id && !sub.stripe_subscription_id.startsWith('sub_pending_')) {
+        if (stripe && sub.stripe_subscription_id && !sub.stripe_subscription_id.startsWith('sub_pending_')) {
           try {
             const response = await stripe.subscriptions.retrieve(sub.stripe_subscription_id);
             stripeSub = response as any;
@@ -104,6 +110,8 @@ export async function GET(request: NextRequest) {
       subscriptions: results,
       scope: isSuperAdmin ? 'all_churches' : 'your_church_only',
       user_church_id: userData.church_id,
+      stripe_configured: stripeConfigured,
+      missing_stripe_vars: missingStripeVars,
     });
   } catch (error) {
     console.error('[Debug Subscription] Unexpected error:', error);

@@ -53,6 +53,8 @@ export default function BillingPage() {
     }
   }, [refetch]);
 
+  const [stripeConfigError, setStripeConfigError] = useState(false);
+
   const handleSubscribe = useCallback(async (priceType: 'monthly' | 'yearly') => {
     setCheckoutLoading(priceType);
     try {
@@ -74,7 +76,18 @@ export default function BillingPage() {
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast({ title: data.error || 'Failed to start checkout', status: 'error' });
+        // Check if Stripe is not configured
+        if (data.code === 'STRIPE_NOT_CONFIGURED') {
+          setStripeConfigError(true);
+          toast({ 
+            title: 'Payment system unavailable', 
+            description: 'Our payment system is temporarily unavailable. Please try again later or contact support.',
+            status: 'error',
+            duration: 10000,
+          });
+        } else {
+          toast({ title: data.error || 'Failed to start checkout', status: 'error' });
+        }
         return;
       }
 
@@ -115,6 +128,19 @@ export default function BillingPage() {
             <AlertDescription>
               Your subscription is now active. Thank you for supporting WorshipCenter!
             </AlertDescription>
+          </Alert>
+        )}
+
+        {stripeConfigError && (
+          <Alert status="error" borderRadius="lg">
+            <AlertIcon />
+            <Box>
+              <AlertTitle>Payment System Unavailable</AlertTitle>
+              <AlertDescription>
+                Our payment system is currently not configured. This is likely a temporary issue. 
+                Please try again later or contact support at support@worshipcenter.app if the problem persists.
+              </AlertDescription>
+            </Box>
           </Alert>
         )}
 

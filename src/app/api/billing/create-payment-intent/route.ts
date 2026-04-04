@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe, PRICING } from '@/lib/stripe';
+import { getStripe, PRICING, isStripeConfigured, getMissingStripeVars } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
 import { hasPermission } from '@/lib/rbac';
 import { env } from '@/lib/env';
@@ -16,10 +16,23 @@ const MAX_PAYMENT_ATTEMPTS = 10;
 const PAYMENT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
-  const stripe = getStripe();
-  
   try {
+    // Check Stripe configuration first
+    if (!isStripeConfigured()) {
+      const missing = getMissingStripeVars();
+      console.error('[Payment Intent] Stripe not configured. Missing:', missing);
+      return NextResponse.json(
+        { 
+          error: 'Payment system is not configured. Please contact support.',
+          code: 'STRIPE_NOT_CONFIGURED',
+          missingVars: missing,
+        },
+        { status: 503 }
+      );
+    }
+
+    const supabase = getSupabase();
+    const stripe = getStripe();
     // Parse and validate request body
     const body = await request.json();
     const sanitized = sanitizeRequestBody(body);
@@ -256,8 +269,19 @@ export async function POST(request: NextRequest) {
       amount,
       priceType,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Payment Intent] Unexpected error:', error);
+    
+    if (error?.message?.includes('Stripe is not configured') || error?.message?.includes('Missing environment variable')) {
+      return NextResponse.json(
+        { 
+          error: 'Payment system is not configured.',
+          code: 'STRIPE_NOT_CONFIGURED',
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'An unexpected error occurred. Please try again.' },
       { status: 500 }

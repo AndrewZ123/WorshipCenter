@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe } from '@/lib/stripe';
+import { getStripe, isStripeConfigured, getMissingStripeVars } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
 import { hasPermission } from '@/lib/rbac';
 import { env } from '@/lib/env';
@@ -11,10 +11,23 @@ const getSupabase = () => createClient(
 );
 
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
-  const stripe = getStripe();
-  
   try {
+    // Check Stripe configuration first
+    if (!isStripeConfigured()) {
+      const missing = getMissingStripeVars();
+      console.error('[Sync Subscription] Stripe not configured. Missing:', missing);
+      return NextResponse.json(
+        { 
+          error: 'Payment system is not configured. Please contact support.',
+          code: 'STRIPE_NOT_CONFIGURED',
+          missingVars: missing,
+        },
+        { status: 503 }
+      );
+    }
+
+    const supabase = getSupabase();
+    const stripe = getStripe();
     // Get user from auth header
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
@@ -198,8 +211,19 @@ export async function POST(request: NextRequest) {
       updates,
       stripeSubscriptionsFound: stripeSubscriptions.data.length,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Sync Subscription] Unexpected error:', error);
+    
+    if (error?.message?.includes('Stripe is not configured') || error?.message?.includes('Missing environment variable')) {
+      return NextResponse.json(
+        { 
+          error: 'Payment system is not configured.',
+          code: 'STRIPE_NOT_CONFIGURED',
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to sync subscription' },
       { status: 500 }
