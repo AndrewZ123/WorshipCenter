@@ -11,7 +11,8 @@ interface SubscriptionGateProps {
 }
 
 export function SubscriptionGate({ children }: SubscriptionGateProps) {
-  const { billingState, hasAccess, loading } = useSubscription();
+  const { isActive, isTrialing, isPastDue, loading } = useSubscription();
+  const hasAccess = isActive || isTrialing;
   const { user } = useAuth();
   
   const bgColor = useColorModeValue('gray.50', 'gray.900');
@@ -60,10 +61,10 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
           
           <VStack spacing={2}>
             <Text fontSize="xl" fontWeight="700" color="gray.800">
-              {billingState.isPastDue ? 'Payment Overdue' : 'Trial Ended'}
+              {isPastDue ? 'Payment Overdue' : 'Trial Ended'}
             </Text>
             <Text color="gray.500" fontSize="sm">
-              {billingState.isPastDue 
+              {isPastDue
                 ? 'Your subscription payment failed. Please update your payment method to regain access.'
                 : 'Your 14-day free trial has ended. Subscribe now to continue using WorshipCenter.'}
             </Text>

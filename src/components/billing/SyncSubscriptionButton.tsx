@@ -1,82 +1,86 @@
+/**
+ * SyncSubscriptionButton
+ *
+ * Calls /api/billing/sync-subscription to manually pull the latest
+ * subscription state from Stripe into our DB.
+ */
+
 'use client';
 
 import { useState } from 'react';
-import { Button, HStack, Icon, Text, useToast } from '@chakra-ui/react';
-import { FiRefreshCw } from 'react-icons/fi';
 import { supabase } from '@/lib/supabase';
+import { PRICING } from '@/lib/stripe';
 
 interface SyncSubscriptionButtonProps {
-  onSyncComplete?: () => void;
+  onSynced?: () => void;
 }
 
-export default function SyncSubscriptionButton({ onSyncComplete }: SyncSubscriptionButtonProps) {
-  const [isSyncing, setIsSyncing] = useState(false);
-  const toast = useToast();
+export default function SyncSubscriptionButton({ onSynced }: SyncSubscriptionButtonProps) {
+  const [syncing, setSyncing] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const handleSync = async () => {
-    setIsSyncing(true);
+    setSyncing(true);
+    setMessage(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
+      if (!session?.access_token) {
+        setMessage({ text: 'Not authenticated', type: 'error' });
+        setSyncing(false);
+        return;
       }
 
-      const response = await fetch('/api/billing/sync-subscription', {
+      const res = await fetch('/api/billing/sync-subscription', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
         },
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to sync subscription');
+      if (!res.ok) {
+        setMessage({ text: data.error || 'Sync failed', type: 'error' });
+      } else {
+        setMessage({ text: data.message || 'Synced successfully', type: 'success' });
+        onSynced?.();
       }
-
-      // Show success message
-      toast({
-        title: 'Subscription synced',
-        description: data.previousStatus !== data.newStatus
-          ? `Status updated from ${data.previousStatus} to ${data.newStatus}`
-          : 'Your subscription is up to date',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-
-      // Call completion callback
-      if (onSyncComplete) {
-        onSyncComplete();
-      }
-    } catch (error: any) {
-      console.error('Sync error:', error);
-      toast({
-        title: 'Sync failed',
-        description: error.message || 'Unable to sync subscription. Please try again.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+    } catch (err: any) {
+      setMessage({ text: err.message || 'Network error', type: 'error' });
     } finally {
-      setIsSyncing(false);
+      setSyncing(false);
     }
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      isLoading={isSyncing}
-      leftIcon={<FiRefreshCw />}
-      onClick={handleSync}
-    >
-      <HStack spacing={2}>
-        <Icon as={FiRefreshCw} />
-        <Text>Sync Status</Text>
-      </HStack>
-    </Button>
+    <div>
+      <button
+        onClick={handleSync}
+        disabled={syncing}
+        style={{
+          padding: '8px 16px',
+          fontSize: '14px',
+          backgroundColor: syncing ? '#e2e8f0' : '#4a5568',
+          color: syncing ? '#a0aec0' : '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: syncing ? 'not-allowed' : 'pointer',
+          fontWeight: 500,
+        }}
+      >
+        {syncing ? 'Syncing...' : '🔄 Sync with Stripe'}
+      </button>
+      {message && (
+        <p style={{
+          marginTop: '8px',
+          fontSize: '13px',
+          color: message.type === 'error' ? '#e53e3e' : '#38a169',
+        }}>
+          {message.text}
+        </p>
+      )}
+    </div>
   );
 }

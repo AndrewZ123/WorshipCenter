@@ -56,8 +56,13 @@ export async function getServerHealth() {
     // Check Stripe connectivity
     const stripe = await import('./stripe');
     try {
-      await stripe.getStripe().accounts.retrieve();
-      checks.stripe = true;
+      const stripeClient = stripe.getStripe();
+      if (stripeClient) {
+        await stripeClient.accounts.retrieve();
+        checks.stripe = true;
+      } else {
+        checks.stripe = checks.env; // If env is good, consider stripe accessible
+      }
     } catch {
       // This may fail in test mode with no account
       checks.stripe = checks.env; // If env is good, consider stripe accessible

@@ -7,17 +7,17 @@ import { useSubscription } from '@/lib/useSubscription';
 import NextLink from 'next/link';
 
 export function TrialBanner() {
-  const { billingState, hasAccess, loading } = useSubscription();
+  const { isActive, isTrialing, daysRemaining, loading } = useSubscription();
   
   const bgColor = useColorModeValue('teal.50', 'teal.900');
   const borderColor = useColorModeValue('teal.200', 'teal.700');
   
   // Don't show banner while loading, if active subscription, not trialing, or more than 3 days remaining
-  if (loading || billingState.isActive || !billingState.isTrialing || billingState.daysRemaining > 3) {
+  if (loading || isActive || !isTrialing || daysRemaining > 3) {
     return null;
   }
   
-  const daysText = billingState.daysRemaining === 1 ? '1 day' : `${billingState.daysRemaining} days`;
+  const daysText = daysRemaining === 1 ? '1 day' : `${daysRemaining} days`;
   
   return (
     <Box
@@ -61,13 +61,13 @@ export function TrialBanner() {
 }
 
 export function TrialExpiredBanner() {
-  const { billingState, loading } = useSubscription();
+  const { isActive, isTrialing, loading } = useSubscription();
   
   const bgColor = useColorModeValue('orange.50', 'orange.900');
   const borderColor = useColorModeValue('orange.200', 'orange.700');
   
   // Only show if not loading, trial expired and not active
-  if (loading || billingState.isActive || billingState.isTrialing) {
+  if (loading || isActive || isTrialing) {
     return null;
   }
   
@@ -100,7 +100,7 @@ export function TrialExpiredBanner() {
 
 // Floating CTA for trial users - shows on bottom right
 export function FloatingSubscribeCTA() {
-  const { billingState } = useSubscription();
+  const { isActive, isTrialing, daysRemaining } = useSubscription();
   const [isVisible, setIsVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   
@@ -110,16 +110,16 @@ export function FloatingSubscribeCTA() {
   useEffect(() => {
     // Show after 30 seconds on page
     const timer = setTimeout(() => {
-      if (billingState.isTrialing && !billingState.isActive && !dismissed && billingState.daysRemaining <= 3) {
+      if (isTrialing && !isActive && !dismissed && daysRemaining <= 3) {
         setIsVisible(true);
       }
     }, 30000);
     
     return () => clearTimeout(timer);
-  }, [billingState.isTrialing, billingState.isActive, dismissed, billingState.daysRemaining]);
+  }, [isTrialing, isActive, dismissed, daysRemaining]);
   
   // Don't show if not trialing, already active, dismissed, or more than 3 days remaining
-  if (!billingState.isTrialing || billingState.isActive || dismissed || billingState.daysRemaining > 3) {
+  if (!isTrialing || isActive || dismissed || daysRemaining > 3) {
     return null;
   }
   
@@ -157,7 +157,7 @@ export function FloatingSubscribeCTA() {
         </Box>
       </Flex>
       <Text fontSize="xs" mb={3} opacity={0.9}>
-        {billingState.daysRemaining} days left in your trial. Keep your worship planning smooth with WorshipCenter.
+        {daysRemaining} days left in your trial. Keep your worship planning smooth with WorshipCenter.
       </Text>
       <HStack spacing={2} mb={3}>
         <Badge colorScheme="whiteAlpha" fontSize="xs">$29/mo</Badge>

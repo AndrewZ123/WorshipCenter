@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getStripe, isStripeConfigured, getMissingStripeVars } from '@/lib/stripe';
+import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { env } from '@/lib/env';
 
 // Lazy initialization of Supabase client
@@ -24,7 +24,12 @@ export async function GET(request: NextRequest) {
   try {
     // Check Stripe configuration first
     const stripeConfigured = isStripeConfigured();
-    const missingStripeVars = getMissingStripeVars();
+    const missingStripeVars: string[] = [];
+    if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) missingStripeVars.push('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY');
+    if (!process.env.STRIPE_SECRET_KEY) missingStripeVars.push('STRIPE_SECRET_KEY');
+    if (!process.env.STRIPE_MONTHLY_PRICE_ID) missingStripeVars.push('STRIPE_MONTHLY_PRICE_ID');
+    if (!process.env.STRIPE_YEARLY_PRICE_ID) missingStripeVars.push('STRIPE_YEARLY_PRICE_ID');
+    if (!process.env.STRIPE_WEBHOOK_SECRET) missingStripeVars.push('STRIPE_WEBHOOK_SECRET');
     
     const supabase = getSupabase();
     let stripe: ReturnType<typeof getStripe> | null = null;

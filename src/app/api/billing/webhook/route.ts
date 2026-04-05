@@ -1,217 +1,293 @@
+/**
+ * POST /api/billing/webhook
+ *
+ * Handles Stripe webhook events. This is the source of truth for subscription state.
+ *
+ * Key events handled:
+ * - checkout.session.completed → Activate subscription
+ * - customer.subscription.updated → Sync subscription changes
+ * - customer.subscription.deleted → Mark subscription as canceled
+ * - invoice.payment_failed → Mark subscription as past_due
+ *
+ * IMPORTANT: This route uses the raw body for signature verification.
+ * The `stripe webhook` CLI command forwards events here.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe, PRICING } from '@/lib/stripe';
-import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { headers } from 'next/headers';
+import { getStripe } from '@/lib/stripe';
+import { supabaseAdmin } from '@/lib/supabase';
+import type Stripe from 'stripe';
 import { env } from '@/lib/env';
 
-// Lazy initialization helpers
-const getSupabase = () => createClient(
-  env.supabaseUrl(),
-  env.supabaseServiceRoleKey()
-);
-
-const getWebhookSecret = () => env.stripeWebhookSecret();
+// Disable body parsing — we need the raw body for signature verification
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase();
-  const stripe = getStripe();
-  const webhookSecret = getWebhookSecret();
-  
   try {
-    const body = await request.text();
-    const signature = request.headers.get('stripe-signature')!;
+    const stripe = getStripe();
+    if (!stripe) {
+      console.error('[Webhook] Stripe not initialized');
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 });
+    }
 
-    // Verify webhook signature
+    const webhookSecret = env.stripeWebhookSecret();
+    if (!webhookSecret) {
+      console.error('[Webhook] STRIPE_WEBHOOK_SECRET not set');
+      return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+    }
+
+    // ── 1. Get raw body and signature ─────────────────────────────────────
+    const body = await request.text();
+    const headersList = await headers();
+    const signature = headersList.get('stripe-signature');
+
+    if (!signature) {
+      console.error('[Webhook] Missing stripe-signature header');
+      return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
+    }
+
+    // ── 2. Verify webhook signature ───────────────────────────────────────
     let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err);
+    } catch (err: any) {
+      console.error('[Webhook] Signature verification failed:', err.message);
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
-    // Handle the event
+    console.log('[Webhook] Received event:', event.type, event.id);
+
+    // ── 3. Route to handler ───────────────────────────────────────────────
     switch (event.type) {
-      // NOTE: We do NOT handle 'payment_intent.succeeded' here.
-      // Subscription payments go through Stripe Checkout Sessions,
-      // which are handled by 'checkout.session.completed' below.
-      // The old payment_intent handler was creating duplicate charges
-      // by creating a subscription AFTER a one-time payment intent.
-
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        const churchId = session.metadata?.church_id;
-        const subscriptionId = session.subscription as string;
-        const customerId = session.customer as string;
-
-        console.log('checkout.session.completed received', { churchId, subscriptionId, customerId });
-
-        if (churchId && subscriptionId) {
-          // Get subscription details from Stripe
-          const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const subData = stripeSubscription as any;
-          
-          const { error: updateError } = await supabase
-            .from('subscriptions')
-            .update({
-              stripe_customer_id: customerId,
-              stripe_subscription_id: subscriptionId,
-              status: 'active',
-              current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
-              current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
-              trial_end: null, // Clear trial end when subscription becomes active
-              stripe_price_id: subData.items?.data?.[0]?.price?.id || null,
-            })
-            .eq('church_id', churchId);
-
-          if (updateError) {
-            console.error('Failed to update subscription in checkout.session.completed:', updateError);
-          } else {
-            console.log('Successfully updated subscription for church:', churchId);
-          }
-        }
+      case 'checkout.session.completed':
+        await handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
         break;
-      }
 
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const subscriptionId = subscription.id;
-        const subData = subscription as any;
-        
-        console.log('customer.subscription.updated received', {
-          subscriptionId,
-          status: subscription.status,
-          cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        });
-
-        // Get the subscription from our database
-        const { data: sub } = await supabase
-          .from('subscriptions')
-          .select('church_id, status')
-          .eq('stripe_subscription_id', subscriptionId)
-          .single();
-
-        if (sub) {
-          // Clear trial_end when status changes from trialing to active
-          const shouldClearTrialEnd = sub.status === 'trialing' && subscription.status === 'active';
-          
-          const updateData: any = {
-            status: subscription.status,
-            current_period_start: new Date(subData.current_period_start * 1000).toISOString(),
-            current_period_end: new Date(subData.current_period_end * 1000).toISOString(),
-            cancel_at_period_end: subscription.cancel_at_period_end,
-          };
-
-          // Add stripe_customer_id if available
-          if (subData.customer) {
-            updateData.stripe_customer_id = subData.customer as string;
-          }
-
-          // Add stripe_price_id if available
-          if (subData.items?.data?.[0]?.price?.id) {
-            updateData.stripe_price_id = subData.items.data[0].price.id;
-          }
-
-          // Clear trial_end when activating from trial
-          if (shouldClearTrialEnd) {
-            updateData.trial_end = null;
-            console.log('Clearing trial_end for subscription transitioning from trialing to active');
-          }
-
-          const { error: updateError } = await supabase
-            .from('subscriptions')
-            .update(updateData)
-            .eq('church_id', sub.church_id);
-
-          if (updateError) {
-            console.error('Failed to update subscription in customer.subscription.updated:', updateError);
-          } else {
-            console.log('Successfully updated subscription for church:', sub.church_id, {
-              newStatus: subscription.status,
-              clearedTrialEnd: shouldClearTrialEnd,
-            });
-          }
-        } else {
-          console.error('Subscription not found in database for stripe_subscription_id:', subscriptionId);
-        }
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
         break;
-      }
 
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const subscriptionId = subscription.id;
-        
-        console.log('customer.subscription.deleted received', { subscriptionId });
-
-        const { data: sub } = await supabase
-          .from('subscriptions')
-          .select('church_id')
-          .eq('stripe_subscription_id', subscriptionId)
-          .single();
-
-        if (sub) {
-          const { error: updateError } = await supabase
-            .from('subscriptions')
-            .update({
-              status: 'canceled',
-              stripe_subscription_id: null,
-              current_period_start: null,
-              current_period_end: null,
-            })
-            .eq('church_id', sub.church_id);
-
-          if (updateError) {
-            console.error('Failed to update subscription in customer.subscription.deleted:', updateError);
-          } else {
-            console.log('Successfully canceled subscription for church:', sub.church_id);
-          }
-        } else {
-          console.error('Subscription not found in database for stripe_subscription_id:', subscriptionId);
-        }
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
-      }
 
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = (invoice as any).subscription as string;
-        
-        console.log('invoice.payment_failed received', { subscriptionId });
-
-        if (subscriptionId) {
-          const { data: sub } = await supabase
-            .from('subscriptions')
-            .select('church_id')
-            .eq('stripe_subscription_id', subscriptionId)
-            .single();
-
-          if (sub) {
-            const { error: updateError } = await supabase
-              .from('subscriptions')
-              .update({ status: 'past_due' })
-              .eq('church_id', sub.church_id);
-
-            if (updateError) {
-              console.error('Failed to update subscription in invoice.payment_failed:', updateError);
-            } else {
-              console.log('Successfully marked subscription as past_due for church:', sub.church_id);
-            }
-          } else {
-            console.error('Subscription not found in database for stripe_subscription_id:', subscriptionId);
-          }
-        }
+      case 'invoice.payment_failed':
+        await handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
-      }
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        console.log('[Webhook] Unhandled event type:', event.type);
     }
 
     return NextResponse.json({ received: true });
-  } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json(
-      { error: 'Webhook handler failed' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error('[Webhook] Fatal error:', error);
+    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Event Handlers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * When checkout completes, we have a new subscription.
+ * Extract the subscription details and activate in our DB.
+ */
+async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
+  console.log('[Webhook] Checkout completed:', session.id);
+
+  const churchId = session.metadata?.church_id;
+  const priceType = session.metadata?.price_type || 'monthly';
+
+  if (!churchId) {
+    console.error('[Webhook] No church_id in checkout session metadata');
+    return;
+  }
+
+  // Get the subscription from Stripe
+  const subscriptionId = session.subscription as string;
+  if (!subscriptionId) {
+    console.error('[Webhook] No subscription ID in checkout session');
+    return;
+  }
+
+  const stripe = getStripe()!;
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
+
+  // Calculate period end
+  const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+  const currentPeriodStart = new Date(subscription.current_period_start * 1000).toISOString();
+
+  console.log('[Webhook] Activating subscription for church:', churchId, {
+    subscriptionId,
+    priceType,
+    currentPeriodEnd,
+  });
+
+  // Update our DB — activate the subscription
+  const { error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      status: 'active',
+      stripe_subscription_id: subscriptionId,
+      stripe_customer_id: session.customer as string,
+      price_type: priceType,
+      current_period_start: currentPeriodStart,
+      current_period_end: currentPeriodEnd,
+      canceled_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('church_id', churchId);
+
+  if (error) {
+    console.error('[Webhook] Failed to activate subscription in DB:', error);
+  } else {
+    console.log('[Webhook] Subscription activated successfully for church:', churchId);
+  }
+}
+
+/**
+ * Subscription was updated (plan change, renewal, etc.)
+ */
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  const sub = subscription as any;
+  console.log('[Webhook] Subscription updated:', sub.id);
+
+  const churchId = sub.metadata?.church_id;
+  if (!churchId) {
+    console.error('[Webhook] No church_id in subscription metadata');
+    return;
+  }
+
+  const currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
+  const currentPeriodStart = new Date(sub.current_period_start * 1000).toISOString();
+
+  // Determine our status from Stripe status
+  const status = mapStripeStatus(sub.status);
+  const priceType = sub.metadata?.price_type || 'monthly';
+
+  // If subscription is canceled at period end, record that
+  const canceledAt = sub.canceled_at
+    ? new Date(sub.canceled_at * 1000).toISOString()
+    : null;
+
+  console.log('[Webhook] Updating subscription:', {
+    churchId,
+    status,
+    priceType,
+    currentPeriodEnd,
+    canceledAt,
+  });
+
+  const { error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      status,
+      price_type: priceType,
+      current_period_start: currentPeriodStart,
+      current_period_end: currentPeriodEnd,
+      canceled_at: canceledAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('church_id', churchId);
+
+  if (error) {
+    console.error('[Webhook] Failed to update subscription in DB:', error);
+  }
+}
+
+/**
+ * Subscription was fully deleted (after cancellation period ended)
+ */
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  console.log('[Webhook] Subscription deleted:', subscription.id);
+
+  const churchId = subscription.metadata?.church_id;
+  if (!churchId) {
+    console.error('[Webhook] No church_id in subscription metadata');
+    return;
+  }
+
+  // Downgrade to free trial
+  const trialEnd = new Date();
+  trialEnd.setDate(trialEnd.getDate() + 14);
+
+  const { error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      status: 'canceled',
+      stripe_subscription_id: null,
+      current_period_start: null,
+      current_period_end: null,
+      canceled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('church_id', churchId);
+
+  if (error) {
+    console.error('[Webhook] Failed to delete subscription in DB:', error);
+  }
+}
+
+/**
+ * Payment failed — mark as past_due so user knows to update payment
+ */
+async function handlePaymentFailed(invoice: Stripe.Invoice) {
+  console.log('[Webhook] Payment failed for customer:', invoice.customer);
+
+  // Find subscription by customer ID
+  const { data: sub, error: findError } = await supabaseAdmin
+    .from('subscriptions')
+    .select('church_id')
+    .eq('stripe_customer_id', invoice.customer as string)
+    .single();
+
+  if (findError || !sub) {
+    console.error('[Webhook] Could not find subscription for customer:', invoice.customer);
+    return;
+  }
+
+  const churchId = (sub as any).church_id as string;
+
+  const { error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      status: 'past_due',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('church_id', churchId);
+
+  if (error) {
+    console.error('[Webhook] Failed to mark subscription as past_due:', error);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function mapStripeStatus(stripeStatus: string): string {
+  switch (stripeStatus) {
+    case 'active':
+      return 'active';
+    case 'past_due':
+      return 'past_due';
+    case 'canceled':
+      return 'canceled';
+    case 'unpaid':
+      return 'canceled';
+    case 'trialing':
+      return 'trialing';
+    case 'incomplete':
+      return 'incomplete';
+    case 'incomplete_expired':
+      return 'canceled';
+    case 'paused':
+      return 'paused';
+    default:
+      console.warn('[Webhook] Unknown Stripe status:', stripeStatus);
+      return stripeStatus;
   }
 }
