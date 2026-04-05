@@ -26,30 +26,30 @@ const ENV_VAR_DEFS = {
     public: false,
   },
 
-  // Stripe
+  // Stripe (optional - app works without Stripe, billing features disabled)
   STRIPE_SECRET_KEY: {
     description: 'Stripe secret API key',
-    required: true,
+    required: false,
     public: false,
   },
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: {
     description: 'Stripe publishable key for client-side',
-    required: true,
+    required: false,
     public: true,
   },
   STRIPE_MONTHLY_PRICE_ID: {
     description: 'Stripe price ID for monthly subscription',
-    required: true,
+    required: false,
     public: false,
   },
   STRIPE_YEARLY_PRICE_ID: {
     description: 'Stripe price ID for yearly subscription',
-    required: true,
+    required: false,
     public: false,
   },
   STRIPE_WEBHOOK_SECRET: {
     description: 'Stripe webhook signing secret',
-    required: true,
+    required: false,
     public: false,
   },
 
@@ -200,12 +200,12 @@ export const env = {
   supabaseAnonKey: () => getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
   supabaseServiceRoleKey: () => getEnvVar('SUPABASE_SERVICE_ROLE_KEY'),
 
-  // Stripe
-  stripeSecretKey: () => getEnvVar('STRIPE_SECRET_KEY'),
-  stripePublishableKey: () => getEnvVar('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'),
-  stripeMonthlyPriceId: () => getEnvVar('STRIPE_MONTHLY_PRICE_ID'),
-  stripeYearlyPriceId: () => getEnvVar('STRIPE_YEARLY_PRICE_ID'),
-  stripeWebhookSecret: () => getEnvVar('STRIPE_WEBHOOK_SECRET'),
+  // Stripe (optional - returns empty string if not configured)
+  stripeSecretKey: () => getEnvVarWithDefault('STRIPE_SECRET_KEY', ''),
+  stripePublishableKey: () => getEnvVarWithDefault('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', ''),
+  stripeMonthlyPriceId: () => getEnvVarWithDefault('STRIPE_MONTHLY_PRICE_ID', ''),
+  stripeYearlyPriceId: () => getEnvVarWithDefault('STRIPE_YEARLY_PRICE_ID', ''),
+  stripeWebhookSecret: () => getEnvVarWithDefault('STRIPE_WEBHOOK_SECRET', ''),
 
   // Application
   appUrl: () => getAppUrl(),
