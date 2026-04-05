@@ -37,19 +37,22 @@ export default function BillingPage() {
   const { subscription, billingState, loading, refetch } = useSubscription();
   const [checkoutLoading, setCheckoutLoading] = useState<'monthly' | 'yearly' | null>(null);
   const [success, setSuccess] = useState(false);
+  const [canceled, setCanceled] = useState(false);
   const toast = useToast();
 
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
 
   useEffect(() => {
-    // Check for success param from Stripe redirect
+    // Check for success/canceled params from Stripe redirect
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('success') === 'true') {
       setSuccess(true);
-      // Clear the URL param so it doesn't persist on re-renders
       window.history.replaceState({}, '', '/settings/billing');
       refetch();
+    } else if (urlParams.get('canceled') === 'true') {
+      setCanceled(true);
+      window.history.replaceState({}, '', '/settings/billing');
     }
   }, [refetch]);
 
@@ -128,6 +131,18 @@ export default function BillingPage() {
             <AlertDescription>
               Your subscription is now active. Thank you for supporting WorshipCenter!
             </AlertDescription>
+          </Alert>
+        )}
+
+        {canceled && (
+          <Alert status="info" borderRadius="lg">
+            <AlertIcon />
+            <Box>
+              <AlertTitle>Checkout Canceled</AlertTitle>
+              <AlertDescription>
+                You canceled the checkout process. No charges were made. You can subscribe anytime!
+              </AlertDescription>
+            </Box>
           </Alert>
         )}
 

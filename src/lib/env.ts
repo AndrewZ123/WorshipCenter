@@ -175,9 +175,19 @@ export function isTest(): boolean {
 
 /**
  * Get the application URL (handles both relative and absolute URLs)
+ * Returns a fallback if the env var is missing, rather than throwing
  */
 export function getAppUrl(): string {
-  const url = getEnvVar('NEXT_PUBLIC_APP_URL');
+  const url = process.env.NEXT_PUBLIC_APP_URL || '';
+  if (!url) {
+    console.warn('[Env] NEXT_PUBLIC_APP_URL is not set, using fallback');
+    // In production, try to construct from vercel url
+    if (process.env.VERCEL_URL) {
+      return `https://${process.env.VERCEL_URL}`;
+    }
+    // Last resort fallback for development
+    return 'http://localhost:3000';
+  }
   return url.endsWith('/') ? url.slice(0, -1) : url;
 }
 
