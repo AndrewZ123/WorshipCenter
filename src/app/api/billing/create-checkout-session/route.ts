@@ -99,15 +99,73 @@ export async function POST(request: NextRequest) {
 
     const sub = existingSub as unknown as Subscription;
 
-    // Don't allow checkout if already active
+    // ── 5. Handle active subscribers wanting to switch plans ──────────────
     if (sub.status === 'active' && sub.stripe_subscription_id) {
-      return NextResponse.json(
-        { error: 'You already have an active subscription. Use the billing portal to manage it.' },
-        { status: 400 }
-      );
+      // If same plan, reject
+      if (sub.price_type === priceType) {
+        return NextResponse.json(
+          { error: `You are already subscribed to the ${priceType} plan.` },
+          { status: 400 }
+        );
+      }
+
+      // Different plan — redirect to Stripe portal for plan switching
+      if (!sub.stripe_customer_id) {
+        return NextResponse.json(
+          { error: 'No billing account found. Please contact support.' },
+          { status: 400 }
+        );
+      }
+
+      const portalAppUrl = env.appUrl();
+
+      // Reuse an existing default billing-portal configuration instead of
+      // creating a new one on every plan switch (avoids rate limits & clutter).
+      let configurationId: string | undefined;
+      try {
+        const configurations = await stripe.billingPortal.configurations.list({
+          active: true,
+          is_default: true,
+          limit: 1,
+        });
+        configurationId = configurations.data[0]?.id;
+      } catch (cfgErr) {
+        console.warn('[Checkout] Could not list portal configurations:', cfgErr);
+      }
+
+      // Fallback: create one if none exists yet
+      if (!configurationId) {
+        const configuration = await stripe.billingPortal.configurations.create({
+          business_profile: { headline: 'WorshipCenter Subscription Management' },
+          features: {
+            subscription_update: {
+              enabled: true,
+              default_allowed_updates: ['price', 'promotion_code'],
+              proration_behavior: 'create_prorations',
+            },
+            subscription_cancel: {
+              enabled: true,
+              mode: 'at_period_end',
+              cancellation_reason: { enabled: true, options: ['too_expensive', 'missing_features', 'switched_service', 'unused', 'other'] },
+            },
+            payment_method_update: { enabled: true },
+            invoice_history: { enabled: true },
+          },
+        });
+        configurationId = configuration.id;
+      }
+
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: sub.stripe_customer_id,
+        configuration: configurationId,
+        return_url: `${portalAppUrl}/settings/billing`,
+      });
+
+      console.log(`[Checkout] Redirecting ${user.email} to portal for plan switch: ${sub.price_type} → ${priceType}`);
+      return NextResponse.json({ url: portalSession.url });
     }
 
-    // ── 5. Create or reuse Stripe customer ────────────────────────────────
+    // ── 6. Create or reuse Stripe customer ────────────────────────────────
     let customerId = sub.stripe_customer_id;
 
     if (!customerId) {
@@ -137,7 +195,6 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
-      payment_method_types: ['card'],
       line_items: [
         {
           price: priceId,

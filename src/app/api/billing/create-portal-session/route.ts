@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe, isStripeConfigured } from '@/lib/stripe';
+import { getStripe, isStripeConfigured, PRICING } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase';
 import { env } from '@/lib/env';
 import type { Subscription } from '@/lib/types';
@@ -76,11 +76,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── 4. Create Portal Session ──────────────────────────────────────────
+    // ── 4. Create Portal Session with plan-switching support ──────────────
     const appUrl = env.appUrl();
+
+    // Create a portal configuration that allows switching between monthly/yearly
+    const configuration = await stripe.billingPortal.configurations.create({
+      business_profile: {
+        headline: 'WorshipCenter Subscription Management',
+      },
+      features: {
+        subscription_update: {
+          enabled: true,
+          default_allowed_updates: ['price', 'promotion_code'],
+          proration_behavior: 'create_prorations',
+        },
+        subscription_cancel: {
+          enabled: true,
+          mode: 'at_period_end',
+          cancellation_reason: {
+            enabled: true,
+            options: [
+              'too_expensive',
+              'missing_features',
+              'switched_service',
+              'unused',
+              'other',
+            ],
+          },
+        },
+        payment_method_update: { enabled: true },
+        invoice_history: { enabled: true },
+      },
+    });
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: customerId,
+      configuration: configuration.id,
       return_url: `${appUrl}/settings/billing`,
     });
 

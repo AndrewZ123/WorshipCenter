@@ -26,7 +26,7 @@ export function getStripe(): Stripe | null {
   }
 
   _stripe = new Stripe(secretKey, {
-    apiVersion: '2026-02-25.clover',
+    // Use the Stripe account's pinned API version (do not hardcode an invalid version)
     typescript: true,
   });
 

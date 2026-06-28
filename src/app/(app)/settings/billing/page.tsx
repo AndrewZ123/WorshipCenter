@@ -13,9 +13,9 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSubscription } from '@/lib/useSubscription';
-import { isStripeConfigured, PRICING } from '@/lib/stripe';
+import { PRICING } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import SyncSubscriptionButton from '@/components/billing/SyncSubscriptionButton';
 
@@ -56,7 +56,27 @@ export default function BillingPage() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const stripeReady = isStripeConfigured();
+  // Stripe config check must happen server-side (STRIPE_SECRET_KEY is server-only).
+  // Fetch the real value once on mount so we only show pricing/CTAs when Stripe
+  // is actually configured, instead of hardcoding true and failing on click.
+  const [stripeReady, setStripeReady] = useState(false);
+  const [stripeStatusLoading, setStripeStatusLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/billing/status');
+        const data = await res.json();
+        if (!cancelled) setStripeReady(Boolean(data?.configured));
+      } catch {
+        // Leave stripeReady=false on failure
+      } finally {
+        if (!cancelled) setStripeStatusLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Checkout: Subscribe ─────────────────────────────────────────────────
   const handleSubscribe = async (priceType: 'monthly' | 'yearly') => {
@@ -196,8 +216,9 @@ export default function BillingPage() {
     );
   }
 
-  const showSubscribeButtons = !isActive || isCanceled;
+  const showPricingCards = stripeReady; // Always show pricing when Stripe is configured
   const showManageButton = isActive && !isCanceled;
+  const currentPlan = subscription?.price_type || null;
 
   return (
     <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px' }}>
@@ -329,26 +350,39 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* ── Upgrade/Resubscribe Card ───────────────────────────────────── */}
-      {showSubscribeButtons && stripeReady && (
+      {/* ── Pricing Cards ──────────────────────────────────────────────── */}
+      {showPricingCards && (
         <div style={{
           backgroundColor: '#fff', borderRadius: '12px',
           border: '1px solid #e2e8f0', padding: '28px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}>
           <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>
-            {isCanceled ? 'Resubscribe to Pro' : 'Upgrade to Pro'}
+            {isCanceled ? 'Resubscribe to Pro' : isActive ? 'Switch Your Plan' : 'Upgrade to Pro'}
           </h3>
           <p style={{ color: '#718096', fontSize: '14px', marginBottom: '24px' }}>
-            Unlock unlimited services, songs, team members, and more.
+            {isActive && !isCanceled
+              ? 'Your current plan is highlighted. Switch anytime — prorated.'
+              : 'Unlock unlimited services, songs, team members, and more.'}
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             {/* Monthly */}
             <div style={{
               padding: '20px', borderRadius: '10px',
-              border: '1px solid #e2e8f0', textAlign: 'center',
+              border: currentPlan === 'monthly' ? '2px solid #38a169' : '1px solid #e2e8f0',
+              textAlign: 'center', position: 'relative',
+              backgroundColor: currentPlan === 'monthly' ? '#f0fff4' : '#fff',
             }}>
+              {currentPlan === 'monthly' && (
+                <span style={{
+                  position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
+                  backgroundColor: '#38a169', color: '#fff', fontSize: '11px', fontWeight: 700,
+                  padding: '2px 10px', borderRadius: '9999px', textTransform: 'uppercase',
+                }}>
+                  Current Plan
+                </span>
+              )}
               <p style={{ fontSize: '13px', color: '#718096', marginBottom: '8px', fontWeight: 500 }}>
                 Monthly
               </p>
@@ -358,32 +392,44 @@ export default function BillingPage() {
               <p style={{ fontSize: '13px', color: '#a0aec0', marginBottom: '16px' }}>per month</p>
               <button
                 onClick={() => handleSubscribe('monthly')}
-                disabled={checkoutLoading}
+                disabled={checkoutLoading || currentPlan === 'monthly'}
                 style={{
                   width: '100%', padding: '10px 16px',
-                  backgroundColor: checkoutLoading ? '#e2e8f0' : '#3182ce',
-                  color: checkoutLoading ? '#a0aec0' : '#fff',
-                  border: 'none', borderRadius: '8px', cursor: 'pointer',
+                  backgroundColor: currentPlan === 'monthly' ? '#e2e8f0' : checkoutLoading ? '#e2e8f0' : '#3182ce',
+                  color: currentPlan === 'monthly' ? '#a0aec0' : checkoutLoading ? '#a0aec0' : '#fff',
+                  border: 'none', borderRadius: '8px',
+                  cursor: currentPlan === 'monthly' ? 'default' : 'pointer',
                   fontWeight: 600, fontSize: '14px',
                 }}
               >
-                {checkoutLoading ? 'Processing...' : 'Subscribe Monthly'}
+                {currentPlan === 'monthly' ? 'Current Plan' : checkoutLoading ? 'Processing...' : isActive ? 'Switch to Monthly' : 'Subscribe Monthly'}
               </button>
             </div>
 
             {/* Yearly */}
             <div style={{
               padding: '20px', borderRadius: '10px',
-              border: '2px solid #3182ce', textAlign: 'center',
-              position: 'relative',
+              border: currentPlan === 'yearly' ? '2px solid #38a169' : '2px solid #3182ce',
+              textAlign: 'center', position: 'relative',
+              backgroundColor: currentPlan === 'yearly' ? '#f0fff4' : '#fff',
             }}>
-              <span style={{
-                position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
-                backgroundColor: '#3182ce', color: '#fff', fontSize: '11px', fontWeight: 700,
-                padding: '2px 10px', borderRadius: '9999px', textTransform: 'uppercase',
-              }}>
-                Save 25%
-              </span>
+              {currentPlan === 'yearly' ? (
+                <span style={{
+                  position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
+                  backgroundColor: '#38a169', color: '#fff', fontSize: '11px', fontWeight: 700,
+                  padding: '2px 10px', borderRadius: '9999px', textTransform: 'uppercase',
+                }}>
+                  Current Plan
+                </span>
+              ) : (
+                <span style={{
+                  position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
+                  backgroundColor: '#3182ce', color: '#fff', fontSize: '11px', fontWeight: 700,
+                  padding: '2px 10px', borderRadius: '9999px', textTransform: 'uppercase',
+                }}>
+                  Save 25%
+                </span>
+              )}
               <p style={{ fontSize: '13px', color: '#718096', marginBottom: '8px', fontWeight: 500 }}>
                 Yearly
               </p>
@@ -395,16 +441,17 @@ export default function BillingPage() {
               </p>
               <button
                 onClick={() => handleSubscribe('yearly')}
-                disabled={checkoutLoading}
+                disabled={checkoutLoading || currentPlan === 'yearly'}
                 style={{
                   width: '100%', padding: '10px 16px',
-                  backgroundColor: checkoutLoading ? '#e2e8f0' : '#3182ce',
-                  color: checkoutLoading ? '#a0aec0' : '#fff',
-                  border: 'none', borderRadius: '8px', cursor: 'pointer',
+                  backgroundColor: currentPlan === 'yearly' ? '#e2e8f0' : checkoutLoading ? '#e2e8f0' : '#3182ce',
+                  color: currentPlan === 'yearly' ? '#a0aec0' : checkoutLoading ? '#a0aec0' : '#fff',
+                  border: 'none', borderRadius: '8px',
+                  cursor: currentPlan === 'yearly' ? 'default' : 'pointer',
                   fontWeight: 600, fontSize: '14px',
                 }}
               >
-                {checkoutLoading ? 'Processing...' : 'Subscribe Yearly'}
+                {currentPlan === 'yearly' ? 'Current Plan' : checkoutLoading ? 'Processing...' : isActive ? 'Switch to Yearly' : 'Subscribe Yearly'}
               </button>
             </div>
           </div>
