@@ -58,20 +58,29 @@ export function useSubscription(): UseSubscriptionReturn {
         return;
       }
 
-      // Get subscription
+      // Get subscription.
+      // IMPORTANT: use maybeSingle(), NOT single(). A church may legitimately
+      // have NO subscription row yet (e.g. brand-new account that hasn't gone
+      // through Stripe checkout). `.single()` throws PostgREST error PGRST116
+      // (HTTP 406) when 0 rows match, which surfaced as "Unable to load
+      // subscription" on the billing page and broke the upgrade flow.
+      // `.maybeSingle()` returns `null` for 0 rows, which we treat as a valid
+      // "no subscription yet" state rather than an error.
       const { data: sub, error: subError } = await supabase
         .from('subscriptions')
         .select('*')
         .eq('church_id', profile.church_id)
-        .single();
+        .maybeSingle();
 
-      if (subError || !sub) {
-        setError('Subscription not found');
+      if (subError) {
+        // A real database / RLS error — surface it to the UI.
+        setError(subError.message || 'Failed to load subscription');
         setLoading(false);
         return;
       }
 
-      setSubscription(sub as Subscription);
+      // `null` is a valid "no subscription yet" state — do NOT set an error.
+      setSubscription((sub as Subscription) ?? null);
     } catch (err: any) {
       console.error('[useSubscription] Error:', err);
       setError(err.message || 'Failed to load subscription');
