@@ -37,12 +37,25 @@ export function getStripe(): Stripe | null {
  * Check if Stripe is properly configured
  */
 export function isStripeConfigured(): boolean {
-  return !!(
-    env.stripeSecretKey() &&
-    env.stripePublishableKey() &&
-    env.stripeMonthlyPriceId() &&
-    env.stripeYearlyPriceId()
-  );
+  return getMissingStripeConfig().length === 0;
+}
+
+/**
+ * Returns the names of Stripe env vars that are missing/empty.
+ * Used to produce actionable 503 error messages instead of an opaque
+ * "Payment system not configured" — so operators can see exactly what
+ * to set in Vercel/`.env`.
+ *
+ * NOTE: Only surfaces server-side vars. Publishable key is checked too
+ * because isStripeConfigured() historically required it.
+ */
+export function getMissingStripeConfig(): string[] {
+  const missing: string[] = [];
+  if (!env.stripeSecretKey()) missing.push('STRIPE_SECRET_KEY');
+  if (!env.stripePublishableKey()) missing.push('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY');
+  if (!env.stripeMonthlyPriceId()) missing.push('STRIPE_MONTHLY_PRICE_ID');
+  if (!env.stripeYearlyPriceId()) missing.push('STRIPE_YEARLY_PRICE_ID');
+  return missing;
 }
 
 // ─── Pricing Configuration ──────────────────────────────────────────────────

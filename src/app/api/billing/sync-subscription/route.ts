@@ -6,14 +6,23 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe, isStripeConfigured } from '@/lib/stripe';
+import { getStripe, isStripeConfigured, getMissingStripeConfig } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { Subscription } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
   try {
     if (!isStripeConfigured()) {
-      return NextResponse.json({ error: 'Payment system not configured.' }, { status: 503 });
+      const missing = getMissingStripeConfig();
+      console.error('[Sync] Stripe not configured. Missing env vars:', missing);
+      return NextResponse.json(
+        {
+          error: `Payment system not configured. Missing environment variables: ${missing.join(', ')}. Set these in Vercel → Project → Settings → Environment Variables and redeploy.`,
+          code: 'STRIPE_NOT_CONFIGURED',
+          missing,
+        },
+        { status: 503 }
+      );
     }
 
     const stripe = getStripe();
@@ -72,11 +81,17 @@ export async function POST(request: NextRequest) {
 
     const currentPeriodEnd = new Date(stripeSub.current_period_end * 1000).toISOString();
     const currentPeriodStart = new Date(stripeSub.current_period_start * 1000).toISOString();
-    const status = stripeSub.status === 'active' ? 'active'
-      : stripeSub.status === 'past_due' ? 'past_due'
-      : stripeSub.status === 'canceled' ? 'canceled'
-      : stripeSub.status === 'trialing' ? 'trialing'
-      : subscription.status;
+    // Map Stripe status → DB-safe status. The DB CHECK constraint allows only:
+    // 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'.
+    // Unknown Stripe statuses default to 'canceled' to avoid constraint violations.
+    const validStatuses = ['trialing', 'active', 'past_due', 'canceled', 'incomplete'];
+    let status: string = subscription.status;
+    if (validStatuses.includes(stripeSub.status)) {
+      status = stripeSub.status;
+    } else if (stripeSub.status) {
+      console.warn(`[Sync] Unmapped Stripe status "${stripeSub.status}" — defaulting to "canceled"`);
+      status = 'canceled';
+    }
 
     const canceledAt = stripeSub.canceled_at
       ? new Date(stripeSub.canceled_at * 1000).toISOString()

@@ -89,7 +89,41 @@ with a `400 No such customer` error.
 - Migration `020_cleanup_placeholder_stripe_customers.sql` nulls out existing
   placeholder rows in the DB.
 
-### 2c. Portal route created a new billing-portal config on every request
+### 2c. Sync-subscription route had the same status-mapping bug as the webhook
+
+**File:** `src/app/api/billing/sync-subscription/route.ts`
+
+The manual "Sync with Stripe" button (`SyncSubscriptionButton`) called this
+route, which wrote `stripeSub.status` directly to the DB. Unknown Stripe
+statuses (e.g. `'paused'`) violated the same CHECK constraint as 2a and the
+`UPDATE` silently failed.
+
+**Fix:** Same explicit status-mapping logic as the webhook — known statuses
+pass through, unknown ones default to `'canceled'` with a warning log.
+
+### 2d. All billing routes returned vague "not configured" errors
+
+**Files:** `create-checkout-session`, `create-portal-session`, `sync-subscription`
+
+The old 503 response was just `{ error: 'Payment system is not configured.' }`,
+which gave no hint about *which* env vars were missing. Users saw a generic
+failure and had no idea what to fix.
+
+**Fix:** All three routes now call `getMissingStripeConfig()` and return a
+detailed payload:
+
+```json
+{
+  "error": "Payment system is not configured. Missing environment variables: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET. Set these in Vercel → Project → Settings → Environment Variables and redeploy.",
+  "code": "STRIPE_NOT_CONFIGURED",
+  "missing": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]
+}
+```
+
+This makes the failure self-diagnosing — the server logs and the API response
+both tell you exactly what to set.
+
+### 2e. Portal route created a new billing-portal config on every request
 
 **File:** `create-portal-session/route.ts`
 
@@ -98,7 +132,8 @@ which (a) clutters the Stripe account with dozens of configs and (b) risks
 **rate-limit errors** on Stripe's side.
 
 **Fix:** Reuse an existing default configuration (via `list({ is_default: true })`),
-only creating one on the very first call as a fallback.
+only creating one on the very first call as a fallback. (Applied in both the
+portal route and the checkout route's plan-switch path.)
 
 ---
 

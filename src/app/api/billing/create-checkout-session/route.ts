@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe, PRICING, isStripeConfigured, type PriceTier } from '@/lib/stripe';
+import { getStripe, PRICING, isStripeConfigured, getMissingStripeConfig, type PriceTier } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase';
 import { env } from '@/lib/env';
 import type { Subscription } from '@/lib/types';
@@ -36,9 +36,14 @@ export async function POST(request: NextRequest) {
   try {
     // ── 1. Validate Stripe is configured ──────────────────────────────────
     if (!isStripeConfigured()) {
-      console.error('[Checkout] Stripe is not configured — missing env vars');
+      const missing = getMissingStripeConfig();
+      console.error('[Checkout] Stripe is not configured — missing env vars:', missing);
       return NextResponse.json(
-        { error: 'Payment system is not configured. Please contact support.', code: 'STRIPE_NOT_CONFIGURED' },
+        {
+          error: `Payment system is not configured. Missing environment variables: ${missing.join(', ')}. Set these in Vercel → Project → Settings → Environment Variables and redeploy.`,
+          code: 'STRIPE_NOT_CONFIGURED',
+          missing,
+        },
         { status: 503 }
       );
     }
