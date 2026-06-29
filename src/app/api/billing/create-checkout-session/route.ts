@@ -19,6 +19,19 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { env } from '@/lib/env';
 import type { Subscription } from '@/lib/types';
 
+/**
+ * Returns true only when the value is a REAL Stripe customer ID.
+ * Migration 019 historically inserted fake placeholders like
+ * 'cus_pending_<uuid>' into subscriptions.stripe_customer_id; those must be
+ * treated as "no customer yet" so we create a real one at checkout time.
+ */
+function isValidStripeCustomerId(id: string | null | undefined): id is string {
+  if (!id) return false;
+  // Real Stripe customer IDs start with 'cus_' followed by an alphanumeric
+  // key (e.g. 'cus_Qabc123XYZ'). Placeholders start with 'cus_pending_'.
+  return /^cus_[A-Za-z0-9]+$/.test(id) && !id.startsWith('cus_pending_');
+}
+
 export async function POST(request: NextRequest) {
   try {
     // ── 1. Validate Stripe is configured ──────────────────────────────────
@@ -109,10 +122,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Different plan — redirect to Stripe portal for plan switching
-      if (!sub.stripe_customer_id) {
+      // Different plan — redirect to Stripe portal for plan switching.
+      // Use isValidStripeCustomerId so legacy placeholder IDs are rejected
+      // instead of being passed to Stripe (which would 400).
+      if (!isValidStripeCustomerId(sub.stripe_customer_id)) {
         return NextResponse.json(
-          { error: 'No billing account found. Please contact support.' },
+          { error: 'No valid billing account found. Please contact support to finish setting up your account.' },
           { status: 400 }
         );
       }
@@ -166,9 +181,15 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 6. Create or reuse Stripe customer ────────────────────────────────
+    // Treat placeholder/NULL customer IDs as "no customer yet" so we always
+    // create a real Stripe customer. (Migration 019 historically seeded
+    // 'cus_pending_<uuid>' placeholders; those must NOT be sent to Stripe.)
     let customerId = sub.stripe_customer_id;
 
-    if (!customerId) {
+    if (!isValidStripeCustomerId(customerId)) {
+      if (customerId) {
+        console.warn('[Checkout] Replacing invalid/placeholder customer ID:', customerId);
+      }
       console.log('[Checkout] Creating new Stripe customer for church:', churchId);
       const customer = await stripe.customers.create({
         email: user.email,
@@ -179,7 +200,7 @@ export async function POST(request: NextRequest) {
       });
       customerId = customer.id;
 
-      // Save customer ID to DB
+      // Save the REAL customer ID to DB (overwrites any stale placeholder)
       await supabaseAdmin
         .from('subscriptions')
         .update({ stripe_customer_id: customerId })

@@ -19,6 +19,7 @@ import { getStripe } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase';
 import type Stripe from 'stripe';
 import { env } from '@/lib/env';
+import type { SubscriptionStatus } from '@/lib/types';
 
 // Disable body parsing — we need the raw body for signature verification
 export const runtime = 'nodejs';
@@ -268,7 +269,14 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function mapStripeStatus(stripeStatus: string): string {
+/**
+ * Maps a Stripe subscription status to our internal SubscriptionStatus type.
+ * Our DB has a CHECK constraint that only allows:
+ *   'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
+ * Returning an unmapped value (like 'paused' or a raw Stripe status) would
+ * violate the constraint and crash the webhook update.
+ */
+function mapStripeStatus(stripeStatus: string): SubscriptionStatus {
   switch (stripeStatus) {
     case 'active':
       return 'active';
@@ -277,6 +285,7 @@ function mapStripeStatus(stripeStatus: string): string {
     case 'canceled':
       return 'canceled';
     case 'unpaid':
+      // Treat unpaid as canceled — access is revoked
       return 'canceled';
     case 'trialing':
       return 'trialing';
@@ -284,10 +293,10 @@ function mapStripeStatus(stripeStatus: string): string {
       return 'incomplete';
     case 'incomplete_expired':
       return 'canceled';
-    case 'paused':
-      return 'paused';
     default:
-      console.warn('[Webhook] Unknown Stripe status:', stripeStatus);
-      return stripeStatus;
+      // Never return the raw Stripe status — that would violate our DB CHECK
+      // constraint. Default to the safest non-active status.
+      console.warn('[Webhook] Unknown Stripe status, defaulting to canceled:', stripeStatus);
+      return 'canceled';
   }
 }

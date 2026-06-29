@@ -16,6 +16,17 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { env } from '@/lib/env';
 import type { Subscription } from '@/lib/types';
 
+/**
+ * Returns true only when the value is a REAL Stripe customer ID.
+ * Migration 019 historically inserted fake placeholders like
+ * 'cus_pending_<uuid>' into subscriptions.stripe_customer_id; those must be
+ * treated as "no customer yet" so we never pass them to Stripe.
+ */
+function isValidStripeCustomerId(id: string | null | undefined): id is string {
+  if (!id) return false;
+  return /^cus_[A-Za-z0-9]+$/.test(id) && !id.startsWith('cus_pending_');
+}
+
 export async function POST(request: NextRequest) {
   try {
     // ── 1. Validate Stripe ────────────────────────────────────────────────
@@ -69,9 +80,10 @@ export async function POST(request: NextRequest) {
     const subscription = sub as unknown as Subscription;
     const customerId = subscription.stripe_customer_id;
 
-    if (!customerId) {
+    // Reject placeholder/invalid customer IDs (legacy migration 019 artifacts)
+    if (!isValidStripeCustomerId(customerId)) {
       return NextResponse.json(
-        { error: 'No billing account found. Please subscribe first.' },
+        { error: 'No billing account found. Please subscribe first, or contact support if you believe this is an error.' },
         { status: 400 }
       );
     }
@@ -79,39 +91,56 @@ export async function POST(request: NextRequest) {
     // ── 4. Create Portal Session with plan-switching support ──────────────
     const appUrl = env.appUrl();
 
-    // Create a portal configuration that allows switching between monthly/yearly
-    const configuration = await stripe.billingPortal.configurations.create({
-      business_profile: {
-        headline: 'WorshipCenter Subscription Management',
-      },
-      features: {
-        subscription_update: {
-          enabled: true,
-          default_allowed_updates: ['price', 'promotion_code'],
-          proration_behavior: 'create_prorations',
+    // Reuse an existing default billing-portal configuration instead of
+    // creating a new one on every request (avoids Stripe rate limits & clutter).
+    let configurationId: string | undefined;
+    try {
+      const configurations = await stripe.billingPortal.configurations.list({
+        active: true,
+        is_default: true,
+        limit: 1,
+      });
+      configurationId = configurations.data[0]?.id;
+    } catch (cfgErr) {
+      console.warn('[Portal] Could not list portal configurations:', cfgErr);
+    }
+
+    // Fallback: create one if none exists yet
+    if (!configurationId) {
+      const configuration = await stripe.billingPortal.configurations.create({
+        business_profile: {
+          headline: 'WorshipCenter Subscription Management',
         },
-        subscription_cancel: {
-          enabled: true,
-          mode: 'at_period_end',
-          cancellation_reason: {
+        features: {
+          subscription_update: {
             enabled: true,
-            options: [
-              'too_expensive',
-              'missing_features',
-              'switched_service',
-              'unused',
-              'other',
-            ],
+            default_allowed_updates: ['price', 'promotion_code'],
+            proration_behavior: 'create_prorations',
           },
+          subscription_cancel: {
+            enabled: true,
+            mode: 'at_period_end',
+            cancellation_reason: {
+              enabled: true,
+              options: [
+                'too_expensive',
+                'missing_features',
+                'switched_service',
+                'unused',
+                'other',
+              ],
+            },
+          },
+          payment_method_update: { enabled: true },
+          invoice_history: { enabled: true },
         },
-        payment_method_update: { enabled: true },
-        invoice_history: { enabled: true },
-      },
-    });
+      });
+      configurationId = configuration.id;
+    }
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      configuration: configuration.id,
+      configuration: configurationId,
       return_url: `${appUrl}/settings/billing`,
     });
 

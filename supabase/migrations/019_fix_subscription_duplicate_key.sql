@@ -29,7 +29,7 @@ BEGIN
   VALUES (
     gen_random_uuid(),
     NEW.id,
-    'cus_pending_' || replace(gen_random_uuid()::text, '-', ''),
+    NULL,
     NULL,
     'trialing',
     NOW(),
@@ -65,7 +65,7 @@ BEGIN
     VALUES (
       gen_random_uuid(),
       NEW.church_id,
-      'cus_pending_' || replace(gen_random_uuid()::text, '-', ''),
+      NULL,
       NULL,
       'trialing',
       NOW(),
@@ -160,7 +160,7 @@ BEGIN
   VALUES (
     gen_random_uuid(),
     v_church_id,
-    'cus_pending_' || replace(gen_random_uuid()::text, '-', ''),
+    NULL,
     NULL,
     'trialing',
     NOW(),
