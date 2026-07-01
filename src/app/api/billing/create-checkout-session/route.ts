@@ -28,7 +28,7 @@ import type { Subscription } from '@/lib/types';
 function isValidStripeCustomerId(id: string | null | undefined): id is string {
   if (!id) return false;
   // Real Stripe customer IDs start with 'cus_' followed by an alphanumeric
-  // key (e.g. 'cus_Qabc123XYZ'). Placeholders start with 'cus_pending_'.
+  // key (e.g. 'cus_QAbc123XYZ'). Placeholders start with 'cus_pending_'.
   return /^cus_[A-Za-z0-9]+$/.test(id) && !id.startsWith('cus_pending_');
 }
 
@@ -107,15 +107,49 @@ export async function POST(request: NextRequest) {
       .eq('church_id', churchId)
       .single();
 
-    if (subError || !existingSub) {
-      console.error('[Checkout] Subscription record not found:', subError);
-      return NextResponse.json(
-        { error: 'Subscription record not found. Please try again or contact support.' },
-        { status: 404 }
-      );
-    }
+    let sub: Subscription;
 
-    const sub = existingSub as unknown as Subscription;
+    if (subError || !existingSub) {
+      // Auto-create a trial subscription if none exists. This handles users
+      // who signed up before the DB triggers that seed the row existed, so
+      // checkout never fails with a 404 "Subscription record not found".
+      console.warn('[Checkout] No subscription row for church — auto-creating:', churchId, subError?.message);
+
+      const nowIso = new Date().toISOString();
+      const trialEndIso = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: createdSub, error: createError } = await supabaseAdmin
+        .from('subscriptions')
+        .insert({
+          id: crypto.randomUUID(),
+          church_id: churchId,
+          stripe_customer_id: null,
+          stripe_subscription_id: null,
+          status: 'trialing',
+          trial_start: nowIso,
+          trial_end: trialEndIso,
+          current_period_start: nowIso,
+          current_period_end: trialEndIso,
+          cancel_at_period_end: false,
+          created_at: nowIso,
+          updated_at: nowIso,
+        })
+        .select('*')
+        .single();
+
+      if (createError || !createdSub) {
+        console.error('[Checkout] Failed to auto-create subscription:', createError);
+        return NextResponse.json(
+          { error: 'Could not initialize your billing account. Please contact support.' },
+          { status: 500 }
+        );
+      }
+
+      sub = createdSub as unknown as Subscription;
+      console.log('[Checkout] Auto-created subscription:', sub.id);
+    } else {
+      sub = existingSub as unknown as Subscription;
+    }
 
     // ── 5. Handle active subscribers wanting to switch plans ──────────────
     if (sub.status === 'active' && sub.stripe_subscription_id) {
@@ -212,7 +246,7 @@ export async function POST(request: NextRequest) {
         .eq('church_id', churchId);
     }
 
-    // ── 6. Create the Checkout Session ────────────────────────────────────
+    // ── 7. Create the Checkout Session ────────────────────────────────────
     const priceId = PRICING[priceType].priceId();
     const appUrl = env.appUrl();
 
