@@ -20,13 +20,15 @@ import Avatar from '@/components/ui/Avatar';
 import { formatServiceDate } from '@/lib/formatDate';
 import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
+import ServiceTasks from '@/components/services/ServiceTasks';
+import ServiceMode from '@/components/services/ServiceMode';
 
 // Lucide icons
 import { 
   ArrowLeft, MoreVertical, Copy, Trash2, Edit, Plus,
   Music, AlignLeft, Send, CheckCircle, Calendar, Clock, 
   BookOpen, UserCheck, MessageSquare, Calendar as CalendarIcon,
-  ListMusic, Users
+  ListMusic, Users, ListChecks, Monitor
 } from 'lucide-react';
 
 // dnd-kit imports
@@ -75,6 +77,9 @@ export default function ServiceDetailClient() {
 
   // Delete confirmation
   const deleteDisclosure = useDisclosure();
+
+  // Service Mode (Live Dashboard)
+  const [serviceModeOpen, setServiceModeOpen] = useState(false);
 
   // Item editing modal state
   const editItemModal = useDisclosure();
@@ -527,26 +532,41 @@ export default function ServiceDetailClient() {
           </Box>
         </HStack>
         
-        {!editing && !isReadOnly && (
-          <Menu>
-            <MenuButton 
-              as={IconButton} 
-              icon={<MoreVertical size={20} />} 
-              variant="ghost"
-              aria-label="Actions"
-              color="gray.400"
-              _hover={{ color: 'gray.600', bg: 'gray.100' }}
-            />
-            <Portal>
-              <MenuList borderRadius="xl" zIndex={50}>
-                <MenuItem onClick={() => setEditing(true)} icon={<Edit size={16} />}>Edit Service</MenuItem>
-                <MenuItem onClick={handleDuplicateService} icon={<Copy size={16} />}>Duplicate</MenuItem>
-                <Divider />
-                <MenuItem color="red.500" onClick={deleteDisclosure.onOpen} icon={<Trash2 size={16} />}>Delete</MenuItem>
-              </MenuList>
-            </Portal>
-          </Menu>
-        )}
+        <HStack spacing="2">
+          {!isReadOnly && (
+            <Button
+              size="sm"
+              colorScheme="teal"
+              variant="solid"
+              onClick={() => setServiceModeOpen(true)}
+              leftIcon={<Monitor size={16} />}
+              fontWeight="600"
+              isDisabled={items.length === 0}
+            >
+              Service Mode
+            </Button>
+          )}
+          {!editing && !isReadOnly && (
+            <Menu>
+              <MenuButton 
+                as={IconButton} 
+                icon={<MoreVertical size={20} />} 
+                variant="ghost"
+                aria-label="Actions"
+                color="gray.400"
+                _hover={{ color: 'gray.600', bg: 'gray.100' }}
+              />
+              <Portal>
+                <MenuList borderRadius="xl" zIndex={50}>
+                  <MenuItem onClick={() => setEditing(true)} icon={<Edit size={16} />}>Edit Service</MenuItem>
+                  <MenuItem onClick={handleDuplicateService} icon={<Copy size={16} />}>Duplicate</MenuItem>
+                  <Divider />
+                  <MenuItem color="red.500" onClick={deleteDisclosure.onOpen} icon={<Trash2 size={16} />}>Delete</MenuItem>
+                </MenuList>
+              </Portal>
+            </Menu>
+          )}
+        </HStack>
       </Flex>
 
       {!loading && service && (
@@ -595,6 +615,18 @@ export default function ServiceDetailClient() {
                   fontSize="sm" 
                   fontWeight="600" 
                   color={activeTab === 3 ? 'teal.600' : 'gray.500'}
+                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                  _hover={{ color: 'teal.500' }}
+                >
+                  <HStack spacing="2">
+                    <ListChecks size={16} />
+                    <span>Tasks</span>
+                  </HStack>
+                </Tab>
+                <Tab 
+                  fontSize="sm" 
+                  fontWeight="600" 
+                  color={activeTab === 4 ? 'teal.600' : 'gray.500'}
                   _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
                   _hover={{ color: 'teal.500' }}
                 >
@@ -810,6 +842,22 @@ export default function ServiceDetailClient() {
                   )}
                 </TabPanel>
 
+                {/* Tasks Tab */}
+                <TabPanel p="0">
+                  {church ? (
+                    <ServiceTasks
+                      serviceId={serviceId}
+                      churchId={church.id}
+                      currentUserId={user?.id || ''}
+                      isReadOnly={isReadOnly}
+                    />
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="text-gray-500">Loading...</div>
+                    </div>
+                  )}
+                </TabPanel>
+
                 {/* Chat Tab */}
                 <TabPanel p="0">
                   {!church ? (
@@ -854,6 +902,16 @@ export default function ServiceDetailClient() {
             </Card>
           )}
         </>
+      )}
+
+      {/* Service Mode (Live Dashboard) */}
+      {service && (
+        <ServiceMode
+          service={service}
+          items={items}
+          isOpen={serviceModeOpen}
+          onClose={() => setServiceModeOpen(false)}
+        />
       )}
 
       {/* Delete Confirmation */}

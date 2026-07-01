@@ -9,10 +9,12 @@ import {
   FormLabel, VStack, useToast, Badge, Input,
   Card, CardBody, IconButton, Menu, MenuButton, MenuList, MenuItem,
   useColorModeValue, Spinner, Center,
+  Tabs, TabList, Tab, TabPanels, TabPanel, Textarea,
+  SimpleGrid, AvatarGroup,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
-import type { TeamMember, Service } from '@/lib/types';
+import type { TeamMember, Service, MemberGroup, MemberGroupMember } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
@@ -20,7 +22,7 @@ import Avatar from '@/components/ui/Avatar';
 // Lucide icons
 import { 
   Plus, MoreVertical, Link2, Trash2, Users, Calendar, Mail,
-  CheckCircle2, Clock
+  CheckCircle2, Clock, UserPlus
 } from 'lucide-react';
 
 export default function TeamPage() {
@@ -42,6 +44,16 @@ export default function TeamPage() {
   const [rolesStr, setRolesStr] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Groups state
+  const [groups, setGroups] = useState<any[]>([]);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [groupDesc, setGroupDesc] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
+  const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null);
+  const deleteGroupDisclosure = useDisclosure();
+  const [tabIndex, setTabIndex] = useState(0);
+
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const headingColor = useColorModeValue('gray.900', 'white');
@@ -50,8 +62,6 @@ export default function TeamPage() {
   
   // Team members have read-only access
   const isReadOnly = user?.role === 'team';
-
-  useEffect(() => { if (church) loadMembers(); }, [church]);
 
   const loadMembers = async () => {
     if (!church) return;
@@ -68,6 +78,47 @@ export default function TeamPage() {
       setLoading(false);
     }
   };
+
+  const loadGroups = async () => {
+    if (!church) return;
+    try {
+      const all = await store.memberGroups.getByChurch(church.id);
+      setGroups(all || []);
+    } catch (error) {
+      console.error('Error loading groups:', error);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!church || !groupName) return;
+    await store.memberGroups.create({ church_id: church.id, name: groupName, description: groupDesc });
+    toast({ title: 'Group created', status: 'success', duration: 2000 });
+    setGroupName(''); setGroupDesc(''); setGroupModalOpen(false);
+    await loadGroups();
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!deleteGroupId || !church) return;
+    await store.memberGroups.delete(deleteGroupId, church.id);
+    toast({ title: 'Group deleted', status: 'info', duration: 2000 });
+    setDeleteGroupId(null); await loadGroups();
+  };
+
+  const handleToggleGroupMember = async (groupId: string, memberId: string, isInGroup: boolean) => {
+    if (!church) return;
+    if (isInGroup) {
+      await store.memberGroups.removeMember(groupId, memberId);
+    } else {
+      await store.memberGroups.addMember(groupId, memberId);
+    }
+    await loadGroups();
+    if (selectedGroup?.id === groupId) {
+      const updated = await store.memberGroups.getById(groupId, church.id);
+      setSelectedGroup(updated);
+    }
+  };
+
+  useEffect(() => { if (church) { loadMembers(); loadGroups(); } }, [church]);
 
   useEffect(() => {
     async function loadAssignments() {
@@ -311,7 +362,14 @@ export default function TeamPage() {
         )}
       </Flex>
 
-      {members.length === 0 ? (
+      <Tabs index={tabIndex} onChange={(i) => setTabIndex(i)} colorScheme="teal" variant="soft-rounded" mb="6">
+        <TabList gap="2">
+          <Tab fontSize="sm" fontWeight="600">Members</Tab>
+          <Tab fontSize="sm" fontWeight="600">Groups</Tab>
+        </TabList>
+      </Tabs>
+
+      {tabIndex === 0 && members.length === 0 ? (
         <EmptyState
           icon="users"
           title="No team members yet"
@@ -319,7 +377,7 @@ export default function TeamPage() {
           ctaLabel="Add Member"
           ctaOnClick={onOpen}
         />
-      ) : (
+      ) : tabIndex === 0 ? (
         <>
           {/* Desktop table */}
           <Box display={{ base: 'none', md: 'block' }} bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} overflow="hidden" boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
@@ -511,7 +569,148 @@ export default function TeamPage() {
             ))}
           </VStack>
         </>
+      ) : (
+        /* ─── Groups Tab ─── */
+        <Box>
+          <Flex justify="space-between" align="center" mb="4" flexWrap="wrap" gap="2">
+            <Text color={subtextColor} fontSize="sm">Organize members into groups for easier scheduling</Text>
+            {!isReadOnly && (
+              <Button leftIcon={<Plus size={16} />} size="sm" colorScheme="teal" variant="outline" onClick={() => setGroupModalOpen(true)}>
+                Create Group
+              </Button>
+            )}
+          </Flex>
+
+          {groups.length === 0 ? (
+            <EmptyState
+              icon="users"
+              title="No groups yet"
+              description="Create groups like 'Worship Band', 'Vocalists', or 'AV Team' to organize members."
+              ctaLabel="Create Group"
+              ctaOnClick={() => setGroupModalOpen(true)}
+            />
+          ) : (
+            <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing="4">
+              {groups.map((group) => {
+                const memberIds: string[] = (group.member_group_members || []).map((m: any) => m.team_member_id);
+                const groupMembers = members.filter((m) => memberIds.includes(m.id));
+                return (
+                  <Card key={group.id} bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="xl" boxShadow="0 1px 3px rgba(0,0,0,0.06)">
+                    <CardBody>
+                      <Flex justify="space-between" align="start" mb="2">
+                        <Box>
+                          <Text fontWeight="700" color={headingColor} fontSize="md">{group.name}</Text>
+                          {group.description && (
+                            <Text fontSize="sm" color={subtextColor} mt="1">{group.description}</Text>
+                          )}
+                        </Box>
+                        {!isReadOnly && (
+                          <Menu>
+                            <MenuButton as={IconButton} icon={<MoreVertical size={16} />} variant="ghost" size="sm" aria-label="Actions" />
+                            <MenuList borderRadius="xl">
+                              <MenuItem onClick={() => setSelectedGroup(group)}>Manage Members</MenuItem>
+                              <MenuItem color="red.500" onClick={() => { setDeleteGroupId(group.id); deleteGroupDisclosure.onOpen(); }}>
+                                <HStack><Trash2 size={16} /><Text>Delete Group</Text></HStack>
+                              </MenuItem>
+                            </MenuList>
+                          </Menu>
+                        )}
+                      </Flex>
+                      <HStack spacing="1" mt="3" flexWrap="wrap">
+                        {groupMembers.length > 0 ? (
+                          <AvatarGroup size="sm" max={5}>
+                            {groupMembers.map((m) => (
+                              <Avatar key={m.id} name={m.name} src={m.avatar_url} size="sm" />
+                            ))}
+                          </AvatarGroup>
+                        ) : (
+                          <Badge variant="subtle" colorScheme="gray" fontSize="xs">No members</Badge>
+                        )}
+                      </HStack>
+                      <Text fontSize="xs" color={subtextColor} mt="2">
+                        {groupMembers.length} {groupMembers.length === 1 ? 'member' : 'members'}
+                      </Text>
+                    </CardBody>
+                  </Card>
+                );
+              })}
+            </SimpleGrid>
+          )}
+
+          {/* Manage Members Modal */}
+          <Modal isOpen={!!selectedGroup} onClose={() => setSelectedGroup(null)} isCentered size="md">
+            <ModalOverlay backdropBlur="sm" />
+            <ModalContent borderRadius="2xl" mx="4">
+              <ModalHeader fontWeight="700">Manage: {selectedGroup?.name}</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody maxH="60vh" overflowY="auto">
+                <VStack spacing="2" align="stretch">
+                  {members.map((member) => {
+                    const memberIds: string[] = (selectedGroup?.member_group_members || []).map((m: any) => m.team_member_id);
+                    const isInGroup = memberIds.includes(member.id);
+                    return (
+                      <Flex key={member.id} justify="space-between" align="center" p="2" borderRadius="lg" _hover={{ bg: hoverBg }}>
+                        <HStack spacing="2">
+                          <Avatar name={member.name} src={member.avatar_url} size="sm" />
+                          <Text fontSize="sm" fontWeight="500" color={headingColor}>{member.name}</Text>
+                        </HStack>
+                        <Button
+                          size="xs"
+                          variant={isInGroup ? 'solid' : 'outline'}
+                          colorScheme={isInGroup ? 'red' : 'teal'}
+                          onClick={() => handleToggleGroupMember(selectedGroup!.id, member.id, isInGroup)}
+                          isDisabled={isReadOnly}
+                        >
+                          {isInGroup ? 'Remove' : 'Add'}
+                        </Button>
+                      </Flex>
+                    );
+                  })}
+                </VStack>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="ghost" onClick={() => setSelectedGroup(null)}>Done</Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
+        </Box>
       )}
+
+      {/* Create Group Modal */}
+      <Modal isOpen={groupModalOpen} onClose={() => setGroupModalOpen(false)} isCentered size="md">
+        <ModalOverlay backdropBlur="sm" />
+        <ModalContent borderRadius="2xl" mx="4">
+          <ModalHeader fontWeight="700">Create Group</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing="4">
+              <FormControl isRequired>
+                <FormLabel fontWeight="600" fontSize="sm">Group Name</FormLabel>
+                <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g., Worship Band" borderRadius="lg" />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontWeight="600" fontSize="sm">Description</FormLabel>
+                <Textarea value={groupDesc} onChange={(e) => setGroupDesc(e.target.value)} placeholder="Optional" borderRadius="lg" rows={2} />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter gap="2">
+            <Button variant="ghost" onClick={() => setGroupModalOpen(false)}>Cancel</Button>
+            <Button colorScheme="teal" onClick={handleCreateGroup} isDisabled={!groupName} fontWeight="600">Create</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Delete Group Confirm */}
+      <ConfirmDialog
+        isOpen={deleteGroupDisclosure.isOpen}
+        onClose={deleteGroupDisclosure.onClose}
+        onConfirm={handleDeleteGroup}
+        title="Delete Group?"
+        message="Members will remain on your team but will no longer be in this group."
+        confirmLabel="Delete"
+        variant="destructive"
+      />
 
       {/* Add Member Modal */}
       <Modal isOpen={isOpen} onClose={onClose} isCentered size="md">

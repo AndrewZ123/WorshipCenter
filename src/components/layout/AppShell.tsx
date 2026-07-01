@@ -20,7 +20,8 @@ import Avatar from '@/components/ui/Avatar';
 // Lucide icons
 import { 
   Calendar, Home, Music, Users, BarChart2, CreditCard, Menu as MenuIcon,
-  LogOut, Settings, Bell, Moon, Sun, Repeat, Church, Smartphone, X, MessageCircle, HelpCircle
+  LogOut, Settings, Bell, Moon, Sun, Repeat, Church, Smartphone, X, MessageCircle, HelpCircle,
+  CheckSquare, FileBarChart
 } from 'lucide-react';
 
 interface NavItem {
@@ -32,14 +33,16 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: Home },
   { label: 'Services', href: '/services', icon: Calendar },
+  { label: 'My Tasks', href: '/tasks', icon: CheckSquare },
   { label: 'Songs', href: '/songs', icon: Music },
   { label: 'Team', href: '/team', icon: Users },
   { label: 'Team Chat', href: '/chat', icon: MessageCircle },
   { label: 'Song Usage', href: '/usage', icon: BarChart2 },
+  { label: 'Reports', href: '/reports', icon: FileBarChart },
 ];
 
 // Nav items hidden from team members
-const TEAM_HIDDEN_ITEMS = ['/team', '/usage'];
+const TEAM_HIDDEN_ITEMS = ['/team', '/usage', '/reports'];
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();

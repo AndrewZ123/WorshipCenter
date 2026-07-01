@@ -3,6 +3,8 @@
 
 export type UserRole = 'admin' | 'leader' | 'team';
 export type ServiceStatus = 'draft' | 'finalized' | 'completed';
+export type TaskStatus = 'pending' | 'in_progress' | 'done' | 'skipped';
+export type TaskRecurrence = 'one_off' | 'per_service' | 'weekly';
 
 export interface Church {
   id: string;
@@ -20,6 +22,7 @@ export interface User {
   avatar_url?: string;
   phone?: string;
   phone_verified?: boolean;
+  team_member_id?: string | null;
   created_at: string;
 }
 export type ServiceItemType = 'song' | 'segment';
@@ -253,3 +256,115 @@ export type NotificationChannels = {
   email: boolean;
   sms: boolean;
 };
+
+// ─── Tasks & Checklists ──────────────────────────────────────────────
+
+export interface TaskTemplate {
+  id: string;
+  church_id: string;
+  name: string;
+  description: string;
+  recurrence: TaskRecurrence;
+  role_scope: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskTemplateItem {
+  id: string;
+  template_id: string;
+  title: string;
+  position: number;
+  is_required: boolean;
+}
+
+export interface ServiceTask {
+  id: string;
+  service_id: string;
+  church_id: string;
+  template_id: string | null;
+  title: string;
+  notes: string;
+  assigned_team_member_id: string | null;
+  assigned_role: string | null;
+  position: number;
+  status: TaskStatus;
+  completed_at: string | null;
+  completed_by: string | null;
+  due_offset_minutes: number | null;
+  created_at: string;
+}
+
+// Populated variants
+export interface ServiceTaskPopulated extends ServiceTask {
+  assigned_member?: TeamMember;
+}
+
+export interface TaskTemplateWithItems extends TaskTemplate {
+  items: TaskTemplateItem[];
+}
+
+// ─── Member Groups / Bands ───────────────────────────────────────────
+
+export interface MemberGroup {
+  id: string;
+  church_id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemberGroupMember {
+  group_id: string;
+  team_member_id: string;
+  role: string | null;
+  joined_at: string;
+}
+
+export interface MemberGroupWithMembers extends MemberGroup {
+  members: TeamMember[];
+}
+
+// ─── Team Member Private Notes ───────────────────────────────────────
+
+export interface TeamMemberNote {
+  id: string;
+  team_member_id: string;
+  author_user_id: string | null;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMemberNotePopulated extends TeamMemberNote {
+  author?: ChatUserInfo;
+}
+
+// ─── Chat Channels ───────────────────────────────────────────────────
+
+export type ChatChannelType = 'channel' | 'group';
+
+export interface ChatChannel {
+  id: string;
+  church_id: string;
+  name: string;
+  description: string | null;
+  type: ChatChannelType;
+  is_private: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatChannelMessage {
+  id: string;
+  channel_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+export interface ChatChannelMessagePopulated extends ChatChannelMessage {
+  user: ChatUserInfo;
+}

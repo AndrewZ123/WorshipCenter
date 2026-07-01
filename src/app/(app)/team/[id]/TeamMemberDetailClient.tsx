@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  Box, Text, HStack, Button, VStack, Input,
+  Box, Text, HStack, Button, VStack, Input, Textarea,
   FormControl, FormLabel, Card, CardBody, useToast, IconButton,
   Badge, Table, Thead, Tbody, Tr, Th, Td,
   Spinner, Center, Flex, useColorModeValue, Menu, MenuButton, MenuList, MenuItem,
@@ -11,7 +11,9 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
-import type { TeamMember, Service } from '@/lib/types';
+import type { TeamMember, Service, TeamMemberNote } from '@/lib/types';
+// Note type alias for clarity (author population handled at runtime)
+type NoteWithAuthor = TeamMemberNote & { authorName?: string };
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -19,7 +21,8 @@ import { formatShortDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  ArrowLeft, MoreVertical, Edit, Trash2, Mail, Phone, Briefcase, Calendar, UserMinus
+  ArrowLeft, MoreVertical, Edit, Trash2, Mail, Phone, Briefcase, Calendar, UserMinus,
+  StickyNote, Send,
 } from 'lucide-react';
 
 const roleLabel = (r: string) => r.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -29,7 +32,7 @@ export default function TeamMemberDetailClient() {
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
-  const { church } = useAuth();
+  const { church, user } = useAuth();
   const store = useStore();
   const memberId = params.id as string;
 
@@ -39,6 +42,11 @@ export default function TeamMemberDetailClient() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const cancelRef = useRef<HTMLButtonElement>(null);
+
+  // Notes state
+  const [notes, setNotes] = useState<NoteWithAuthor[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   // Edit form
   const [name, setName] = useState('');
@@ -65,6 +73,9 @@ export default function TeamMemberDetailClient() {
         setRolesStr(m.roles.join(', '));
       }
       setServices(await store.services.getByChurch(church.id));
+      // Load private notes for this team member
+      const memberNotes = await store.memberNotes.getByMember(memberId);
+      setNotes(memberNotes as NoteWithAuthor[]);
     } catch (error) {
       console.error('Error loading member:', error);
       toast({ title: 'Error loading data', description: 'Please refresh the page.', status: 'error', duration: 3000 });
@@ -132,6 +143,39 @@ export default function TeamMemberDetailClient() {
     } catch (error) {
       console.error('Error deleting member:', error);
       toast({ title: 'Error removing member', status: 'error', duration: 3000 });
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!user || !newNote.trim()) return;
+    try {
+      setSavingNote(true);
+      const created = await store.memberNotes.create({
+        team_member_id: memberId,
+        author_user_id: user.id,
+        note: newNote.trim(),
+      });
+      if (created) {
+        setNotes(prev => [{ ...created, authorName: user.name }, ...prev]);
+        setNewNote('');
+      }
+    } catch (error) {
+      console.error('Error adding note:', error);
+      toast({ title: 'Error saving note', status: 'error', duration: 3000 });
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      const ok = await store.memberNotes.delete(noteId);
+      if (ok) {
+        setNotes(prev => prev.filter(n => n.id !== noteId));
+      }
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      toast({ title: 'Error deleting note', status: 'error', duration: 3000 });
     }
   };
 
@@ -324,6 +368,84 @@ export default function TeamMemberDetailClient() {
           </VStack>
         </>
       )}
+
+      {/* Private Notes Section */}
+      <Text fontSize="lg" fontWeight="semibold" color={headingColor} mt="8" mb="4">
+        <HStack spacing="2">
+          <StickyNote size={20} />
+          <Text>Private Notes</Text>
+        </HStack>
+      </Text>
+      <Text fontSize="sm" color={subtextColor} mb="4">
+        Visible only to admins and leaders. Use for tracking preferences, availability, or pastoral care details.
+      </Text>
+
+      {/* Add Note */}
+      <Box mb="4">
+        <HStack align="flex-start" spacing="2">
+          <Textarea
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            placeholder="Add a private note…"
+            size="sm"
+            borderRadius="lg"
+            resize="vertical"
+            minH="60px"
+            bg={cardBg}
+            border="1px solid"
+            borderColor={borderColor}
+          />
+          <IconButton
+            aria-label="Save note"
+            icon={<Send size={16} />}
+            colorScheme="teal"
+            onClick={handleAddNote}
+            isLoading={savingNote}
+            isDisabled={!newNote.trim()}
+            borderRadius="lg"
+          />
+        </HStack>
+      </Box>
+
+      {/* Notes List */}
+      <VStack spacing="3" align="stretch">
+        {notes.length === 0 ? (
+          <Text fontSize="sm" color="gray.400" fontStyle="italic">No notes yet.</Text>
+        ) : (
+          notes.map((note) => (
+            <Box
+              key={note.id}
+              bg={cardBg}
+              borderRadius="lg"
+              border="1px solid"
+              borderColor={borderColor}
+              p="4"
+              position="relative"
+              boxShadow="0 1px 2px rgba(0,0,0,0.04)"
+            >
+              <Flex justify="space-between" align="flex-start">
+                <Box flex="1" pr="8">
+                  <Text fontSize="sm" color={headingColor} whiteSpace="pre-wrap">{note.note}</Text>
+                  <HStack spacing="2" mt="2">
+                    <Text fontSize="xs" color="gray.400">
+                      {note.authorName || 'Unknown'} · {formatShortDate(note.created_at)}
+                    </Text>
+                  </HStack>
+                </Box>
+                <IconButton
+                  aria-label="Delete note"
+                  icon={<Trash2 size={14} />}
+                  variant="ghost"
+                  size="xs"
+                  color="gray.400"
+                  _hover={{ color: 'red.500', bg: 'red.50' }}
+                  onClick={() => handleDeleteNote(note.id)}
+                />
+              </Flex>
+            </Box>
+          ))
+        )}
+      </VStack>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog isOpen={deleting} leastDestructiveRef={cancelRef} onClose={() => setDeleting(false)}>

@@ -1,4 +1,4 @@
-import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessagePopulated } from '@/lib/types';
+import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessagePopulated, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote } from '@/lib/types';
 
 // Demo Church
 export const DEMO_CHURCH: Church = {
@@ -15,6 +15,7 @@ export const DEMO_USER: User = {
   email: 'demo@worshipcenter.app',
   name: 'Jordan Smith',
   role: 'admin',
+  team_member_id: 'tm-1',
   created_at: new Date().toISOString(),
 };
 
@@ -463,11 +464,65 @@ export const DEMO_CHAT_MESSAGES: ChatMessagePopulated[] = [
   },
 ];
 
+// Demo Tasks
+export const DEMO_TASKS: ServiceTask[] = [
+  // Service 3 (this Sunday) tasks
+  { id: 'task-3-1', service_id: 'svc-3', church_id: DEMO_CHURCH.id, template_id: null, title: 'Setup sound system', notes: 'Arrive 30 min early', assigned_team_member_id: 'tm-7', assigned_role: 'Sound Tech', position: 0, status: 'done', completed_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), completed_by: 'demo-user-1', due_offset_minutes: -30, created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'task-3-2', service_id: 'svc-3', church_id: DEMO_CHURCH.id, template_id: null, title: 'Test in-ear monitors', notes: '', assigned_team_member_id: 'tm-7', assigned_role: 'Sound Tech', position: 1, status: 'in_progress', completed_at: null, completed_by: null, due_offset_minutes: -15, created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'task-3-3', service_id: 'svc-3', church_id: DEMO_CHURCH.id, template_id: null, title: 'Prepare baptism pool', notes: 'Fill and heat to 85°F', assigned_team_member_id: null, assigned_role: null, position: 2, status: 'pending', completed_at: null, completed_by: null, due_offset_minutes: -60, created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'task-3-4', service_id: 'svc-3', church_id: DEMO_CHURCH.id, template_id: null, title: 'Print bulletins', notes: '', assigned_team_member_id: null, assigned_role: null, position: 3, status: 'done', completed_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), completed_by: 'demo-user-1', due_offset_minutes: -120, created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'task-3-5', service_id: 'svc-3', church_id: DEMO_CHURCH.id, template_id: null, title: 'Teardown and pack up gear', notes: 'Return mics to cabinet', assigned_team_member_id: null, assigned_role: 'Sound Tech', position: 4, status: 'pending', completed_at: null, completed_by: null, due_offset_minutes: 30, created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+
+  // Service 4 (next Sunday - draft) tasks
+  { id: 'task-4-1', service_id: 'svc-4', church_id: DEMO_CHURCH.id, template_id: null, title: 'Confirm rehearsal time with team', notes: '', assigned_team_member_id: 'tm-1', assigned_role: 'Worship Leader', position: 0, status: 'pending', completed_at: null, completed_by: null, due_offset_minutes: null, created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
+// Demo Member Groups
+export const DEMO_MEMBER_GROUPS: MemberGroup[] = [
+  { id: 'grp-1', church_id: DEMO_CHURCH.id, name: 'Sunday Morning Team', description: 'Regular Sunday morning band rotation', created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'grp-2', church_id: DEMO_CHURCH.id, name: 'Youth Band', description: 'Wednesday night youth worship team', created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'grp-3', church_id: DEMO_CHURCH.id, name: 'Tech Team', description: 'Sound, media, and livestream volunteers', created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
+export const DEMO_MEMBER_GROUP_MEMBERS: MemberGroupMember[] = [
+  // Sunday Morning Team
+  { group_id: 'grp-1', team_member_id: 'tm-1', role: 'Worship Leader', joined_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() },
+  { group_id: 'grp-1', team_member_id: 'tm-2', role: 'Keys', joined_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() },
+  { group_id: 'grp-1', team_member_id: 'tm-3', role: 'Electric Guitar', joined_at: new Date(Date.now() - 55 * 24 * 60 * 60 * 1000).toISOString() },
+  { group_id: 'grp-1', team_member_id: 'tm-4', role: 'Bass', joined_at: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString() },
+  { group_id: 'grp-1', team_member_id: 'tm-5', role: 'Drums', joined_at: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString() },
+  { group_id: 'grp-1', team_member_id: 'tm-6', role: 'Background Vocals', joined_at: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString() },
+
+  // Youth Band
+  { group_id: 'grp-2', team_member_id: 'tm-8', role: 'Worship Leader', joined_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString() },
+  { group_id: 'grp-2', team_member_id: 'tm-6', role: 'Vocals', joined_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { group_id: 'grp-2', team_member_id: 'tm-3', role: 'Acoustic Guitar', joined_at: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() },
+
+  // Tech Team
+  { group_id: 'grp-3', team_member_id: 'tm-7', role: 'Sound Tech', joined_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString() },
+  { group_id: 'grp-3', team_member_id: 'tm-5', role: 'Media', joined_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
+// Demo Member Notes (admin/leader only)
+export const DEMO_MEMBER_NOTES: TeamMemberNote[] = [
+  { id: 'note-1', team_member_id: 'tm-2', author_user_id: 'demo-user-1', note: 'Excellent at harmonies. Can lead if needed. Available most Sundays except 1st week of month.', created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'note-2', team_member_id: 'tm-3', author_user_id: 'demo-user-1', note: 'Great guitar tone. Working on lead parts. Needs chord charts at least a week ahead.', created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'note-3', team_member_id: 'tm-5', author_user_id: 'demo-user-1', note: 'Very reliable. Learning Cajon for acoustic sets.', created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
+// Demo Chat Channels
+export const DEMO_CHAT_CHANNELS = [
+  { id: 'ch-general', church_id: DEMO_CHURCH.id, name: 'general', description: 'General team announcements', type: 'channel' as const, is_private: false, created_by: null, created_at: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'ch-vocals', church_id: DEMO_CHURCH.id, name: 'vocals', description: 'Vocalists channel', type: 'channel' as const, is_private: false, created_by: null, created_at: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'ch-band', church_id: DEMO_CHURCH.id, name: 'band', description: 'Band and instruments', type: 'channel' as const, is_private: false, created_by: null, created_at: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'ch-tech', church_id: DEMO_CHURCH.id, name: 'tech', description: 'Sound, media, and production', type: 'channel' as const, is_private: false, created_by: null, created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
 // Helper to get all demo data at once
 export function getInitialDemoData() {
   return {
-    church: DEMO_CHURCH,
-    user: DEMO_USER,
+    church: { ...DEMO_CHURCH },
+    user: { ...DEMO_USER },
     songs: [...DEMO_SONGS],
     teamMembers: [...DEMO_TEAM_MEMBERS],
     services: [...DEMO_SERVICES],
@@ -476,5 +531,10 @@ export function getInitialDemoData() {
     songUsage: [...DEMO_SONG_USAGE],
     templates: [...DEMO_TEMPLATES],
     chatMessages: [...DEMO_CHAT_MESSAGES],
+    tasks: [...DEMO_TASKS],
+    memberGroups: [...DEMO_MEMBER_GROUPS],
+    memberGroupMembers: [...DEMO_MEMBER_GROUP_MEMBERS],
+    memberNotes: [...DEMO_MEMBER_NOTES],
+    chatChannels: [...DEMO_CHAT_CHANNELS],
   };
 }

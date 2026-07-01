@@ -414,6 +414,82 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         return () => {};
       },
     },
+
+    // ─── Tasks & Checklists (demo stubs) ───────────────────────────────
+    tasks: {
+      getByService: async (_serviceId: string, _churchId: string): Promise<any[]> => [],
+      getByChurch: async (_churchId: string): Promise<any[]> => [],
+      getMyTasks: async (_churchId: string, _teamMemberId: string): Promise<any[]> => [],
+      getById: async (_id: string, _churchId: string): Promise<any> => null,
+      create: async (_t: any): Promise<any> => {
+        throw new Error('Task creation not supported in demo');
+      },
+      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
+        throw new Error('Task updates not supported in demo');
+      },
+      toggleDone: async (_id: string, _churchId: string, _userId: string): Promise<any> => null,
+      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
+      reorder: async (_serviceId: string, _orderedIds: string[]): Promise<void> => {},
+      generateFromTemplate: async (_serviceId: string, _churchId: string, _templateId: string): Promise<any[]> => [],
+    },
+
+    // ─── Task Templates (demo stubs) ───────────────────────────────────
+    taskTemplates: {
+      getByChurch: async (_churchId: string): Promise<any[]> => [],
+      getById: async (_id: string, _churchId: string): Promise<any> => null,
+      create: async (_t: any): Promise<any> => {
+        throw new Error('Task template creation not supported in demo');
+      },
+      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
+        throw new Error('Task template updates not supported in demo');
+      },
+      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
+      addItem: async (_templateId: string, _item: any): Promise<any> => {
+        throw new Error('Not supported in demo');
+      },
+      updateItem: async (_itemId: string, _updates: any): Promise<any> => {
+        throw new Error('Not supported in demo');
+      },
+      deleteItem: async (_itemId: string): Promise<boolean> => false,
+    },
+
+    // ─── Member Groups / Bands (demo stubs) ────────────────────────────
+    memberGroups: {
+      getByChurch: async (_churchId: string): Promise<any[]> => [],
+      getById: async (_id: string, _churchId: string): Promise<any> => null,
+      create: async (_g: any): Promise<any> => {
+        throw new Error('Member group creation not supported in demo');
+      },
+      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
+        throw new Error('Member group updates not supported in demo');
+      },
+      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
+      addMember: async (_groupId: string, _teamMemberId: string, _role?: string): Promise<any> => null,
+      removeMember: async (_groupId: string, _teamMemberId: string): Promise<boolean> => false,
+      getMembers: async (_groupId: string): Promise<any[]> => [],
+    },
+
+    // ─── Team Member Private Notes (demo stubs) ────────────────────────
+    memberNotes: {
+      getByMember: async (_teamMemberId: string): Promise<any[]> => [],
+      create: async (_n: any): Promise<any> => {
+        throw new Error('Member notes not supported in demo');
+      },
+      delete: async (_id: string): Promise<boolean> => false,
+    },
+
+    // ─── Chat Channels (demo stubs) ────────────────────────────────────
+    channels: {
+      getByChurch: async (_churchId: string): Promise<any[]> => [],
+      getById: async (_id: string, _churchId: string): Promise<any> => null,
+      create: async (_c: any): Promise<any> => {
+        throw new Error('Channel creation not supported in demo');
+      },
+      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
+      getMembers: async (_channelId: string): Promise<any[]> => [],
+      addMember: async (_channelId: string, _userId: string): Promise<any> => null,
+      getMessages: async (_channelId: string): Promise<any[]> => [],
+    },
   };
 }
 

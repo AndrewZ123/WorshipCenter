@@ -15,6 +15,9 @@ import type {
   Invite,
   ChatMessage,
   ChatMessagePopulated,
+  ServiceTask,
+  TaskTemplate,
+  TaskTemplateItem,
 } from './types';
 
 // Helper to sanitize string fields in objects before database operations
@@ -1086,6 +1089,357 @@ export const db = {
       
       const { error } = await supabase.from('service_assignments').delete().eq('service_id', serviceId);
       return !error;
+    },
+  },
+
+  // ─── Tasks & Checklists ────────────────────────────────────────────
+  tasks: {
+    getByService: async (serviceId: string, churchId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      if (!service || service.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('service_tasks')
+        .select('*')
+        .eq('service_id', serviceId)
+        .order('position', { ascending: true });
+      return (data || []) as ServiceTask[];
+    },
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('service_tasks')
+        .select('*')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false });
+      return (data || []) as ServiceTask[];
+    },
+    getMyTasks: async (churchId: string, teamMemberId: string) => {
+      const { data } = await supabase
+        .from('service_tasks')
+        .select('*, services!inner(date, title)')
+        .eq('church_id', churchId)
+        .eq('assigned_team_member_id', teamMemberId)
+        .neq('status', 'done')
+        .order('created_at', { ascending: false });
+      return (data || []) as any[];
+    },
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('service_tasks')
+        .select('*')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
+      return data as ServiceTask | null;
+    },
+    create: async (t: Omit<ServiceTask, 'id' | 'created_at'>) => {
+      const payload = {
+        ...t,
+        title: sanitizeString(t.title),
+        notes: t.notes ? sanitizeHtml(t.notes) : '',
+      };
+      const { data } = await supabase.from('service_tasks').insert(payload).select().single();
+      return data as ServiceTask;
+    },
+    update: async (id: string, churchId: string, updates: Partial<ServiceTask>) => {
+      const sanitized: Partial<ServiceTask> = { ...updates };
+      if (sanitized.title) sanitized.title = sanitizeString(sanitized.title);
+      if (sanitized.notes) sanitized.notes = sanitizeHtml(sanitized.notes);
+      const { data } = await supabase
+        .from('service_tasks')
+        .update(sanitized)
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
+      return data as ServiceTask;
+    },
+    toggleDone: async (id: string, churchId: string, userId: string) => {
+      const task = await db.tasks.getById(id, churchId);
+      if (!task) return null;
+      const isDone = task.status === 'done';
+      return db.tasks.update(id, churchId, {
+        status: isDone ? 'pending' : 'done',
+        completed_at: isDone ? null : new Date().toISOString(),
+        completed_by: isDone ? null : userId,
+      });
+    },
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('service_tasks')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
+      return !error;
+    },
+    reorder: async (serviceId: string, orderedIds: string[]) => {
+      await Promise.all(
+        orderedIds.map((id, index) =>
+          supabase.from('service_tasks').update({ position: index }).eq('id', id)
+        )
+      );
+    },
+    generateFromTemplate: async (serviceId: string, churchId: string, templateId: string) => {
+      const template = await db.taskTemplates.getById(templateId, churchId);
+      if (!template || !template.items?.length) return [];
+
+      const tasks = template.items.map((item, index) => ({
+        service_id: serviceId,
+        church_id: churchId,
+        template_id: templateId,
+        title: item.title,
+        notes: '',
+        assigned_team_member_id: null,
+        assigned_role: template.role_scope,
+        position: index,
+        status: 'pending' as const,
+        completed_at: null,
+        completed_by: null,
+        due_offset_minutes: null,
+      }));
+
+      const { data } = await supabase.from('service_tasks').insert(tasks).select();
+      return (data || []) as ServiceTask[];
+    },
+  },
+
+  // Task Templates
+  taskTemplates: {
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('task_templates')
+        .select('*, task_template_items(*)')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false });
+      return (data || []) as any[];
+    },
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('task_templates')
+        .select('*, task_template_items(*)')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
+      if (!data) return null;
+      return {
+        ...data,
+        items: (data.task_template_items || []).sort((a: TaskTemplateItem, b: TaskTemplateItem) => a.position - b.position),
+      } as TaskTemplate & { items: TaskTemplateItem[] };
+    },
+    create: async (t: Omit<TaskTemplate, 'id' | 'created_at' | 'updated_at'>) => {
+      const payload = {
+        ...t,
+        name: sanitizeString(t.name),
+        description: t.description ? sanitizeString(t.description) : '',
+      };
+      const { data } = await supabase.from('task_templates').insert(payload).select().single();
+      return data as TaskTemplate;
+    },
+    update: async (id: string, churchId: string, updates: Partial<TaskTemplate>) => {
+      const sanitized: Partial<TaskTemplate> = { ...updates };
+      if (sanitized.name) sanitized.name = sanitizeString(sanitized.name);
+      if (sanitized.description) sanitized.description = sanitizeString(sanitized.description);
+      const { data } = await supabase
+        .from('task_templates')
+        .update({ ...sanitized, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
+      return data as TaskTemplate;
+    },
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('task_templates')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
+      return !error;
+    },
+    // Template Items
+    addItem: async (templateId: string, item: Omit<TaskTemplateItem, 'id'>) => {
+      const { data } = await supabase
+        .from('task_template_items')
+        .insert({ ...item, title: sanitizeString(item.title) })
+        .select()
+        .single();
+      return data as TaskTemplateItem;
+    },
+    updateItem: async (itemId: string, updates: Partial<TaskTemplateItem>) => {
+      const sanitized: Partial<TaskTemplateItem> = { ...updates };
+      if (sanitized.title) sanitized.title = sanitizeString(sanitized.title);
+      const { data } = await supabase
+        .from('task_template_items')
+        .update(sanitized)
+        .eq('id', itemId)
+        .select()
+        .single();
+      return data as TaskTemplateItem;
+    },
+    deleteItem: async (itemId: string) => {
+      const { error } = await supabase.from('task_template_items').delete().eq('id', itemId);
+      return !error;
+    },
+  },
+
+  // ─── Member Groups / Bands ─────────────────────────────────────────
+  memberGroups: {
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('member_groups')
+        .select('*, member_group_members(team_member_id, role)')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false });
+      return (data || []) as any[];
+    },
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('member_groups')
+        .select('*, member_group_members(team_member_id, role)')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
+      return data as any | null;
+    },
+    create: async (g: { church_id: string; name: string; description?: string }) => {
+      const payload = {
+        church_id: g.church_id,
+        name: sanitizeString(g.name),
+        description: g.description ? sanitizeString(g.description) : '',
+      };
+      const { data } = await supabase.from('member_groups').insert(payload).select().single();
+      return data as any;
+    },
+    update: async (id: string, churchId: string, updates: { name?: string; description?: string }) => {
+      const sanitized: any = { ...updates };
+      if (sanitized.name) sanitized.name = sanitizeString(sanitized.name);
+      if (sanitized.description) sanitized.description = sanitizeString(sanitized.description);
+      const { data } = await supabase
+        .from('member_groups')
+        .update(sanitized)
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
+      return data as any;
+    },
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('member_groups')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
+      return !error;
+    },
+    addMember: async (groupId: string, teamMemberId: string, role?: string) => {
+      const { data } = await supabase
+        .from('member_group_members')
+        .insert({ group_id: groupId, team_member_id: teamMemberId, role: role || null })
+        .select()
+        .single();
+      return data;
+    },
+    removeMember: async (groupId: string, teamMemberId: string) => {
+      const { error } = await supabase
+        .from('member_group_members')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('team_member_id', teamMemberId);
+      return !error;
+    },
+    getMembers: async (groupId: string) => {
+      const { data } = await supabase
+        .from('member_group_members')
+        .select('team_member_id, role')
+        .eq('group_id', groupId);
+      return (data || []) as any[];
+    },
+  },
+
+  // ─── Team Member Private Notes ─────────────────────────────────────
+  memberNotes: {
+    getByMember: async (teamMemberId: string) => {
+      const { data } = await supabase
+        .from('team_member_notes')
+        .select('*')
+        .eq('team_member_id', teamMemberId)
+        .order('created_at', { ascending: false });
+      return (data || []) as any[];
+    },
+    create: async (n: { team_member_id: string; author_user_id: string; note: string }) => {
+      const payload = { ...n, note: sanitizeString(n.note) };
+      const { data } = await supabase.from('team_member_notes').insert(payload).select().single();
+      return data as any;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase.from('team_member_notes').delete().eq('id', id);
+      return !error;
+    },
+  },
+
+  // ─── Chat Channels ─────────────────────────────────────────────────
+  channels: {
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('chat_channels')
+        .select('*')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: true });
+      return (data || []) as any[];
+    },
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('chat_channels')
+        .select('*')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
+      return data as any | null;
+    },
+    create: async (c: { church_id: string; name: string; type?: string; role_scope?: string }) => {
+      const payload = {
+        church_id: c.church_id,
+        name: sanitizeString(c.name),
+        type: c.type || 'channel',
+        role_scope: c.role_scope || null,
+      };
+      const { data } = await supabase.from('chat_channels').insert(payload).select().single();
+      return data as any;
+    },
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('chat_channels')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
+      return !error;
+    },
+    getMembers: async (channelId: string) => {
+      const { data } = await supabase
+        .from('chat_channel_members')
+        .select('user_id, joined_at')
+        .eq('channel_id', channelId);
+      return (data || []) as any[];
+    },
+    addMember: async (channelId: string, userId: string) => {
+      const { data } = await supabase
+        .from('chat_channel_members')
+        .insert({ channel_id: channelId, user_id: userId })
+        .select()
+        .single();
+      return data;
+    },
+    getMessages: async (channelId: string) => {
+      const { data } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('channel_id', channelId)
+        .order('created_at', { ascending: true });
+      return (data || []) as any[];
     },
   },
 };

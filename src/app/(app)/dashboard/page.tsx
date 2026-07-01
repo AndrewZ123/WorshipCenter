@@ -8,7 +8,7 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
-import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment } from '@/lib/types';
+import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment, ServiceTask } from '@/lib/types';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatServiceDate, formatShortDate, getGreeting } from '@/lib/formatDate';
 import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
@@ -16,7 +16,7 @@ import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
 // Lucide icons
 import { 
   Calendar, Music, Users, Plus, Sparkles, BarChart2,
-  Clock, ChevronRight
+  Clock, ChevronRight, CheckSquare
 } from 'lucide-react';
 
   // --- Helper Component to load async stats for each service ---
@@ -139,6 +139,7 @@ export default function DashboardPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [myTasks, setMyTasks] = useState<any[]>([]);
   const [hasData, setHasData] = useState(false);
   const [dismissedPrompt, setDismissedPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -157,6 +158,13 @@ export default function DashboardPage() {
         const allSongs = await store.songs.getByChurch(church.id);
         setSongs(allSongs);
         setTeamMembers(await store.teamMembers.getByChurch(church.id));
+
+        // Fetch this user's tasks (needs matching team member record)
+        if (user?.team_member_id) {
+          const tasks = await store.tasks.getMyTasks(church.id, user.team_member_id);
+          setMyTasks(tasks);
+        }
+
         setHasData(svcs.length > 0 || allSongs.length > 0 || teamMembers.length > 0);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
@@ -231,6 +239,52 @@ export default function DashboardPage() {
           <StatBox icon={Users} label="Team Members" value={teamMembers.length} />
           <StatBox icon={Calendar} label="Upcoming This Week" value={thisWeekServices.length} />
         </SimpleGrid>
+      )}
+
+      {/* My Tasks Section */}
+      {myTasks.length > 0 && (
+        <Box mb="8">
+          <Flex justify="space-between" align="center" mb="4">
+            <Text fontSize="lg" fontWeight="600" color="gray.800">My Tasks</Text>
+            <Button
+              variant="ghost"
+              size="sm"
+              color="teal.600"
+              rightIcon={<ChevronRight size={16} />}
+              onClick={() => router.push('/tasks')}
+            >
+              View all
+            </Button>
+          </Flex>
+          <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="xl" overflow="hidden">
+            <CardBody p="0">
+              {myTasks.slice(0, 5).map((task, i) => (
+                <Box key={task.id}>
+                  <HStack
+                    px="5" py="3"
+                    cursor="pointer"
+                    _hover={{ bg: hoverBg }}
+                    transition="all 0.15s ease"
+                    onClick={() => router.push(`/services/${task.service_id}`)}
+                    justify="space-between"
+                  >
+                    <HStack spacing="3">
+                      <CheckSquare size={16} className="text-teal-600" />
+                      <Box>
+                        <Text fontWeight="500" fontSize="sm" color={textColor}>{task.title}</Text>
+                        <Text fontSize="xs" color={subtextColor}>
+                          {task.services?.title} · {task.services?.date ? formatShortDate(task.services.date) : ''}
+                        </Text>
+                      </Box>
+                    </HStack>
+                    <StatusBadge status={task.status === 'done' ? 'confirmed' : 'pending'} size="sm" />
+                  </HStack>
+                  {i < Math.min(myTasks.length, 5) - 1 && <Divider />}
+                </Box>
+              ))}
+            </CardBody>
+          </Card>
+        </Box>
       )}
 
       {/* Upcoming Services Section */}

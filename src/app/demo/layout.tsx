@@ -19,7 +19,7 @@ import Avatar from '@/components/ui/Avatar';
 // Lucide icons
 import { 
   Calendar, Home, Music, Users, BarChart2, CreditCard, Menu as MenuIcon,
-  RefreshCw, ExternalLink, Moon, Repeat, Building2
+  RefreshCw, ExternalLink, Moon, Repeat, Building2, PieChart, MessageSquare, CheckSquare
 } from 'lucide-react';
 
 interface NavItem {
@@ -34,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Songs', href: '/demo/songs', icon: Music },
   { label: 'Team', href: '/demo/team', icon: Users },
   { label: 'Song Usage', href: '/demo/usage', icon: BarChart2 },
+  { label: 'Reports', href: '/demo/reports', icon: PieChart },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
