@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, PRICING, isStripeConfigured, getMissingStripeConfig, type PriceTier } from '@/lib/stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
 import { env } from '@/lib/env';
 import type { Subscription } from '@/lib/types';
 
@@ -52,6 +52,22 @@ export async function POST(request: NextRequest) {
     if (!stripe) {
       return NextResponse.json(
         { error: 'Payment system unavailable.', code: 'STRIPE_NOT_CONFIGURED' },
+        { status: 503 }
+      );
+    }
+
+    // ── 1b. Validate Supabase admin is configured ─────────────────────────
+    // Without a service role key, auth.getUser() and DB writes silently hit
+    // a dummy client, producing misleading 401/404 errors. Fail fast instead.
+    if (!isSupabaseAdminConfigured()) {
+      const missing = getMissingSupabaseConfig();
+      console.error('[Checkout] Supabase admin not configured — missing:', missing);
+      return NextResponse.json(
+        {
+          error: `Server database is not configured. Missing: ${missing.join(', ')}. Set in Vercel → Project → Settings → Environment Variables and redeploy.`,
+          code: 'SUPABASE_NOT_CONFIGURED',
+          missing,
+        },
         { status: 503 }
       );
     }

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, isStripeConfigured, getMissingStripeConfig } from '@/lib/stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
 import type { Subscription } from '@/lib/types';
 
 export async function POST(request: NextRequest) {

@@ -123,7 +123,46 @@ detailed payload:
 This makes the failure self-diagnosing — the server logs and the API response
 both tell you exactly what to set.
 
-### 2e. Portal route created a new billing-portal config on every request
+### 2e. Billing routes silently used a dummy `supabaseAdmin` when `SUPABASE_SERVICE_ROLE_KEY` was missing
+
+**Files:** `webhook`, `create-checkout-session`, `create-portal-session`,
+`sync-subscription`, `status`
+
+This was the **most insidious bug**. When `SUPABASE_SERVICE_ROLE_KEY` is not
+set, `src/lib/supabase.ts` returns a **Proxy over an empty object** (a "dummy"
+client pointing at `https://placeholder.supabase.co`). Every `supabaseAdmin`
+call resolves to a no-op / fake empty result rather than throwing.
+
+Effect: billing routes that *appeared* to authenticate users and look up
+subscriptions were actually querying nothing — `auth.getUser(token)` returned
+`{ user: null }` (→ 401), or `.single()` returned `null` (→ 404), with no log
+explaining why. From the user's side it looked like "billing just doesn't
+work" with no actionable error.
+
+**Fix:** Added `isSupabaseAdminConfigured()` and `getMissingSupabaseConfig()`
+helpers to `src/lib/supabase.ts`, and a guard at the top of every billing
+route:
+
+```ts
+if (!isSupabaseAdminConfigured()) {
+  const missing = getMissingSupabaseConfig();
+  return NextResponse.json(
+    {
+      error: `Server database is not configured. Missing: ${missing.join(', ')}. …`,
+      code: 'SUPABASE_NOT_CONFIGURED',
+      missing,
+    },
+    { status: 503 }
+  );
+}
+```
+
+The webhook returns 503 on purpose so **Stripe retries** the event once the
+key is added. The client-facing `/api/billing/status` route also now reports
+`{ configured: false, missing: [...] }` so the UI can hide pricing cards and
+show a setup prompt instead of letting users hit a dead checkout.
+
+### 2f. Portal route created a new billing-portal config on every request
 
 **File:** `create-portal-session/route.ts`
 

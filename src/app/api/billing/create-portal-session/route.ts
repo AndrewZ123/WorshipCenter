@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, isStripeConfigured, getMissingStripeConfig, PRICING } from '@/lib/stripe';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
 import { env } from '@/lib/env';
 import type { Subscription } from '@/lib/types';
 
@@ -46,6 +46,20 @@ export async function POST(request: NextRequest) {
     const stripe = getStripe();
     if (!stripe) {
       return NextResponse.json({ error: 'Payment system unavailable.' }, { status: 503 });
+    }
+
+    // ── 1b. Validate Supabase admin is configured ─────────────────────────
+    if (!isSupabaseAdminConfigured()) {
+      const missing = getMissingSupabaseConfig();
+      console.error('[Portal] Supabase admin not configured — missing:', missing);
+      return NextResponse.json(
+        {
+          error: `Server database is not configured. Missing: ${missing.join(', ')}. Set in Vercel → Project → Settings → Environment Variables and redeploy.`,
+          code: 'SUPABASE_NOT_CONFIGURED',
+          missing,
+        },
+        { status: 503 }
+      );
     }
 
     // ── 2. Authenticate ───────────────────────────────────────────────────
