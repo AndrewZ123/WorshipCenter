@@ -33,23 +33,78 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired session', authError }, { status: 401 });
     }
 
-    // Get user's church_id
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, email, church_id, role')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userData?.church_id) {
-      console.error('[Fix Subscription] User lookup failed:', userError, 'User:', user.id);
-      return NextResponse.json({ 
-        error: 'User not found or missing church_id', 
-        userId: user.id,
-        userError 
-      }, { status: 404 });
+    // Get user's church_id - check if user exists in public.users
+    let userData;
+    let userError;
+    
+    try {
+      const result = await supabase
+        .from('users')
+        .select('id, email, church_id, role')
+        .eq('id', user.id)
+        .single();
+      
+      userData = result.data;
+      userError = result.error;
+    } catch (e) {
+      userError = e;
     }
 
-    const churchId = userData.church_id;
+    let churchId: string;
+
+    if (userData?.church_id) {
+      // User exists and has church_id
+      churchId = userData.church_id;
+    } else if (userData && !userData.church_id) {
+      // User exists but has no church_id
+      return NextResponse.json({ 
+        error: 'User exists but has no church_id', 
+        userId: user.id 
+      }, { status: 400 });
+    } else {
+      // User doesn't exist in public.users - need to create them
+      console.log('[Fix Subscription] User missing from public.users, creating record...');
+      
+      // Create a new church for this user
+      const newChurchId = crypto.randomUUID();
+      const nowIso = new Date().toISOString();
+      
+      // Create church
+      const { error: churchError } = await supabase
+        .from('churches')
+        .insert({
+          id: newChurchId,
+          name: `${user.email}'s Church`,
+          created_at: nowIso,
+          updated_at: nowIso,
+        });
+
+      if (churchError) {
+        console.error('[Fix Subscription] Failed to create church:', churchError);
+        return NextResponse.json({ error: 'Failed to create church', churchError }, { status: 500 });
+      }
+
+      // Create user record
+      const { error: createUserError } = await supabase
+        .from('users')
+        .insert({
+          id: user.id,
+          email: user.email,
+          church_id: newChurchId,
+          role: 'admin',
+          avatar_url: null,
+          created_at: nowIso,
+          updated_at: nowIso,
+        });
+
+      if (createUserError) {
+        console.error('[Fix Subscription] Failed to create user:', createUserError);
+        return NextResponse.json({ error: 'Failed to create user record', createUserError }, { status: 500 });
+      }
+
+      churchId = newChurchId;
+      console.log('[Fix Subscription] Created user and church:', churchId);
+    }
 
     // Check if subscription already exists
     const { data: existingSub, error: subError } = await supabase
