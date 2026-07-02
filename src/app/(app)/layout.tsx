@@ -16,6 +16,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Track whether auth has ever completed once — prevents spinner flash
+  // on subsequent tab navigations.
+  const hasLoadedOnce = React.useRef(false);
+  if (!loading && user) hasLoadedOnce.current = true;
+
   React.useEffect(() => {
     if (!loading) {
       if (!user) {
@@ -35,7 +40,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router, pathname]);
 
-  if (loading) {
+  // Show spinner only on initial page load, not on subsequent tab navigations.
+  // After auth has resolved once, render children immediately and let them
+  // handle their own loading states.
+  if (loading && !hasLoadedOnce.current) {
     return (
       <Center h="100vh">
         <VStack spacing="4">
