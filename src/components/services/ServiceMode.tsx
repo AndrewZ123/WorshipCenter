@@ -175,8 +175,12 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
     if (currentIndex < items.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setElapsed(0);
-      setRunningState(null);
-      setIsPaused(true);
+      setRunningState({
+        itemId: items[currentIndex + 1]?.id || '',
+        startedAt: Date.now(),
+        pausedElapsed: 0,
+        isPaused: false,
+      });
     }
   }, [currentIndex, items.length]);
 
@@ -184,16 +188,24 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
       setElapsed(0);
-      setRunningState(null);
-      setIsPaused(true);
+      setRunningState({
+        itemId: items[currentIndex - 1]?.id || '',
+        startedAt: Date.now(),
+        pausedElapsed: 0,
+        isPaused: false,
+      });
     }
   }, [currentIndex]);
 
   const handleItemClick = (index: number) => {
     setCurrentIndex(index);
     setElapsed(0);
-    setRunningState(null);
-    setIsPaused(true);
+    setRunningState({
+      itemId: items[index]?.id || '',
+      startedAt: Date.now(),
+      pausedElapsed: 0,
+      isPaused: false,
+    });
   };
 
   const formatTime = (ms: number) => {
@@ -493,7 +505,7 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                 <VStack spacing="2" mt="4">
                   <HStack spacing="3" align="baseline">
                     <Clock size={24} color={accentColor} />
-                    <Text fontSize="4xl" fontWeight="bold" fontFamily="mono" color={accentColor}>
+                    <Text fontSize="4xl" fontWeight="bold" fontFamily="mono" color={elapsed > estimatedMs && estimatedMs > 0 ? 'red.400' : accentColor}>
                       {formatTime(elapsed)}
                     </Text>
                     {estimatedMs > 0 && (
