@@ -10,7 +10,7 @@
  * Web builds short-circuit at the Capacitor check, so this is a no-op there.
  */
 
-import { isCapacitorNative } from './api-base';
+import { isCapacitorNative } from '@/lib/api-base';
 
 let initialized = false;
 
