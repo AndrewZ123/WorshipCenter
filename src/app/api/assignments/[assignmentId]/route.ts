@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ assignmentId: string }> }
 ) {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { assignmentId } = await params;
 
-    const { data: userData } = await supabase
+    const { data: userData } = await supabaseAdmin
       .from('users')
       .select('church_id, role')
       .eq('id', user.id)
@@ -23,13 +29,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    // Only admins/leaders can delete assignments
     if (userData.role === 'team') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Verify assignment belongs to a service in this church
-    const { data: assignment } = await supabase
+    const { data: assignment } = await supabaseAdmin
       .from('service_assignments')
       .select('id, service_id')
       .eq('id', assignmentId)
@@ -39,7 +43,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
     }
 
-    const { data: service } = await supabase
+    const { data: service } = await supabaseAdmin
       .from('services')
       .select('id')
       .eq('id', assignment.service_id)
@@ -50,20 +54,19 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Delete assignment silently
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseAdmin
       .from('service_assignments')
       .delete()
       .eq('id', assignmentId);
 
     if (deleteError) {
-      console.error('[Assignment Delete] Error:', deleteError);
-      return NextResponse.json({ error: 'Failed to delete assignment' }, { status: 500 });
+      console.error('[Delete] Error:', deleteError);
+      return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Assignment Delete] Error:', error);
+    console.error('[Delete] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

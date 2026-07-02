@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { db } from '@/lib/store';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { assignmentDeclinedEmail } from '@/lib/email-templates';
 
@@ -31,45 +30,6 @@ a{display:inline-block;background:#0D9488;color:#fff!important;text-decoration:n
   );
 }
 
-async function declineAssignment(assignmentId: string, churchId: string) {
-  const assignment = await db.assignments.getById(assignmentId, churchId);
-  if (!assignment) return null;
-
-  const teamMember = await db.teamMembers.getById(assignment.team_member_id, churchId);
-  if (!teamMember) return null;
-
-  const declinedAssignment = await db.assignments.decline(assignmentId, churchId);
-  if (!declinedAssignment) return null;
-
-  const service = await db.services.getById(assignment.service_id, churchId);
-  if (service) {
-    const church = await db.churches.getById(churchId);
-    if (church && (await isEmailConfigured())) {
-      const leaders = await db.teamMembers.getByChurch(churchId);
-      const adminLeaders = leaders.filter(tm =>
-        tm.roles.includes('admin') || tm.roles.includes('leader')
-      );
-      const { html, text } = assignmentDeclinedEmail({
-        churchName: church.name,
-        serviceTitle: service.title,
-        memberName: teamMember.name,
-        role: assignment.role,
-      });
-      for (const leader of adminLeaders) {
-        if (!leader.email) continue;
-        await sendEmail({
-          to: leader.email,
-          subject: `${teamMember.name} declined ${service.title}`,
-          html,
-          text,
-        });
-      }
-    }
-  }
-
-  return declinedAssignment;
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ assignmentId: string }> }
@@ -93,28 +53,73 @@ export async function GET(
     .single();
 
   if (!userData) {
-    return resultPage('Error', 'Account not found', 'Could not find your account. Please contact your administrator.');
+    return resultPage('Error', 'Account not found', 'Could not find your account.');
   }
 
-  const assignment = await db.assignments.getById(assignmentId, userData.church_id);
+  const { data: assignment } = await supabaseAdmin
+    .from('service_assignments')
+    .select('*, team_members!inner(*)')
+    .eq('id', assignmentId)
+    .single();
+
   if (!assignment) {
-    return resultPage('Not Found', 'Assignment not found', 'This assignment may have been removed. Contact your worship leader.');
+    return resultPage('Not Found', 'Assignment not found', 'This assignment may have been removed.');
   }
 
-  const teamMember = await db.teamMembers.getById(assignment.team_member_id, userData.church_id);
-  if (!teamMember || teamMember.user_id !== user.id) {
+  if (assignment.team_members.user_id !== user.id) {
     return resultPage('Access Denied', 'Not your assignment', 'This link belongs to a different team member.');
   }
 
-  const declinedAssignment = await declineAssignment(assignmentId, userData.church_id);
-  if (!declinedAssignment) {
-    return resultPage('Error', 'Failed to decline', 'Something went wrong. Please try again or contact your worship leader.');
+  const { error: updateError } = await supabaseAdmin
+    .from('service_assignments')
+    .update({ status: 'declined' })
+    .eq('id', assignmentId);
+
+  if (updateError) {
+    return resultPage('Error', 'Failed to decline', 'Something went wrong. Please try again.');
   }
 
-  const service = await db.services.getById(assignment.service_id, userData.church_id);
+  const { data: service } = await supabaseAdmin
+    .from('services')
+    .select('id, title, date, time')
+    .eq('id', assignment.service_id)
+    .single();
+
+  if (service) {
+    const { data: church } = await supabaseAdmin
+      .from('churches')
+      .select('name')
+      .eq('id', userData.church_id)
+      .single();
+
+    if (church && (await isEmailConfigured())) {
+      const { data: leaders } = await supabaseAdmin
+        .from('team_members')
+        .select('email')
+        .eq('church_id', userData.church_id)
+        .or('roles.cs.{admin},roles.cs.{leader}');
+
+      const { html, text } = assignmentDeclinedEmail({
+        churchName: church.name,
+        serviceTitle: service.title,
+        memberName: assignment.team_members.name,
+        role: assignment.role,
+      });
+      for (const leader of leaders || []) {
+        if (!leader.email) continue;
+        sendEmail({
+          to: leader.email,
+          subject: `${assignment.team_members.name} declined ${service.title}`,
+          html,
+          text,
+        }).catch(() => {});
+      }
+    }
+  }
+
   return resultPage(
     'Declined',
-    'You\'ve Declined ❌',
+    "You've Declined ❌",
     `You've declined for ${service?.title || 'the service'}. We'll find someone to fill in.`,
     `${appUrl}/services/${service?.id || ''}`
   );
@@ -125,21 +130,20 @@ export async function POST(
   { params }: { params: Promise<{ assignmentId: string }> }
 ) {
   try {
-    let user;
     const authHeader = request.headers.get('Authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const { data, error } = await supabase.auth.getUser(authHeader.slice(7));
-      if (error || !data.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      user = data.user;
-    } else {
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      user = data.user;
+    const token = authHeader?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { assignmentId } = await params;
 
-    const { data: userData } = await supabase
+    const { data: userData } = await supabaseAdmin
       .from('users')
       .select('church_id')
       .eq('id', user.id)
@@ -149,24 +153,32 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const assignment = await db.assignments.getById(assignmentId, userData.church_id);
+    const { data: assignment } = await supabaseAdmin
+      .from('service_assignments')
+      .select('*, team_members!inner(*)')
+      .eq('id', assignmentId)
+      .single();
+
     if (!assignment) {
       return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
     }
 
-    const teamMember = await db.teamMembers.getById(assignment.team_member_id, userData.church_id);
-    if (!teamMember || teamMember.user_id !== user.id) {
+    if (assignment.team_members.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const declinedAssignment = await declineAssignment(assignmentId, userData.church_id);
-    if (!declinedAssignment) {
-      return NextResponse.json({ error: 'Failed to decline assignment' }, { status: 500 });
+    const { error: updateError } = await supabaseAdmin
+      .from('service_assignments')
+      .update({ status: 'declined' })
+      .eq('id', assignmentId);
+
+    if (updateError) {
+      return NextResponse.json({ error: 'Failed to decline' }, { status: 500 });
     }
 
-    return NextResponse.json({ assignment: declinedAssignment });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Assignment Decline] Error:', error);
+    console.error('[Decline] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
