@@ -37,15 +37,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const pendingAuthId = React.useRef<string | null>(null);
 
+  // Refs that mirror state — readable inside the onAuthStateChange closure
+  // without causing re-subscriptions. This prevents the stale-closure bug
+  // where TOKEN_REFRESHED events would bypass the "already loaded" guard
+  // and re-fetch the profile (creating new object references → cascading
+  // re-renders every time the tab regains focus).
+  const userIdRef = React.useRef<string | null>(null);
+  const churchRef = React.useRef<Church | null>(null);
+
+  // Keep refs in sync with state so the onAuthStateChange closure (subscribed
+  // once on mount) always reads current values instead of stale captures.
+  useEffect(() => {
+    userIdRef.current = user?.id ?? null;
+  }, [user]);
+  useEffect(() => {
+    churchRef.current = church;
+  }, [church]);
+
+  // Shallow JSON equality check to avoid spurious state updates
+  const isSameData = (a: unknown, b: unknown) => {
+    if (a === b) return true;
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  };
+
   // Load Profile from Supabase
-  const loadProfile = async (authUserId: string, useCache = true): Promise<'success' | 'not_found' | 'error' | 'aborted'> => {
+  const loadProfile = useCallback(async (authUserId: string, useCache = true): Promise<'success' | 'not_found' | 'error' | 'aborted'> => {
     // If we're already loading this user, don't start another concurrent request
     if (pendingAuthId.current === authUserId) {
       return 'aborted';
     }
     
-    // If we already have this user profile, skip reload
-    if (user?.id === authUserId && church) {
+    // If we already have this user profile loaded, skip reload.
+    // Uses refs (not state) so this guard works even from the stale
+    // onAuthStateChange closure.
+    if (userIdRef.current === authUserId && churchRef.current) {
       return 'success';
     }
 
@@ -55,8 +84,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const cachedUser = localStorage.getItem(`wc_user_${authUserId}`);
         const cachedChurch = localStorage.getItem(`wc_church_${authUserId}`);
         if (cachedUser && cachedChurch) {
-          setUser(JSON.parse(cachedUser));
-          setChurch(JSON.parse(cachedChurch));
+          const parsedUser = JSON.parse(cachedUser);
+          const parsedChurch = JSON.parse(cachedChurch);
+          // Only update state if data actually changed
+          setUser(prev => isSameData(prev, parsedUser) ? prev : parsedUser);
+          setChurch(prev => isSameData(prev, parsedChurch) ? prev : parsedChurch);
           
           // Load fresh data in background without blocking UI
           loadProfile(authUserId, false).catch(err => {
@@ -91,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return 'not_found';
       }
       
-      setUser(userData as User);
+      setUser(prev => isSameData(prev, userData) ? prev : userData as User);
 
       const { data: churchData, error: churchError } = await supabase
         .from('churches')
@@ -102,7 +134,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (churchError) {
         // Silent church load error
       }
-      setChurch(churchData ? (churchData as Church) : null);
+      const churchVal = churchData ? (churchData as Church) : null;
+      setChurch(prev => isSameData(prev, churchVal) ? prev : churchVal);
       
       // Cache the data for faster loads
       try {
@@ -121,13 +154,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       pendingAuthId.current = null;
     }
-  };
+  }, []);
 
   // Restore session and subscribe to auth changes
   useEffect(() => {
     let initialized = false;
 
     const handleAuthState = async (event: string, session: any) => {
+      // Skip TOKEN_REFRESHED entirely. Supabase fires this when the tab
+      // regains focus or on an auto-refresh timer. The session is still
+      // valid (same user id) and we've already loaded the profile, so
+      // re-fetching only causes a cascading re-render "flash" — the exact
+      // symptom reported. SIGNED_IN / SIGNED_OUT / USER_UPDATED still work.
+      if (event === 'TOKEN_REFRESHED' && userIdRef.current) {
+        setLoading(false);
+        return;
+      }
+
       if (session?.user) {
         const status = await loadProfile(session.user.id);
         

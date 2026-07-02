@@ -27,14 +27,24 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [error, setError] = useState<string | null>(null);
   const lastFetchRef = useRef<number>(0);
   const inFlightRef = useRef<Promise<void> | null>(null);
+  const subscriptionRef = useRef<Subscription | null>(null);
+
+  // Keep ref in sync so fetchSubscription can read current state without
+  // being recreated (which would retrigger the mount effect).
+  useEffect(() => {
+    subscriptionRef.current = subscription;
+  }, [subscription]);
 
   const fetchSubscription = useCallback(async () => {
     // Deduplicate: if a fetch is already in-flight, piggyback on it
     if (inFlightRef.current) return inFlightRef.current;
 
-    // Throttle: don't refetch more than once per STALE_MS window
+    // Throttle: don't refetch more than once per STALE_MS window.
+    // Uses a ref instead of state in the dep array so the callback identity
+    // stays stable and the mount effect below doesn't re-fire on every
+    // state change.
     const now = Date.now();
-    if (lastFetchRef.current && now - lastFetchRef.current < STALE_MS && subscription !== null) {
+    if (lastFetchRef.current && now - lastFetchRef.current < STALE_MS && subscriptionRef.current !== null) {
       return;
     }
 
@@ -71,7 +81,15 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           return;
         }
 
-        setSubscription((sub as Subscription) ?? null);
+        const subVal = (sub as Subscription) ?? null;
+        // Only update if JSON actually changed (prevents spurious re-renders)
+        setSubscription(prev => {
+          try {
+            return JSON.stringify(prev) === JSON.stringify(subVal) ? prev : subVal;
+          } catch {
+            return subVal;
+          }
+        });
         lastFetchRef.current = Date.now();
       } catch (err: any) {
         console.error('[SubscriptionProvider] Error:', err);
@@ -84,9 +102,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
     inFlightRef.current = promise;
     return promise;
-  }, [subscription]);
+  }, []);
 
-  // Fetch once on mount
+  // Fetch once on mount (stable callback → runs exactly once)
   useEffect(() => {
     fetchSubscription();
   }, [fetchSubscription]);

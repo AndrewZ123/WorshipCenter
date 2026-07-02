@@ -95,7 +95,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       }
     }
     loadNotifications();
-  }, [user]);
+    // Depend on user.id only, not the whole user object — otherwise
+    // spurious user state updates (e.g. from auth events) would re-fetch
+    // notifications on every navigation.
+  }, [user?.id]);
 
   const handleNav = (href: string) => {
     router.push(href);
