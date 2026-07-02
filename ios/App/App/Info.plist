@@ -47,5 +47,25 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+
+	<!-- Deep link: custom scheme -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>worshipcenter</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>com.worshipcenter.app</string>
+		</dict>
+	</array>
+
+	<!-- Universal Links -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:worshipcenter.app</string>
+		<string>applinks:app.worshipcenter.app</string>
+	</array>
 </dict>
 </plist>

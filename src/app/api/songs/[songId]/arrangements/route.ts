@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { db } from '@/lib/store';
+import { z } from 'zod';
 
 // GET /api/songs/[songId]/arrangements - List all arrangements for a song
 export async function GET(
@@ -34,12 +35,21 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { name, key, tempo, time_signature } = body;
-
-    if (!name?.trim()) {
-      return NextResponse.json({ error: 'Arrangement name is required' }, { status: 400 });
+    // Verify song belongs to user's church
+    const song = await db.songs.getById(songId, user.church_id);
+    if (!song) {
+      return NextResponse.json({ error: 'Song not found' }, { status: 404 });
     }
+
+    const CreateArrangementSchema = z.object({
+      name: z.string().min(1, 'Arrangement name is required').max(200),
+      key: z.string().max(20).optional().default(''),
+      tempo: z.number().int().min(20).max(300).nullable().optional().default(null),
+      time_signature: z.enum(['2/4', '3/4', '4/4', '6/8', '5/4', '7/8']).optional().default('4/4'),
+    });
+
+    const body = CreateArrangementSchema.parse(await req.json());
+    const { name, key, tempo, time_signature } = body;
 
     const arrangement = await db.songArrangements.create({
       song_id: songId,
@@ -56,6 +66,9 @@ export async function POST(
 
     return NextResponse.json({ arrangement });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
+    }
     console.error('[API] Song arrangement POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -73,12 +86,18 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { arrangementId, ...updates } = body as { arrangementId: string; [key: string]: unknown };
+    const UpdateArrangementSchema = z.object({
+      arrangementId: z.string().uuid('Invalid arrangement ID'),
+      name: z.string().min(1).max(200).optional(),
+      key: z.string().max(20).optional(),
+      tempo: z.number().int().min(20).max(300).nullable().optional(),
+      time_signature: z.enum(['2/4', '3/4', '4/4', '6/8', '5/4', '7/8']).optional(),
+      notes: z.string().max(5000).nullable().optional(),
+      is_default: z.boolean().optional(),
+    });
 
-    if (!arrangementId) {
-      return NextResponse.json({ error: 'Arrangement ID required' }, { status: 400 });
-    }
+    const body = UpdateArrangementSchema.parse(await req.json());
+    const { arrangementId, ...updates } = body;
 
     const arrangement = await db.songArrangements.update(
       arrangementId,
@@ -88,6 +107,9 @@ export async function PATCH(
 
     return NextResponse.json({ arrangement });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
+    }
     console.error('[API] Song arrangement PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -105,7 +127,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { arrangementId } = await req.json();
+    const DeleteArrangementSchema = z.object({
+      arrangementId: z.string().uuid('Invalid arrangement ID'),
+    });
+
+    const { arrangementId } = DeleteArrangementSchema.parse(await req.json());
 
     const success = await db.songArrangements.delete(arrangementId, user.church_id);
     if (!success) {
@@ -114,6 +140,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
+    }
     console.error('[API] Song arrangement DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

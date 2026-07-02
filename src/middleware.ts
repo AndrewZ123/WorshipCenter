@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const url = request.nextUrl;
   const response = NextResponse.next();
   
@@ -15,21 +15,27 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // CORS Configuration - Only allow your domains
+  // CORS Configuration
   const allowedOrigins = [
     'https://app.worshipcenter.app',
     'https://worshipcenter.app',
+    // Capacitor native origins (iOS + Android WebView)
+    'capacitor://worshipcenter.app',
+    'ionic://worshipcenter.app',
+    'http://worshipcenter.app',
+    'https://localhost',
     process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : null,
     process.env.NODE_ENV === 'development' ? 'http://localhost:19006' : null,
   ].filter(Boolean);
 
   const origin = request.headers.get('origin');
-  
+
+  // Allow listed web origins, or Capacitor native scheme requests (no Origin header)
   if (origin && allowedOrigins.includes(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
   }
 
-  // Only set CORS headers for preflight requests
   if (request.method === 'OPTIONS') {
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
@@ -43,7 +49,6 @@ export function middleware(request: NextRequest) {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   
-  // Remove server information
   response.headers.delete('x-powered-by');
   
   // HSTS (only in production)
@@ -65,6 +70,5 @@ export const config = {
     '/api/debug/:path*',
     '/api/:path*',
     '/(app)/:path*',
-    '/:path*',
   ],
 };

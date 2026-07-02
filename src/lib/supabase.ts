@@ -13,7 +13,15 @@ const getSupabaseClient = (): SupabaseClient => {
       return createClient('https://placeholder.supabase.co', 'placeholder-key');
     }
     
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+    // detectSessionInUrl must be false on mobile (capacitor:// URLs break it)
+    const isMobileBuild = process.env.NEXT_PUBLIC_STATIC_EXPORT === 'true';
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: !isMobileBuild,
+      },
+    });
   }
   return supabaseInstance;
 };

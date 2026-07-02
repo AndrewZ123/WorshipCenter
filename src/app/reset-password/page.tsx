@@ -6,6 +6,7 @@ import {
   FormLabel, Link as ChakraLink, Alert, AlertIcon, Card, CardBody,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/lib/api-base';
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('');
@@ -21,7 +22,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
+      const response = await fetch(apiUrl('/api/auth/reset-password'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

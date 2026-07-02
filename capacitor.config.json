@@ -3,10 +3,16 @@
   "appName": "WorshipCenter",
   "webDir": "out",
   "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "hostname": "worshipcenter.app"
+  },
   "ios": {
     "contentInset": "always",
     "backgroundColor": "#ffffff",
-    "preferredContentMode": "mobile"
+    "preferredContentMode": "mobile",
+    "scrollEnabled": true
   },
   "android": {
     "backgroundColor": "#ffffff",
@@ -16,7 +22,17 @@
     "SplashScreen": {
       "launchShowDuration": 2000,
       "backgroundColor": "#6B46C1",
-      "showSpinner": false
-    }
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#6B46C1",
+      "overlaysWebView": false
+    },
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "App": {}
   }
 }

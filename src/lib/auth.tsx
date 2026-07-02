@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User, Church } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { apiBaseUrl, isCapacitorNative, getRedirectUrl } from '@/lib/api-base';
 
 interface AuthContextType {
   user: User | null;
@@ -196,8 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Call server-side API to create church, subscription, user profile, and team member
       //    (bypasses the buggy signup_church RPC function that causes duplicate key errors)
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-      const signupResponse = await fetch(`${appUrl}/api/auth/signup`, {
+      const signupResponse = await fetch(`${apiBaseUrl()}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -220,8 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Send welcome email
       try {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-        const welcomeEmailResponse = await fetch(`${appUrl}/api/notifications/send-welcome`, {
+        const welcomeEmailResponse = await fetch(`${apiBaseUrl()}/api/notifications/send-welcome`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -285,8 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Send welcome email to team member
       try {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-        const welcomeEmailResponse = await fetch(`${appUrl}/api/notifications/send-welcome`, {
+        const welcomeEmailResponse = await fetch(`${apiBaseUrl()}/api/notifications/send-welcome`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -336,9 +334,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = useCallback(async (email: string): Promise<boolean> => {
     try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+      // On mobile, redirect back to the native app via deep link
+      const redirectTo = getRedirectUrl('/new-password');
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${appUrl}/new-password`,
+        redirectTo,
       });
       if (error) {
         console.error('[Auth] Reset password error:', error.message);

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ChakraProviderWrapper } from '@/components/providers/ChakraProvider';
+import { MobileBootstrap } from '@/components/providers/MobileBootstrap';
 import { AuthProvider } from '@/lib/auth';
 import { Analytics } from '@vercel/analytics/next';
 
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body style={{ margin: 0 }} suppressHydrationWarning>
         <ChakraProviderWrapper>
+          <MobileBootstrap />
           <AuthProvider>
             {children}
           </AuthProvider>

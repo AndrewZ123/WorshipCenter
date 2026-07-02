@@ -18,6 +18,7 @@ import { useSubscription } from '@/lib/useSubscription';
 import { PRICING } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { apiUrl } from '@/lib/api-base';
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ export default function BillingPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/billing/status');
+        const res = await fetch(apiUrl('/api/billing/status'));
         const data = await res.json();
         if (!cancelled) setStripeReady(Boolean(data?.configured));
       } catch {
@@ -93,7 +94,7 @@ export default function BillingPage() {
         return;
       }
 
-      const res = await fetch('/api/billing/create-checkout-session', {
+      const res = await fetch(apiUrl('/api/billing/create-checkout-session'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,8 +102,8 @@ export default function BillingPage() {
         },
         body: JSON.stringify({ 
           priceType,
-          successUrl: `${window.location.origin}/settings/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancelUrl: `${window.location.origin}/settings/billing`,
+          successUrl: `${apiUrl('')}/settings/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${apiUrl('')}/settings/billing`,
         }),
       });
 
@@ -135,7 +136,7 @@ export default function BillingPage() {
         return;
       }
 
-      const res = await fetch('/api/billing/create-portal-session', {
+      const res = await fetch(apiUrl('/api/billing/create-portal-session'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

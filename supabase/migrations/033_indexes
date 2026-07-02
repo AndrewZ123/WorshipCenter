@@ -1,0 +1,142 @@
+-- Performance indexes for high-traffic queries and pagination support
+
+-- ============================================
+-- Composite indexes for common getByChurch queries
+-- ============================================
+
+CREATE INDEX IF NOT EXISTS idx_songs_church_title ON songs(church_id, title);
+
+CREATE INDEX IF NOT EXISTS idx_services_church_date_status ON services(church_id, date DESC, status);
+
+CREATE INDEX IF NOT EXISTS idx_team_members_church_name ON team_members(church_id, name);
+
+-- skipping idx_song_files_song_primary: depends on is_primary column from migration 028
+
+CREATE INDEX IF NOT EXISTS idx_service_items_service_position_type ON service_items(service_id, position, type);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_church_user_read ON notifications(church_id, user_id, read, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_assignments_service_member_role ON service_assignments(service_id, team_member_id, role);
+
+CREATE INDEX IF NOT EXISTS idx_song_usage_church_song_date ON song_usage(church_id, song_id, date DESC);
+
+-- invites table may not exist if prior migrations haven't run
+DO $$ BEGIN
+  IF EXISTS (SELECT FROM pg_tables WHERE tablename = 'invites') THEN
+    CREATE INDEX IF NOT EXISTS idx_invites_active ON invites(church_id, email) WHERE used_at IS NULL AND expires_at > NOW();
+  END IF;
+END $$;
+
+-- ============================================
+-- Paginated query functions
+-- ============================================
+
+CREATE OR REPLACE FUNCTION get_songs_paginated(
+  p_church_id UUID,
+  p_limit INTEGER DEFAULT 50,
+  p_offset INTEGER DEFAULT 0,
+  p_search TEXT DEFAULT NULL,
+  p_sort_by TEXT DEFAULT 'title',
+  p_sort_dir TEXT DEFAULT 'asc'
+)
+RETURNS TABLE (
+  id UUID,
+  title TEXT,
+  artist TEXT,
+  default_key TEXT,
+  ccli_number TEXT,
+  tags TEXT[],
+  youtube_video_id TEXT,
+  created_at TIMESTAMPTZ,
+  total_count BIGINT
+) AS $$
+BEGIN
+  RETURN QUERY
+  WITH total AS (
+    SELECT COUNT(*) AS cnt FROM songs WHERE church_id = p_church_id
+  )
+  SELECT
+    s.id, s.title, s.artist, s.default_key, s.ccli_number,
+    s.tags, s.youtube_video_id, s.created_at,
+    total.cnt
+  FROM songs s, total
+  WHERE s.church_id = p_church_id
+    AND (p_search IS NULL OR s.title ILIKE '%' || p_search || '%' OR s.artist ILIKE '%' || p_search || '%')
+  ORDER BY
+    CASE WHEN p_sort_by = 'title' AND p_sort_dir = 'asc' THEN s.title END ASC,
+    CASE WHEN p_sort_by = 'title' AND p_sort_dir = 'desc' THEN s.title END DESC,
+    CASE WHEN p_sort_by = 'created_at' AND p_sort_dir = 'asc' THEN s.created_at END ASC,
+    CASE WHEN p_sort_by = 'created_at' AND p_sort_dir = 'desc' THEN s.created_at END DESC
+  LIMIT p_limit
+  OFFSET p_offset;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER STABLE;
+
+CREATE OR REPLACE FUNCTION get_services_paginated(
+  p_church_id UUID,
+  p_limit INTEGER DEFAULT 50,
+  p_offset INTEGER DEFAULT 0,
+  p_status TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  title TEXT,
+  service_date DATE,
+  service_time TIME,
+  status TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  total_count BIGINT
+) AS $$
+BEGIN
+  RETURN QUERY
+  WITH total AS (
+    SELECT COUNT(*) AS cnt FROM services
+    WHERE church_id = p_church_id
+      AND (p_status IS NULL OR status = p_status)
+  )
+  SELECT
+    s.id, s.title, s.date, s."time", s.status,
+    s.notes, s.created_at, s.updated_at,
+    total.cnt
+  FROM services s, total
+  WHERE s.church_id = p_church_id
+    AND (p_status IS NULL OR s.status = p_status)
+  ORDER BY s.date DESC, s."time" DESC
+  LIMIT p_limit
+  OFFSET p_offset;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER STABLE;
+
+CREATE OR REPLACE FUNCTION get_team_members_paginated(
+  p_church_id UUID,
+  p_limit INTEGER DEFAULT 50,
+  p_offset INTEGER DEFAULT 0,
+  p_search TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  name TEXT,
+  email TEXT,
+  phone TEXT,
+  roles TEXT[],
+  created_at TIMESTAMPTZ,
+  total_count BIGINT
+) AS $$
+BEGIN
+  RETURN QUERY
+  WITH total AS (
+    SELECT COUNT(*) AS cnt FROM team_members WHERE church_id = p_church_id
+  )
+  SELECT
+    tm.id, tm.name, tm.email, tm.phone, tm.roles, tm.created_at,
+    total.cnt
+  FROM team_members tm, total
+  WHERE tm.church_id = p_church_id
+    AND (p_search IS NULL OR tm.name ILIKE '%' || p_search || '%' OR tm.email ILIKE '%' || p_search || '%')
+  ORDER BY tm.name ASC
+  LIMIT p_limit
+  OFFSET p_offset;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER STABLE;

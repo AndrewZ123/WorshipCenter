@@ -2,7 +2,6 @@ import ServiceDetailClient from './ServiceDetailClient';
 
 // generateStaticParams only for static export (Capacitor builds)
 // For production SSR (Vercel), dynamic routes are handled at runtime
-export const dynamic = 'force-dynamic';
 
 export async function generateStaticParams() {
   // Only generate static params for static export builds

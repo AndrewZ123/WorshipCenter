@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/lib/api-base';
 import {
   Box, Text, HStack, Button, Table, Thead, Tbody, Tr, Th, Td,
   Flex, useDisclosure, Modal, ModalOverlay, ModalContent,
@@ -151,7 +152,7 @@ export default function TeamPage() {
     // Send invitation email if email is provided
     if (email) {
       try {
-        const response = await fetch('/api/notifications/send-team-invitation', {
+        const response = await fetch(apiUrl('/api/notifications/send-team-invitation'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
@@ -242,7 +243,7 @@ export default function TeamPage() {
     }
 
     try {
-      const response = await fetch('/api/notifications/send-team-invitation', {
+      const response = await fetch(apiUrl('/api/notifications/send-team-invitation'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })

@@ -9,6 +9,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { apiUrl } from '@/lib/api-base';
 import { PRICING } from '@/lib/stripe';
 
 interface SyncSubscriptionButtonProps {
@@ -31,7 +32,7 @@ export default function SyncSubscriptionButton({ onSynced }: SyncSubscriptionBut
         return;
       }
 
-      const res = await fetch('/api/billing/sync-subscription', {
+      const res = await fetch(apiUrl('/api/billing/sync-subscription'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

@@ -13,6 +13,7 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { X, UserPlus, Users } from 'lucide-react';
+import { apiUrl } from '@/lib/api-base';
 import { db } from '@/lib/store';
 import type { Service, ServiceAssignmentPopulated, TeamMember } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
@@ -86,7 +87,7 @@ export default function ServiceSchedule({
     try {
       setProcessing(assignmentId);
 
-      const response = await fetch(`/api/assignments/${assignmentId}/confirm`, {
+      const response = await fetch(apiUrl(`/api/assignments/${assignmentId}/confirm`), {
         method: 'POST',
       });
 
@@ -117,7 +118,7 @@ export default function ServiceSchedule({
     try {
       setProcessing(assignmentId);
 
-      const response = await fetch(`/api/assignments/${assignmentId}/decline`, {
+      const response = await fetch(apiUrl(`/api/assignments/${assignmentId}/decline`), {
         method: 'POST',
       });
 
@@ -179,7 +180,7 @@ export default function ServiceSchedule({
     try {
       setBulkSaving(true);
 
-      const response = await fetch('/api/assignments/bulk', {
+      const response = await fetch(apiUrl('/api/assignments/bulk'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

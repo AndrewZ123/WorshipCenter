@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { db } from '@/lib/store';
 import { validateFile } from '@/lib/validateFile';
+import { z } from 'zod';
 import type { SongFileType } from '@/lib/types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -28,6 +29,8 @@ export async function GET(
   }
 }
 
+const FileTypeSchema = z.enum(['chord_chart', 'lyrics', 'lead_sheet', 'audio', 'pdf', 'image', 'other']).catch('other');
+
 // POST /api/songs/[songId]/files - Upload a file for a song
 export async function POST(
   req: NextRequest,
@@ -48,7 +51,7 @@ export async function POST(
 
     const formData = await req.formData();
     const file = formData.get('file') as File;
-    const type = (formData.get('type') as SongFileType) || 'other';
+    const typeRaw = formData.get('type') as string | null;
     const isPrimary = formData.get('is_primary') === 'true';
     const arrangementId = formData.get('arrangement_id') as string | null;
     const versionId = formData.get('version_id') as string | null;
@@ -56,6 +59,9 @@ export async function POST(
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
+
+    // Validate type
+    const type = FileTypeSchema.parse(typeRaw) as SongFileType;
 
     // Validate file
     const { valid, error: validationError } = await validateFile(file, {
@@ -124,6 +130,10 @@ export async function POST(
   }
 }
 
+const DeleteFileSchema = z.object({
+  fileId: z.string().uuid('Invalid file ID'),
+});
+
 // DELETE /api/songs/[songId]/files - Delete a file
 export async function DELETE(
   req: NextRequest,
@@ -136,18 +146,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { fileId } = await req.json();
-    if (!fileId) {
-      return NextResponse.json({ error: 'File ID required' }, { status: 400 });
-    }
+    const body = DeleteFileSchema.parse(await req.json());
 
-    const success = await db.songFiles.delete(fileId, user.church_id);
+    const success = await db.songFiles.delete(body.fileId, user.church_id);
     if (!success) {
       return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
+    }
     console.error('[API] Song file DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

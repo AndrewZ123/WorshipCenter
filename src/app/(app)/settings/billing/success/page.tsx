@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { apiUrl } from '@/lib/api-base';
 
 export default function CheckoutSuccessPage() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function CheckoutSuccessPage() {
           return;
         }
 
-        const res = await fetch('/api/billing/status', {
+        const res = await fetch(apiUrl('/api/billing/status'), {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
           },

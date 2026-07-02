@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { db } from '@/lib/store';
+import { z } from 'zod';
 
 // GET /api/songs/[songId]/versions - List all versions for a song
 export async function GET(
@@ -34,19 +35,17 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { snapshot, changeDescription } = body as {
-      snapshot: Record<string, unknown>;
-      changeDescription?: string;
-    };
+    const CreateVersionSchema = z.object({
+      snapshot: z.object({}).passthrough(),
+      changeDescription: z.string().max(5000).optional(),
+    });
 
-    if (!snapshot) {
-      return NextResponse.json({ error: 'Snapshot data is required' }, { status: 400 });
-    }
+    const body = CreateVersionSchema.parse(await req.json());
+    const { snapshot, changeDescription } = body;
 
     const version = await db.songVersions.create({
       song_id: songId,
-      version_number: 0, // overridden in store (auto-increments)
+      version_number: 0,
       church_id: user.church_id,
       title: (snapshot.title as string) || '',
       artist: (snapshot.artist as string) || null,
@@ -59,6 +58,9 @@ export async function POST(
 
     return NextResponse.json({ version });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
+    }
     console.error('[API] Song version POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -76,12 +78,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { versionNumber } = body as { versionNumber: number };
+    const RestoreVersionSchema = z.object({
+      versionNumber: z.number().int().positive('Version number is required'),
+    });
 
-    if (!versionNumber) {
-      return NextResponse.json({ error: 'Version number is required' }, { status: 400 });
-    }
+    const body = RestoreVersionSchema.parse(await req.json());
+    const { versionNumber } = body;
 
     const result = await db.songVersions.restore(songId, versionNumber, user.church_id);
     if (!result) {
@@ -90,6 +92,9 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, song: result });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
+    }
     console.error('[API] Song version restore error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -107,7 +112,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { versionId } = await req.json();
+    const DeleteVersionSchema = z.object({
+      versionId: z.string().uuid('Invalid version ID'),
+    });
+
+    const { versionId } = DeleteVersionSchema.parse(await req.json());
 
     const success = await db.songVersions.delete(versionId, user.church_id);
     if (!success) {
@@ -116,6 +125,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Validation failed', details: error.issues }, { status: 400 });
+    }
     console.error('[API] Song version DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
