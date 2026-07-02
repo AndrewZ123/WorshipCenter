@@ -32,9 +32,25 @@ const AuthContext = createContext<AuthContextType>({
 // Removed simple password store methods since Supabase Auth handles credentials.
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  // Restore user from localStorage synchronously — eliminates spinner flash
+  // on full page refresh. The onAuthStateChange subscription still validates &
+  // refreshes the session in the background.
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      // Find our cached user profile by scanning for wc_user_ keys
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('wc_user_')) {
+          const raw = localStorage.getItem(key);
+          if (raw) return JSON.parse(raw) as User;
+        }
+      }
+      return null;
+    } catch { return null; }
+  });
   const [church, setChurch] = useState<Church | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !user);
   const pendingAuthId = React.useRef<string | null>(null);
 
   // Refs that mirror state — readable inside the onAuthStateChange closure
