@@ -14,6 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { X, UserPlus, Users } from 'lucide-react';
 import { apiUrl } from '@/lib/api-base';
+import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
 import type { Service, ServiceAssignmentPopulated, TeamMember } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
@@ -167,55 +168,47 @@ export default function ServiceSchedule({
     });
   };
 
-  const handleBulkAssign = async () => {
-    if (selectedMembers.size === 0 || !bulkRole.trim()) {
-      toast({
-        title: 'Missing information',
-        description: 'Select at least one member and enter a role',
-        status: 'warning',
-      });
-      return;
-    }
-
+  const assignMember = async (memberId: string) => {
     try {
-      setBulkSaving(true);
-
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
       const response = await fetch(apiUrl('/api/assignments/bulk'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           serviceId: service.id,
-          assignments: Array.from(selectedMembers).map((memberId) => ({
-            team_member_id: memberId,
-            role: bulkRole.trim(),
-          })),
+          assignments: [{ team_member_id: memberId, role: bulkRole.trim() || 'Team Member' }],
         }),
       });
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create assignments');
+        throw new Error(err.error || 'Failed to create assignment');
       }
 
-      const result = await response.json();
       toast({
         title: 'Success!',
-        description: `Created ${result.created} assignment${result.created !== 1 ? 's' : ''}`,
+        description: 'Member added to schedule',
         status: 'success',
       });
 
-      resetBulkAdd();
       await loadAssignments();
+      loadTeamMembersForBulk();
     } catch (error) {
-      console.error('[ServiceSchedule] Bulk assign failed:', error);
+      console.error('[ServiceSchedule] Assign failed:', error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to create assignments',
+        description: error instanceof Error ? error.message : 'Failed to create assignment',
         status: 'error',
       });
-    } finally {
-      setBulkSaving(false);
     }
+  };
+
+  const handleBulkAssignSingle = (memberId: string) => {
+    assignMember(memberId);
   };
 
   const resetBulkAdd = () => {
@@ -305,19 +298,19 @@ export default function ServiceSchedule({
                 borderRadius="md"
                 value={bulkRole}
                 onChange={(e) => setBulkRole(e.target.value)}
-                placeholder="e.g., Worship Leader, Guitar, Vocals..."
+                placeholder="e.g., Worship Leader, Guitar, Vocals... (optional)"
                 bg={cardBg}
               />
             </Box>
 
-            {/* Member selection */}
+            {/* Member selection - click to immediately assign */}
             <Box>
               <Text fontSize="xs" fontWeight="500" color={roleTextColor} mb="1.5">
-                SELECT MEMBERS{selectedMembers.size > 0 && ` (${selectedMembers.size} selected)`}
+                ADD MEMBERS
               </Text>
               {teamMembers.length === 0 ? (
                 <Text fontSize="sm" color={subTextColor} py="2">
-                  No available team members.
+                  All team members already assigned.
                 </Text>
               ) : (
                 <Box
@@ -337,13 +330,8 @@ export default function ServiceSchedule({
                       borderRadius="md"
                       cursor="pointer"
                       _hover={{ bg: subtleBg }}
-                      onClick={() => toggleMemberSelection(member.id)}
+                      onClick={() => handleBulkAssignSingle(member.id)}
                     >
-                      <Checkbox
-                        isChecked={selectedMembers.has(member.id)}
-                        onChange={() => toggleMemberSelection(member.id)}
-                        size="sm"
-                      />
                       <Avatar name={member.name} src={member.avatar_url} size="sm" />
                       <Text fontSize="sm" fontWeight="500" color={headingColor}>
                         {member.name}
@@ -360,17 +348,7 @@ export default function ServiceSchedule({
             {/* Actions */}
             <HStack justify="flex-end" spacing="2" pt="1">
               <Button variant="ghost" size="sm" onClick={resetBulkAdd}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleBulkAssign}
-                isDisabled={bulkSaving || selectedMembers.size === 0 || !bulkRole.trim()}
-              >
-                {bulkSaving
-                  ? 'Adding...'
-                  : `Add ${selectedMembers.size || ''} Member${selectedMembers.size !== 1 ? 's' : ''}`}
+                Done
               </Button>
             </HStack>
           </VStack>

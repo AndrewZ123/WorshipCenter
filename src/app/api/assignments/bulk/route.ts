@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { db } from '@/lib/store';
 import { sendAssignmentNotification } from '@/lib/notifications';
 import { z } from 'zod';
@@ -10,7 +10,7 @@ const BulkAssignmentSchema = z.object({
     .array(
       z.object({
         team_member_id: z.string().uuid(),
-        role: z.string().min(1).max(100),
+        role: z.string().min(1).max(100).optional().default('Team Member'),
       })
     )
     .min(1)
@@ -19,14 +19,19 @@ const BulkAssignmentSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get user's church_id and role
-    const { data: userData } = await supabase
+    const { data: userData } = await supabaseAdmin
       .from('users')
       .select('church_id, role')
       .eq('id', user.id)
