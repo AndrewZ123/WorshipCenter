@@ -892,6 +892,12 @@ export default function ServiceDetailClient() {
                       churchId={church.id}
                       currentUserId={user?.id || ''}
                       highlightedAssignmentId={highlightedAssignmentId}
+                      onAssignmentsChange={async () => {
+                        try {
+                          const data = await store.assignments.getByService(serviceId, church.id);
+                          setAssignments(data);
+                        } catch {}
+                      }}
                     />
                   ) : (
                     <div className="text-center py-12">

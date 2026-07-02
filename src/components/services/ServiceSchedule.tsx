@@ -27,6 +27,7 @@ interface ServiceScheduleProps {
   churchId: string;
   currentUserId: string;
   highlightedAssignmentId?: string | null;
+  onAssignmentsChange?: (count: number) => void;
 }
 
 export default function ServiceSchedule({
@@ -34,6 +35,7 @@ export default function ServiceSchedule({
   churchId,
   currentUserId,
   highlightedAssignmentId,
+  onAssignmentsChange,
 }: ServiceScheduleProps) {
   const [assignments, setAssignments] = useState<ServiceAssignmentPopulated[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +61,12 @@ export default function ServiceSchedule({
   useEffect(() => {
     loadAssignments();
   }, [service.id, churchId]);
+
+  useEffect(() => {
+    if (onAssignmentsChange) {
+      onAssignmentsChange(assignments.length);
+    }
+  }, [assignments.length, onAssignmentsChange]);
 
   // Scroll to highlighted assignment
   useEffect(() => {
