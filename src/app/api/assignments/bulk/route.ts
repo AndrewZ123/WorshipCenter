@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendAssignmentNotification } from '@/lib/notifications';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { serviceInvitationEmail } from '@/lib/email-templates';
 import { z } from 'zod';
 
 const BulkAssignmentSchema = z.object({
@@ -63,7 +65,7 @@ export async function POST(req: NextRequest) {
     // Verify the service belongs to this church
     const { data: service } = await supabaseAdmin
       .from('services')
-      .select('id, title, date')
+      .select('id, title, date, time')
       .eq('id', serviceId)
       .eq('church_id', userData.church_id)
       .single();
@@ -72,11 +74,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Service not found' }, { status: 404 });
     }
 
+    // Get church name
+    const { data: church } = await supabaseAdmin
+      .from('churches')
+      .select('name')
+      .eq('id', userData.church_id)
+      .single();
+
     // Verify team members belong to this church
     const memberIds = assignments.map(a => a.team_member_id);
     const { data: members } = await supabaseAdmin
       .from('team_members')
-      .select('id, user_id')
+      .select('id, user_id, name, email')
       .in('id', memberIds)
       .eq('church_id', userData.church_id);
 
@@ -108,11 +117,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fire-and-forget notifications
+    // Send in-app notifications + email for each assignment
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const emailConfigured = await isEmailConfigured();
+
     const memberMap = new Map((members || []).map(m => [m.id, m]));
     for (const assignment of created) {
       const member = memberMap.get(assignment.team_member_id);
-      if (member?.user_id) {
+      if (!member) continue;
+
+      // In-app notification
+      if (member.user_id) {
         sendAssignmentNotification({
           userId: member.user_id,
           serviceId,
@@ -122,6 +138,30 @@ export async function POST(req: NextRequest) {
           organizationId: userData.church_id,
         }).catch((err) =>
           console.error('[BulkAssignments] notification error:', err)
+        );
+      }
+
+      // Email
+      if (member.email && emailConfigured && church) {
+        const acceptUrl = `${baseUrl}/api/assignments/${assignment.id}/confirm`;
+        const declineUrl = `${baseUrl}/api/assignments/${assignment.id}/decline`;
+        const { html, text } = serviceInvitationEmail({
+          memberName: member.name || 'Team Member',
+          churchName: church.name,
+          serviceTitle: service.title,
+          serviceDate: service.date,
+          serviceTime: service.time || '',
+          role: assignment.role,
+          acceptUrl,
+          declineUrl,
+        });
+        sendEmail({
+          to: member.email,
+          subject: `Service Invitation: ${service.title}`,
+          html,
+          text,
+        }).catch((err) =>
+          console.error('[BulkAssignments] email error:', err)
         );
       }
     }

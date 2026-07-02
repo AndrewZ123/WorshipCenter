@@ -250,25 +250,50 @@ export default function ServiceDetailClient() {
     try {
       const churchMembers = await store.teamMembers.getByChurch(church.id);
       let sentCount = 0;
+      let emailCount = 0;
 
       for (const assignment of assignments) {
         const member = churchMembers.find((m) => m.id === assignment.team_member_id);
-        if (member && member.email) {
-          await store.notifications.create({
-            church_id: church.id,
-            user_id: user.id,
-            type: 'invitation',
-            title: 'Service Invitation',
-            message: `You've been invited to ${service?.title} on ${date} as ${roleLabel(assignment.role)}`,
-            service_id: serviceId,
-            read: false,
-          });
-          sentCount++;
+        if (!member) continue;
+
+        // In-app notification
+        await store.notifications.create({
+          church_id: church.id,
+          user_id: user.id,
+          type: 'invitation',
+          title: 'Service Invitation',
+          message: `You've been invited to ${service?.title} on ${date} as ${roleLabel(assignment.role)}`,
+          service_id: serviceId,
+          read: false,
+        });
+        sentCount++;
+
+        // Email
+        if (member.email) {
+          try {
+            const res = await fetch(apiUrl('/api/notifications/send-invitation'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                assignmentId: assignment.id,
+                churchId: church.id,
+                serviceTitle: service?.title || '',
+                serviceDate: service?.date || '',
+                serviceTime: service?.time || '',
+                memberName: member.name,
+                memberEmail: member.email,
+                role: assignment.role,
+              }),
+            });
+            if (res.ok) emailCount++;
+          } catch (e) {
+            console.error('[Invite] Email failed:', e);
+          }
         }
       }
 
       if (sentCount > 0) {
-        toast({ title: 'Invitations sent!', description: `${sentCount} notification(s) created.`, status: 'success', duration: 3000 });
+        toast({ title: 'Invitations sent!', description: `${sentCount} notification(s), ${emailCount} email(s) sent.`, status: 'success', duration: 3000 });
       } else {
         toast({ title: 'No invites to send', description: 'All team members have already been invited or have no email.', status: 'warning', duration: 3000 });
       }
