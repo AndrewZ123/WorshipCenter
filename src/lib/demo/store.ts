@@ -163,15 +163,64 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
     },
     
     songFiles: {
-      getBySong: async (_songId: string): Promise<SongFile[]> => {
+      getBySong: async (_songId: string, _churchId?: string): Promise<SongFile[]> => {
         // Demo doesn't support file uploads
         return [];
       },
       create: async (_sf: Omit<SongFile, 'id' | 'created_at'>): Promise<SongFile> => {
         throw new Error('File uploads not supported in demo');
       },
-      delete: async (_id: string): Promise<boolean> => {
+      update: async (_id: string, _churchId: string, _updates: Partial<SongFile>): Promise<SongFile> => {
         throw new Error('File uploads not supported in demo');
+      },
+      delete: async (_id: string, _churchId?: string): Promise<boolean> => {
+        throw new Error('File uploads not supported in demo');
+      },
+      setPrimary: async (_id: string, _songId: string, _churchId: string): Promise<SongFile> => {
+        throw new Error('File uploads not supported in demo');
+      },
+    },
+
+    songVersions: {
+      getBySong: async (_songId: string, _churchId: string): Promise<any[]> => [],
+      getById: async (_id: string, _churchId: string): Promise<any> => null,
+      create: async (_sv: any): Promise<any> => {
+        throw new Error('Not supported in demo');
+      },
+      restore: async (_songId: string, _versionNumber: number, _churchId: string): Promise<any> => null,
+      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
+    },
+
+    songArrangements: {
+      getBySong: async (_songId: string, _churchId: string): Promise<any[]> => [],
+      getById: async (_id: string, _churchId: string): Promise<any> => null,
+      create: async (_sa: any): Promise<any> => {
+        throw new Error('Not supported in demo');
+      },
+      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
+        throw new Error('Not supported in demo');
+      },
+      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
+      setDefault: async (_id: string, _songId: string, _churchId: string): Promise<any> => {
+        throw new Error('Not supported in demo');
+      },
+    },
+
+    songHistory: {
+      getBySong: async (_songId: string, _churchId: string): Promise<any[]> => [],
+      getByChurch: async (_churchId: string): Promise<any[]> => [],
+    },
+
+    songSearch: {
+      search: async (churchId: string, query: string, _filters?: any): Promise<Song[]> => {
+        const demo = getDemoContext();
+        const songs = demo.songs.filter(s => s.church_id === churchId);
+        if (!query.trim()) return songs;
+        const q = query.toLowerCase();
+        return songs.filter(s =>
+          s.title.toLowerCase().includes(q) ||
+          (s.artist && s.artist.toLowerCase().includes(q))
+        );
       },
     },
     
@@ -196,8 +245,28 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.deleteTeamMember(id);
       },
+      bulkCreate: async (members: Omit<TeamMember, 'id' | 'created_at'>[]): Promise<TeamMember[]> => {
+        const demo = getDemoContext();
+        return members.map(m => demo.createTeamMember(m));
+      },
+      bulkUpdate: async (updates: Array<{ id: string; data: Partial<TeamMember> }>): Promise<TeamMember[]> => {
+        const demo = getDemoContext();
+        return updates.map(u => demo.updateTeamMember(u.id, u.data));
+      },
+      bulkDelete: async (ids: string[], _churchId: string): Promise<number> => {
+        const demo = getDemoContext();
+        let count = 0;
+        for (const id of ids) {
+          if (demo.deleteTeamMember(id)) count++;
+        }
+        return count;
+      },
+      bulkAssignRole: async (ids: string[], _churchId: string, role: string): Promise<TeamMember[]> => {
+        const demo = getDemoContext();
+        return ids.map(id => demo.updateTeamMember(id, { roles: [role] }));
+      },
     },
-    
+
     assignments: {
       getByService: async (serviceId: string, _churchId: string): Promise<ServiceAssignment[]> => {
         const demo = getDemoContext();
@@ -234,6 +303,12 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       deleteByService: async (serviceId: string, _churchId: string): Promise<boolean> => {
         const demo = getDemoContext();
         return demo.deleteAssignmentsByService(serviceId);
+      },
+      bulkCreate: async (
+        assignments: Array<{ service_id: string; team_member_id: string; role: string }>
+      ): Promise<ServiceAssignment[]> => {
+        const demo = getDemoContext();
+        return assignments.map(a => demo.createAssignment({ ...a, status: 'pending' }));
       },
     },
     
@@ -413,6 +488,17 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       subscribe: (_serviceId: string, _churchId: string, _callback: (message: any) => void) => {
         return () => {};
       },
+      markAsRead: async (_serviceId: string, _churchId: string, _userId: string): Promise<void> => {},
+    },
+
+    // ─── Task Dependencies (demo stubs) ────────────────────────────────
+    taskDependencies: {
+      getByTask: async (_taskId: string, _churchId: string): Promise<any[]> => [],
+      create: async (_dep: any): Promise<any> => {
+        throw new Error('Not supported in demo');
+      },
+      delete: async (_taskId: string, _dependsOnId: string, _churchId: string): Promise<boolean> => false,
+      canComplete: async (_taskId: string, _churchId: string): Promise<boolean> => true,
     },
 
     // ─── Tasks & Checklists (demo stubs) ───────────────────────────────

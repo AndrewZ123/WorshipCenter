@@ -1,5 +1,3 @@
-import { LRUCache } from 'lru-cache';
-
 interface RateLimitOptions {
   // Number of requests allowed in the window
   requests: number;
@@ -18,10 +16,21 @@ interface RateLimitResult {
 }
 
 // In-memory cache for rate limiting (in production, consider using Redis)
-const rateLimitCache = new LRUCache<string, { count: number; resetTime: number }>({
-  max: 10000, // Maximum number of entries
-  ttl: 60000 * 60, // 1 hour TTL
-});
+// Simple Map-based cache with TTL eviction
+const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX_ENTRIES = 10000;
+const RATE_LIMIT_TTL = 60000 * 60; // 1 hour TTL
+
+// Periodically evict expired entries to prevent unbounded growth
+function evictExpiredEntries() {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitCache.entries()) {
+    if (entry.resetTime <= now) {
+      rateLimitCache.delete(key);
+    }
+  }
+}
+setInterval(evictExpiredEntries, RATE_LIMIT_TTL).unref?.();
 
 /**
  * Comprehensive rate limiting with different tiers for different operations

@@ -240,7 +240,7 @@ export const CreateNotificationSchema = z.object({
   title: z.string().min(1, 'Title required').max(200),
   message: z.string().min(1, 'Message required').max(5000),
   action_url: z.string().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export const NotificationSettingsSchema = z.object({

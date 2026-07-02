@@ -14,6 +14,7 @@ import { formatServiceDate } from '@/lib/formatDate';
 import {
   Play, Pause, SkipForward, SkipBack, X, Clock,
   Music, AlignLeft, Maximize2, Minimize2, Bell,
+  FastForward, Eye, EyeOff, Zap, Timer,
 } from 'lucide-react';
 
 interface ServiceModeProps {
@@ -36,6 +37,9 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
   const [isPaused, setIsPaused] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [runningState, setRunningState] = useState<RunningItemState | null>(null);
+  const [showPresenterNotes, setShowPresenterNotes] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(false);
+  const [warningThreshold, setWarningThreshold] = useState(2); // minutes before end to show warning
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Colors
@@ -54,6 +58,8 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
   // Total estimated duration
   const totalEstimated = items.reduce((sum, item) => sum + (item.duration_minutes || 0), 0);
 
+  const estimatedMs = (currentItem?.duration_minutes || 0) * 60 * 1000;
+
   // Timer effect
   useEffect(() => {
     if (!isPaused && runningState) {
@@ -61,6 +67,11 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         const now = Date.now();
         const totalElapsed = runningState.pausedElapsed + (now - runningState.startedAt);
         setElapsed(totalElapsed);
+
+        // Auto-advance when estimated time is reached
+        if (autoAdvance && estimatedMs > 0 && totalElapsed >= estimatedMs && currentIndex < items.length - 1) {
+          handleNext();
+        }
       }, 100);
     } else if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -69,7 +80,7 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused, runningState]);
+  }, [isPaused, runningState, autoAdvance, estimatedMs, currentIndex, items.length]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -192,7 +203,6 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const estimatedMs = (currentItem?.duration_minutes || 0) * 60 * 1000;
   const progress = estimatedMs > 0 ? Math.min((elapsed / estimatedMs) * 100, 100) : 0;
 
   if (!isOpen) return null;
@@ -234,6 +244,28 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
           </HStack>
 
           <HStack spacing="2">
+            <Button
+              size="sm"
+              leftIcon={<Zap size={16} />}
+              variant={autoAdvance ? 'solid' : 'ghost'}
+              colorScheme={autoAdvance ? 'teal' : undefined}
+              color={autoAdvance ? 'white' : 'whiteAlpha.700'}
+              _hover={{ color: 'white', bg: autoAdvance ? 'teal.600' : 'whiteAlpha.200' }}
+              onClick={() => setAutoAdvance(!autoAdvance)}
+            >
+              Auto-Advance
+            </Button>
+            <Button
+              size="sm"
+              leftIcon={showPresenterNotes ? <EyeOff size={16} /> : <Eye size={16} />}
+              variant={showPresenterNotes ? 'solid' : 'ghost'}
+              colorScheme={showPresenterNotes ? 'purple' : undefined}
+              color={showPresenterNotes ? 'white' : 'whiteAlpha.700'}
+              _hover={{ color: 'white', bg: showPresenterNotes ? 'purple.600' : 'whiteAlpha.200' }}
+              onClick={() => setShowPresenterNotes(!showPresenterNotes)}
+            >
+              Notes
+            </Button>
             <IconButton
               aria-label="Toggle fullscreen"
               icon={isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
@@ -255,6 +287,130 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
 
         {/* Main Content */}
         <Flex h="calc(100vh - 73px)" direction={{ base: 'column', lg: 'row' }}>
+          {/* Presenter Notes Panel */}
+          {showPresenterNotes && (
+            <Box
+              w={{ base: 'full', lg: '320px' }}
+              bg="blackAlpha.400"
+              borderRight={{ base: 'none', lg: '1px solid' }}
+              borderBottom={{ base: '1px solid', lg: 'none' }}
+              borderColor="purple.500"
+              overflowY="auto"
+              flexShrink={0}
+              maxH={{ base: '250px', lg: 'none' }}
+              p="4"
+            >
+              <HStack mb="3" justify="space-between">
+                <HStack spacing="2">
+                  <Eye size={16} color="#D6BCFA" />
+                  <Text fontSize="sm" fontWeight="bold" color="purple.200" letterSpacing="wide" textTransform="uppercase">
+                    Presenter Notes
+                  </Text>
+                </HStack>
+                <Badge colorScheme="purple" fontSize="xs">
+                  {currentIndex + 1}/{items.length}
+                </Badge>
+              </HStack>
+
+              {currentItem ? (
+                <VStack spacing="3" align="stretch">
+                  {/* Item-specific notes */}
+                  {currentItem.notes ? (
+                    <Box bg="whiteAlpha.50" borderRadius="md" p="3">
+                      <Text fontSize="xs" color="purple.300" mb="1" fontWeight="bold">ITEM NOTES</Text>
+                      <Text fontSize="sm" color="whiteAlpha.900" whiteSpace="pre-wrap">
+                        {currentItem.notes}
+                      </Text>
+                    </Box>
+                  ) : (
+                    <Text fontSize="sm" color="whiteAlpha.500" fontStyle="italic">
+                      No notes for this item.
+                    </Text>
+                  )}
+
+                  {/* Song-specific info */}
+                  {currentItem.type === 'song' && (
+                    <Box bg="whiteAlpha.50" borderRadius="md" p="3">
+                      <Text fontSize="xs" color="purple.300" mb="2" fontWeight="bold">SONG DETAILS</Text>
+                      <VStack spacing="1" align="stretch" fontSize="sm">
+                        {currentItem.key && (
+                          <HStack justify="space-between">
+                            <Text color="whiteAlpha.600">Key:</Text>
+                            <Text color="whiteAlpha.900" fontWeight="medium">{currentItem.key}</Text>
+                          </HStack>
+                        )}
+                        {currentItem.duration_minutes && (
+                          <HStack justify="space-between">
+                            <Text color="whiteAlpha.600">Duration:</Text>
+                            <Text color="whiteAlpha.900" fontWeight="medium">{currentItem.duration_minutes} min</Text>
+                          </HStack>
+                        )}
+                        {currentItem.assigned_to && (
+                          <HStack justify="space-between">
+                            <Text color="whiteAlpha.600">Leader:</Text>
+                            <Text color="whiteAlpha.900" fontWeight="medium">{currentItem.assigned_to}</Text>
+                          </HStack>
+                        )}
+                      </VStack>
+                    </Box>
+                  )}
+
+                  {/* Timing info */}
+                  <Box bg="whiteAlpha.50" borderRadius="md" p="3">
+                    <Text fontSize="xs" color="purple.300" mb="2" fontWeight="bold">TIMING</Text>
+                    <VStack spacing="1" align="stretch" fontSize="sm">
+                      <HStack justify="space-between">
+                        <Text color="whiteAlpha.600">Elapsed:</Text>
+                        <Text color={progress > 100 ? 'red.300' : 'teal.300'} fontFamily="mono" fontWeight="bold">
+                          {formatTime(elapsed)}
+                        </Text>
+                      </HStack>
+                      {estimatedMs > 0 && (
+                        <HStack justify="space-between">
+                          <Text color="whiteAlpha.600">Estimated:</Text>
+                          <Text color="whiteAlpha.900" fontFamily="mono">{formatTime(estimatedMs)}</Text>
+                        </HStack>
+                      )}
+                      {estimatedMs > 0 && (
+                        <HStack justify="space-between">
+                          <Text color="whiteAlpha.600">Remaining:</Text>
+                          <Text color={elapsed > estimatedMs ? 'red.300' : 'whiteAlpha.900'} fontFamily="mono" fontWeight="bold">
+                            {formatTime(Math.max(0, estimatedMs - elapsed))}
+                          </Text>
+                        </HStack>
+                      )}
+                      {estimatedMs > 0 && (
+                        <Progress
+                          value={progress}
+                          colorScheme={progress > 100 ? 'red' : 'teal'}
+                          size="xs"
+                          w="full"
+                          borderRadius="full"
+                          mt="2"
+                        />
+                      )}
+                    </VStack>
+                  </Box>
+
+                  {/* Next item preview */}
+                  {nextItem && (
+                    <Box bg="purple.500Alpha.200" borderRadius="md" p="3" borderColor="purple.500" borderWidth="1px">
+                      <Text fontSize="xs" color="purple.300" mb="1" fontWeight="bold">UP NEXT</Text>
+                      <Text fontSize="sm" color="whiteAlpha.900" fontWeight="semibold">
+                        {nextItem.title}
+                      </Text>
+                      {nextItem.type === 'song' && nextItem.key && (
+                        <Badge colorScheme="teal" fontSize="xs" mt="1">Key: {nextItem.key}</Badge>
+                      )}
+                    </Box>
+                  )}
+                </VStack>
+              ) : (
+                <Text fontSize="sm" color="whiteAlpha.500">No item selected.</Text>
+              )}
+            </Box>
+          )}
+
           {/* Current Item Display */}
           <Flex
             flex="1"

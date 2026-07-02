@@ -18,6 +18,9 @@ import type {
   ServiceTask,
   TaskTemplate,
   TaskTemplateItem,
+  SongVersion,
+  SongArrangement,
+  SongHistory,
 } from './types';
 
 // Helper to sanitize string fields in objects before database operations
@@ -344,11 +347,25 @@ export const db = {
         return [];
       }
       
-      const { data } = await supabase.from('song_files').select('*').eq('song_id', songId);
+      const { data } = await supabase
+        .from('song_files')
+        .select('*')
+        .eq('song_id', songId)
+        .order('is_primary', { ascending: false })
+        .order('created_at', { ascending: false });
       return (data || []) as SongFile[];
     },
     create: async (sf: Omit<SongFile, 'id' | 'created_at'>) => {
       const { data } = await supabase.from('song_files').insert(sf).select().single();
+      return data as SongFile;
+    },
+    update: async (id: string, churchId: string, updates: Partial<SongFile>) => {
+      const { data } = await supabase
+        .from('song_files')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
       return data as SongFile;
     },
     delete: async (id: string, churchId: string) => {
@@ -373,6 +390,242 @@ export const db = {
       
       const { error } = await supabase.from('song_files').delete().eq('id', id);
       return !error;
+    },
+    setPrimary: async (id: string, songId: string, churchId: string) => {
+      // Unset other primaries for this song
+      await supabase
+        .from('song_files')
+        .update({ is_primary: false })
+        .eq('song_id', songId)
+        .eq('is_primary', true);
+      // Set the new primary
+      const { data } = await supabase
+        .from('song_files')
+        .update({ is_primary: true })
+        .eq('id', id)
+        .select()
+        .single();
+      return data as SongFile;
+    },
+  },
+
+  // Song Versions
+  songVersions: {
+    getBySong: async (songId: string, churchId: string) => {
+      const { data: song } = await supabase
+        .from('songs')
+        .select('church_id')
+        .eq('id', songId)
+        .single();
+      if (!song || song.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('song_versions')
+        .select('*')
+        .eq('song_id', songId)
+        .order('version_number', { ascending: false });
+      return (data || []) as SongVersion[];
+    },
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('song_versions')
+        .select('*')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
+      return data as SongVersion | null;
+    },
+    create: async (sv: Omit<SongVersion, 'id' | 'created_at'>) => {
+      // Get the max version number for this song
+      const { data: existing } = await supabase
+        .from('song_versions')
+        .select('version_number')
+        .eq('song_id', sv.song_id)
+        .order('version_number', { ascending: false })
+        .limit(1);
+      
+      const nextVersion = (existing && existing.length > 0 ? existing[0].version_number : 0) + 1;
+      
+      const { data } = await supabase
+        .from('song_versions')
+        .insert({ ...sv, version_number: nextVersion })
+        .select()
+        .single();
+      return data as SongVersion;
+    },
+    restore: async (songId: string, versionNumber: number, churchId: string) => {
+      const { data, error } = await supabase
+        .rpc('restore_song_from_version', { 
+          song_uuid: songId, 
+          version_num: versionNumber 
+        });
+      if (error) {
+        console.error('[SongVersions] Restore failed:', error);
+        return null;
+      }
+      return data;
+    },
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('song_versions')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
+      return !error;
+    },
+  },
+
+  // Song Arrangements
+  songArrangements: {
+    getBySong: async (songId: string, churchId: string) => {
+      const { data: song } = await supabase
+        .from('songs')
+        .select('church_id')
+        .eq('id', songId)
+        .single();
+      if (!song || song.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('song_arrangements')
+        .select('*')
+        .eq('song_id', songId)
+        .order('is_default', { ascending: false })
+        .order('name', { ascending: true });
+      return (data || []) as SongArrangement[];
+    },
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('song_arrangements')
+        .select('*')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
+      return data as SongArrangement | null;
+    },
+    create: async (sa: Omit<SongArrangement, 'id' | 'created_at' | 'updated_at'>) => {
+      const { data } = await supabase
+        .from('song_arrangements')
+        .insert({
+          ...sa,
+          structure: sa.structure || [],
+        })
+        .select()
+        .single();
+      return data as SongArrangement;
+    },
+    update: async (id: string, churchId: string, updates: Partial<SongArrangement>) => {
+      const { data } = await supabase
+        .from('song_arrangements')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
+      return data as SongArrangement;
+    },
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('song_arrangements')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
+      return !error;
+    },
+    setDefault: async (id: string, songId: string, churchId: string) => {
+      // Unset other defaults for this song
+      await supabase
+        .from('song_arrangements')
+        .update({ is_default: false })
+        .eq('song_id', songId)
+        .eq('is_default', true);
+      // Set the new default
+      const { data } = await supabase
+        .from('song_arrangements')
+        .update({ is_default: true })
+        .eq('id', id)
+        .select()
+        .single();
+      return data as SongArrangement;
+    },
+  },
+
+  // Song History
+  songHistory: {
+    getBySong: async (songId: string, churchId: string) => {
+      const { data: song } = await supabase
+        .from('songs')
+        .select('church_id')
+        .eq('id', songId)
+        .single();
+      if (!song || song.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('song_history')
+        .select('*')
+        .eq('song_id', songId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      return (data || []) as SongHistory[];
+    },
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('song_history')
+        .select('*')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      return (data || []) as SongHistory[];
+    },
+  },
+
+  // Song Search (Advanced)
+  songSearch: {
+    search: async (churchId: string, query: string, filters?: {
+      tags?: string[];
+      key?: string;
+      artist?: string;
+      limit?: number;
+    }) => {
+      let queryBuilder = supabase
+        .from('songs')
+        .select('*')
+        .eq('church_id', churchId);
+
+      if (query.trim()) {
+        // Use full-text search
+        queryBuilder = queryBuilder.textSearch('search_vector', query.trim(), {
+          type: 'websearch',
+          config: 'english',
+        });
+      }
+
+      if (filters?.tags && filters.tags.length > 0) {
+        queryBuilder = queryBuilder.overlaps('tags', filters.tags);
+      }
+      if (filters?.key) {
+        queryBuilder = queryBuilder.eq('default_key', filters.key);
+      }
+      if (filters?.artist) {
+        queryBuilder = queryBuilder.ilike('artist', `%${filters.artist}%`);
+      }
+
+      const limit = filters?.limit || 50;
+      queryBuilder = queryBuilder.limit(limit);
+
+      const { data, error } = await queryBuilder.order('title');
+      if (error) {
+        console.error('[SongSearch] Search failed:', error);
+        // Fall back to basic ILIKE search
+        const { data: fallbackData } = await supabase
+          .from('songs')
+          .select('*')
+          .eq('church_id', churchId)
+          .or(`title.ilike.%${query}%,artist.ilike.%${query}%`)
+          .order('title')
+          .limit(limit);
+        return (fallbackData || []) as Song[];
+      }
+      return (data || []) as Song[];
     },
   },
 
@@ -414,6 +667,59 @@ export const db = {
         .eq('id', id)
         .eq('church_id', churchId);
       return !error;
+    },
+    bulkCreate: async (
+      members: Array<Omit<TeamMember, 'id' | 'created_at'>>,
+      churchId: string
+    ) => {
+      if (!members.length) return [];
+      const rows = members.map((m) => ({
+        ...sanitizeInput.teamMember(m),
+        church_id: churchId,
+      }));
+      const { data, error } = await supabase
+        .from('team_members')
+        .insert(rows)
+        .select();
+      if (error) {
+        console.error('[TeamMembers] BulkCreate failed', error);
+        return [];
+      }
+      return (data || []) as TeamMember[];
+    },
+    bulkUpdate: async (
+      updates: Array<{ id: string; data: Partial<TeamMember> }>,
+      churchId: string
+    ) => {
+      // Supabase doesn't support batch updates with different values in one query
+      const results = await Promise.all(
+        updates.map((u) => db.teamMembers.update(u.id, churchId, u.data))
+      );
+      return results.filter((r) => r !== null) as TeamMember[];
+    },
+    bulkDelete: async (ids: string[], churchId: string) => {
+      if (!ids.length) return 0;
+      const { data, error } = await supabase
+        .from('team_members')
+        .delete()
+        .in('id', ids)
+        .eq('church_id', churchId)
+        .select('id');
+      return (data || []).length;
+    },
+    bulkAssignRole: async (ids: string[], churchId: string, role: string) => {
+      if (!ids.length) return [];
+      const { data, error } = await supabase
+        .from('team_members')
+        .update({ role })
+        .in('id', ids)
+        .eq('church_id', churchId)
+        .select();
+      if (error) {
+        console.error('[TeamMembers] BulkAssignRole failed', error);
+        return [];
+      }
+      return (data || []) as TeamMember[];
     },
   },
 
@@ -967,6 +1273,35 @@ export const db = {
         }
       };
     },
+
+    // Mark messages as read
+    markAsRead: async (serviceId: string, churchId: string, userId: string) => {
+      // Verify service belongs to church
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+
+      if (!service || service.church_id !== churchId) return;
+
+      // Get chat ID
+      const { data: chat } = await supabase
+        .from('service_chats')
+        .select('id')
+        .eq('service_id', serviceId)
+        .single();
+
+      if (!chat) return;
+
+      // Mark unread messages from other users as read
+      await supabase
+        .from('service_chat_messages')
+        .update({ read_at: new Date().toISOString() })
+        .eq('chat_id', chat.id)
+        .neq('sender_user_id', userId)
+        .is('read_at', null);
+    },
   },
 
   // Assignments - Update to support confirm/decline
@@ -1089,6 +1424,37 @@ export const db = {
       
       const { error } = await supabase.from('service_assignments').delete().eq('service_id', serviceId);
       return !error;
+    },
+    bulkCreate: async (
+      assignments: Array<{ service_id: string; team_member_id: string; role: string }>,
+      churchId: string
+    ) => {
+      if (!assignments.length) return [];
+      // Verify all services belong to the church
+      const serviceIds = [...new Set(assignments.map((a) => a.service_id))];
+      const { data: services } = await supabase
+        .from('services')
+        .select('id')
+        .in('id', serviceIds)
+        .eq('church_id', churchId);
+      const validServiceIds = new Set((services || []).map((s) => s.id));
+      const valid = assignments.filter((a) => validServiceIds.has(a.service_id));
+      if (!valid.length) return [];
+      const rows = valid.map((a) => ({
+        service_id: a.service_id,
+        team_member_id: a.team_member_id,
+        role: sanitizeString(a.role),
+        status: 'pending',
+      }));
+      const { data, error } = await supabase
+        .from('service_assignments')
+        .insert(rows)
+        .select();
+      if (error) {
+        console.error('[Assignments] BulkCreate failed', error);
+        return [];
+      }
+      return (data || []) as any[];
     },
   },
 
@@ -1283,6 +1649,54 @@ export const db = {
     deleteItem: async (itemId: string) => {
       const { error } = await supabase.from('task_template_items').delete().eq('id', itemId);
       return !error;
+    },
+  },
+
+  // Task Dependencies
+  taskDependencies: {
+    getByTask: async (taskId: string, churchId: string) => {
+      const { data: task } = await supabase
+        .from('service_tasks')
+        .select('church_id')
+        .eq('id', taskId)
+        .single();
+      if (!task || task.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('task_dependencies')
+        .select('*')
+        .eq('task_id', taskId);
+      return (data || []) as any[];
+    },
+    create: async (dep: { task_id: string; depends_on_task_id: string; dependency_type?: string; church_id: string }) => {
+      const { data } = await supabase
+        .from('task_dependencies')
+        .insert({
+          task_id: dep.task_id,
+          depends_on_task_id: dep.depends_on_task_id,
+          dependency_type: dep.dependency_type || 'finish_to_start',
+          church_id: dep.church_id,
+        })
+        .select()
+        .single();
+      return data;
+    },
+    delete: async (taskId: string, dependsOnId: string, churchId: string) => {
+      const { error } = await supabase
+        .from('task_dependencies')
+        .delete()
+        .eq('task_id', taskId)
+        .eq('depends_on_task_id', dependsOnId)
+        .eq('church_id', churchId);
+      return !error;
+    },
+    canComplete: async (taskId: string, churchId: string) => {
+      const { data, error } = await supabase.rpc('can_complete_task', { task_uuid: taskId });
+      if (error) {
+        console.error('[TaskDependencies] canComplete failed:', error);
+        return true; // Default to true if check fails
+      }
+      return data as boolean;
     },
   },
 

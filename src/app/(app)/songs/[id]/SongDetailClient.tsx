@@ -210,7 +210,18 @@ export default function SongDetailClient() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async () => {
-      await store.songFiles.create({ song_id: songId, file_url: reader.result as string, file_name: file.name, type: 'chord_chart' });
+      await store.songFiles.create({
+        song_id: songId,
+        file_url: reader.result as string,
+        file_name: file.name,
+        type: 'chord_chart',
+        file_size: file.size,
+        mime_type: file.type,
+        arrangement_id: null,
+        version_id: null,
+        is_primary: false,
+        uploaded_by: user?.id || null,
+      });
       await loadData();
       toast({ title: 'File uploaded', status: 'success', duration: 2000 });
     };

@@ -9,6 +9,7 @@ import {
   ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter,
   Select, Textarea, useDisclosure, Menu, MenuButton, MenuList, MenuItem,
   Divider, Badge, Portal, Tabs, TabList, TabPanels, Tab, TabPanel,
+  Skeleton,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
@@ -498,9 +499,38 @@ export default function ServiceDetailClient() {
 
   if (loading) {
     return (
-      <Center minH="50vh">
-        <Spinner size="xl" color="teal.500" />
-      </Center>
+      <Box p={{ base: '4', md: '8' }} maxW="900px" mx="auto">
+        {/* Header Skeleton */}
+        <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
+          <HStack spacing="3" flex="1">
+            <Skeleton boxSize="40px" borderRadius="lg" />
+            <VStack spacing="2" align="start">
+              <Skeleton h="28px" w="240px" borderRadius="md" />
+              <Skeleton h="16px" w="160px" borderRadius="md" />
+            </VStack>
+          </HStack>
+        </Flex>
+
+        {/* Tabs Skeleton */}
+        <Card mb="6" bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor}>
+          <Box px="4" pt="4" borderBottom="1px solid" borderColor={borderColor}>
+            <HStack spacing="6">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} h="32px" w="100px" borderRadius="md" />
+              ))}
+            </HStack>
+          </Box>
+          <CardBody p="6">
+            <VStack spacing="4" align="stretch">
+              {/* Tab content skeleton */}
+              <Skeleton h="24px" w="120px" borderRadius="md" />
+              <Skeleton h="80px" w="100%" borderRadius="lg" />
+              <Skeleton h="80px" w="100%" borderRadius="lg" />
+              <Skeleton h="80px" w="100%" borderRadius="lg" />
+            </VStack>
+          </CardBody>
+        </Card>
+      </Box>
     );
   }
 

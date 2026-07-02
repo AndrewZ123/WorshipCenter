@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import { formatRelativeDate } from '@/lib/formatDate';
@@ -13,11 +13,18 @@ interface Message {
   content: string;
   created_at: string;
   sender_user_id: string;
+  read_by?: string[]; // user IDs who have read this message
   sender: {
     id: string;
     name: string;
     avatar_url?: string;
   };
+}
+
+interface TypingUser {
+  userId: string;
+  name: string;
+  timestamp: number;
 }
 
 interface ServiceChatProps {
@@ -32,7 +39,11 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastReadMessageId = useRef<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -74,6 +85,80 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
 
     return () => unsubscribe();
   }, [serviceId, churchId, isDemo]);
+
+  // Mark messages as read when they're visible
+  const markMessagesAsRead = useCallback(async () => {
+    if (!currentUser || messages.length === 0) return;
+
+    const unreadMessages = messages.filter(
+      (m) => m.sender_user_id !== currentUser.id && !m.read_by?.includes(currentUser.id)
+    );
+
+    if (unreadMessages.length === 0) return;
+
+    const lastMessage = unreadMessages[unreadMessages.length - 1];
+    if (lastReadMessageId.current === lastMessage.id) return;
+
+    lastReadMessageId.current = lastMessage.id;
+
+    try {
+      await db.serviceChat.markAsRead(serviceId, lastMessage.id, currentUser.id);
+    } catch (error) {
+      console.error('[ServiceChat] Error marking as read:', error);
+    }
+  }, [currentUser, messages, serviceId]);
+
+  // Mark messages as read when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      markMessagesAsRead();
+    }
+  }, [messages, markMessagesAsRead]);
+
+  // Cleanup expired typing indicators
+  useEffect(() => {
+    if (typingUsers.length === 0) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setTypingUsers((prev) => prev.filter((u) => now - u.timestamp < 5000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [typingUsers.length]);
+
+  // Handle typing indicator on input change
+  const handleTypingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+
+    if (!currentUser) return;
+
+    // Broadcast typing indicator (debounced)
+    if (!isTyping) {
+      setIsTyping(true);
+      // In a real implementation, this would broadcast to other clients
+      // via Supabase realtime or a presence channel
+    }
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set timeout to stop typing indicator
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+    }, 3000);
+  };
+
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,10 +242,35 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
                       {message.content}
                     </p>
                   </div>
+                  {/* Read receipts for own messages */}
+                  {isOwnMessage && message.read_by && message.read_by.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>Read by {message.read_by.length}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })
+        )}
+
+        {/* Typing indicator */}
+        {typingUsers.length > 0 && (
+          <div className="flex items-center gap-2 text-sm text-gray-400 italic">
+            <div className="flex gap-1">
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+            <span>
+              {typingUsers.length === 1
+                ? `${typingUsers[0].name} is typing...`
+                : `${typingUsers.length} people are typing...`}
+            </span>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -171,7 +281,7 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleTypingChange}
             placeholder="Type a message..."
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={sending || !currentUser}

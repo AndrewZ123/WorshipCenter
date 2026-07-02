@@ -5,6 +5,10 @@ export type UserRole = 'admin' | 'leader' | 'team';
 export type ServiceStatus = 'draft' | 'finalized' | 'completed';
 export type TaskStatus = 'pending' | 'in_progress' | 'done' | 'skipped';
 export type TaskRecurrence = 'one_off' | 'per_service' | 'weekly';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type ServiceItemType = 'song' | 'segment';
+export type AssignmentStatus = 'pending' | 'confirmed' | 'declined';
+export type SongFileType = 'chord_chart' | 'lyrics' | 'lead_sheet' | 'audio' | 'pdf' | 'image' | 'other';
 
 export interface Church {
   id: string;
@@ -25,9 +29,57 @@ export interface User {
   team_member_id?: string | null;
   created_at: string;
 }
-export type ServiceItemType = 'song' | 'segment';
-export type AssignmentStatus = 'pending' | 'confirmed' | 'declined';
-export type SongFileType = 'chord_chart';
+
+// Song Version Types
+export interface SongVersion {
+  id: string;
+  song_id: string;
+  version_number: number;
+  title: string;
+  artist: string | null;
+  default_key: string | null;
+  ccli_number: string | null;
+  tags: string[];
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  church_id: string;
+}
+
+// Song Arrangement Types
+export interface SongArrangement {
+  id: string;
+  song_id: string;
+  name: string;
+  key: string;
+  tempo: number | null;
+  time_signature: string;
+  structure: SongSection[];
+  notes: string | null;
+  is_default: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  church_id: string;
+}
+
+export interface SongSection {
+  section: string; // e.g., "Verse 1", "Chorus", "Bridge"
+  duration: number; // in seconds
+  notes?: string;
+}
+
+// Song History Types
+export interface SongHistory {
+  id: string;
+  song_id: string;
+  action: 'created' | 'updated' | 'deleted' | 'version_created' | 'arrangement_created' | 'restored_from_version';
+  changed_by: string | null;
+  old_data: any;
+  new_data: any;
+  created_at: string;
+  church_id: string;
+}
 
 export interface Invite {
   id: string;
@@ -76,12 +128,26 @@ export interface Song {
   created_at: string;
 }
 
+// Song with Details
+export interface SongWithDetails extends Song {
+  versions: SongVersion[];
+  arrangements: SongArrangement[];
+  files: SongFile[];
+  search_vector?: any; // tsvector type
+}
+
 export interface SongFile {
   id: string;
   song_id: string;
   file_url: string;
   file_name: string;
   type: SongFileType;
+  file_size: number | null;
+  mime_type: string | null;
+  arrangement_id: string | null;
+  version_id: string | null;
+  is_primary: boolean;
+  uploaded_by: string | null;
   created_at: string;
 }
 
@@ -289,6 +355,9 @@ export interface ServiceTask {
   assigned_role: string | null;
   position: number;
   status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  depends_on_task_id: string | null;
   completed_at: string | null;
   completed_by: string | null;
   due_offset_minutes: number | null;
