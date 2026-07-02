@@ -5,7 +5,7 @@
  * This is the ONLY way users subscribe — no payment intents, no embedded forms.
  *
  * Flow:
- * 1. Client posts { priceType: 'monthly' | 'yearly' }
+ * 1. Client posts { priceType: 'monthly' | 'yearly', successUrl?, cancelUrl? }
  * 2. We find the user's church and subscription record
  * 3. We create or reuse a Stripe customer
  * 4. We create a Checkout Session and return the URL
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 2. Parse and validate request body ────────────────────────────────
-    let body: { priceType?: string };
+    let body: { priceType?: string; successUrl?: string; cancelUrl?: string };
     try {
       body = await request.json();
     } catch {
@@ -87,6 +87,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Use custom URLs if provided, otherwise use defaults
+    const successUrl = body.successUrl || `${env.appUrl()}/settings/billing?success=true`;
+    const cancelUrl = body.cancelUrl || `${env.appUrl()}/settings/billing?canceled=true`;
 
     // ── 3. Authenticate the user via Authorization header ──────────────────
     const authHeader = request.headers.get('Authorization');
@@ -264,7 +268,6 @@ export async function POST(request: NextRequest) {
 
     // ── 7. Create the Checkout Session ────────────────────────────────────
     const priceId = PRICING[priceType].priceId();
-    const appUrl = env.appUrl();
 
     console.log('[Checkout] Creating session:', { customerId, priceId, priceType, churchId });
 
@@ -277,8 +280,8 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${appUrl}/settings/billing?success=true`,
-      cancel_url: `${appUrl}/settings/billing?canceled=true`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         church_id: churchId,
         user_id: user.id,
