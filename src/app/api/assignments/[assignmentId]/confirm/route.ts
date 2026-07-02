@@ -139,9 +139,16 @@ export async function POST(
   { params }: { params: Promise<{ assignmentId: string }> }
 ) {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    let user;
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const { data, error } = await supabase.auth.getUser(authHeader.slice(7));
+      if (error || !data.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      user = data.user;
+    } else {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      user = data.user;
     }
 
     const { assignmentId } = await params;

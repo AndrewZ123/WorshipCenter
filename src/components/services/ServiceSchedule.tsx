@@ -94,12 +94,22 @@ export default function ServiceSchedule({
     }
   };
 
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+    return headers;
+  };
+
   const handleConfirm = async (assignmentId: string) => {
     try {
       setProcessing(assignmentId);
 
       const response = await fetch(apiUrl(`/api/assignments/${assignmentId}/confirm`), {
         method: 'POST',
+        headers: await getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -130,6 +140,7 @@ export default function ServiceSchedule({
       setProcessing(assignmentId);
       const response = await fetch(apiUrl(`/api/assignments/${assignmentId}`), {
         method: 'DELETE',
+        headers: await getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Failed to remove');
       toast({ title: 'Removed', description: 'Member removed from schedule', status: 'info' });
@@ -148,6 +159,7 @@ export default function ServiceSchedule({
 
       const response = await fetch(apiUrl(`/api/assignments/${assignmentId}/decline`), {
         method: 'POST',
+        headers: await getAuthHeaders(),
       });
 
       if (!response.ok) {
