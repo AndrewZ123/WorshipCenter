@@ -23,13 +23,14 @@ import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
 import ServiceTasks from '@/components/services/ServiceTasks';
 import ServiceMode from '@/components/services/ServiceMode';
+import { generateServicePDF } from '@/components/services/ServicePrintView';
 
 // Lucide icons
 import { 
   ArrowLeft, MoreVertical, Copy, Trash2, Edit, Plus,
   Music, AlignLeft, Send, CheckCircle, Calendar, Clock, 
   BookOpen, UserCheck, MessageSquare, Calendar as CalendarIcon,
-  ListMusic, Users, ListChecks, Monitor
+  ListMusic, Users, ListChecks, Monitor, Printer
 } from 'lucide-react';
 
 // dnd-kit imports
@@ -587,12 +588,19 @@ export default function ServiceDetailClient() {
                 _hover={{ color: 'gray.600', bg: 'gray.100' }}
               />
               <Portal>
-                <MenuList borderRadius="xl" zIndex={50}>
-                  <MenuItem onClick={() => setEditing(true)} icon={<Edit size={16} />}>Edit Service</MenuItem>
-                  <MenuItem onClick={handleDuplicateService} icon={<Copy size={16} />}>Duplicate</MenuItem>
-                  <Divider />
-                  <MenuItem color="red.500" onClick={deleteDisclosure.onOpen} icon={<Trash2 size={16} />}>Delete</MenuItem>
-                </MenuList>
+              <MenuList borderRadius="xl" zIndex={50}>
+                <MenuItem onClick={() => setEditing(true)} icon={<Edit size={16} />}>Edit Service</MenuItem>
+                <MenuItem onClick={() => generateServicePDF({
+                  service: service!,
+                  items,
+                  assignments,
+                  teamMembers,
+                  churchName: church?.name || 'Church',
+                })} icon={<Printer size={16} />}>Export / Print PDF</MenuItem>
+                <MenuItem onClick={handleDuplicateService} icon={<Copy size={16} />}>Duplicate</MenuItem>
+                <Divider />
+                <MenuItem color="red.500" onClick={deleteDisclosure.onOpen} icon={<Trash2 size={16} />}>Delete</MenuItem>
+              </MenuList>
               </Portal>
             </Menu>
           )}
