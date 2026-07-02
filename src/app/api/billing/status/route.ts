@@ -1,36 +1,32 @@
 /**
  * GET /api/billing/status
  *
- * Lightweight, unauthenticated check that tells the client whether
+ * Lightweight, rate-limited check that tells the client whether
  * billing is fully configured (Stripe secret key, publishable key, price IDs,
  * and Supabase service role key for server-side DB writes).
  *
- * The client cannot read STRIPE_SECRET_KEY / SUPABASE_SERVICE_ROLE directly
- * (server-only), so without this endpoint the billing UI would have to either:
- *   - always show pricing cards (bad: users click Subscribe then hit a 503), or
- *   - always hide them (bad: can't upgrade even when configured).
+ * This endpoint is rate-limited to prevent abuse and reconnaissance attacks.
+ * It returns minimal configuration information without exposing sensitive data.
  *
- * This route returns { configured: boolean, missing?: string[] } without
- * leaking any secret values — only the NAMES of missing env vars.
+ * This route returns { configured: boolean } without leaking any secret values.
+ * The specific missing configuration details are omitted to reduce information disclosure.
  */
 
 import { NextResponse } from 'next/server';
-import { isStripeConfigured, getMissingStripeConfig } from '@/lib/stripe';
-import { isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
+import { isStripeConfigured } from '@/lib/stripe';
+import { isSupabaseAdminConfigured } from '@/lib/supabase';
+import { withRateLimit, RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 
-export async function GET() {
+export const GET = withRateLimit(async () => {
   const stripeOk = isStripeConfigured();
   const supabaseOk = isSupabaseAdminConfigured();
 
-  if (stripeOk && supabaseOk) {
-    return NextResponse.json({ configured: true });
-  }
-
-  // Report which env vars are missing (names only, not values)
-  const missing = [
-    ...(stripeOk ? [] : getMissingStripeConfig()),
-    ...(supabaseOk ? [] : getMissingSupabaseConfig()),
-  ];
-
-  return NextResponse.json({ configured: false, missing });
-}
+  // Return minimal configuration status - don't reveal what's specifically missing
+  // This reduces information disclosure while still allowing the UI to function
+  const configured = stripeOk && supabaseOk;
+  
+  return NextResponse.json({ configured });
+}, {
+  ...RateLimitTiers.BILLING,
+  identifier: 'billing-status',
+});

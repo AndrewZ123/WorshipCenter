@@ -38,7 +38,7 @@ const securityHeaders = [
   // Permissions policy (restrict browser features)
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=(), payment=(self), usb=()',
+    value: 'camera=(), microphone=(), geolocation=(), payment=(self), usb=(), interest-cohort=()',
   },
   // Content Security Policy
   {
@@ -85,7 +85,23 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/(.*)',
-        headers: securityHeaders,
+        headers: [
+          ...securityHeaders,
+          // Obfuscate technology stack
+          { 
+            key: 'X-Powered-By', 
+            value: 'WorshipCenter' 
+          },
+          {
+            key: 'Server',
+            value: 'WorshipCenter'
+          },
+          // Remove technology fingerprints
+          {
+            key: 'X-Content-Security-Policy',
+            value: 'default-src \'self\''
+          },
+        ],
       },
       // API routes get additional security
       {
@@ -93,10 +109,15 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate' },
           { key: 'Pragma', value: 'no-cache' },
+          // Additional API security headers
+          { key: 'X-Powered-By', value: 'WorshipCenter' },
+          { key: 'Server', value: 'WorshipCenter' },
         ],
       },
     ];
   },
+  // Disable powered-by header
+  poweredByHeader: false,
 };
 
 export default pwaConfig(nextConfig);
