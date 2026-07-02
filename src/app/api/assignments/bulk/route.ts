@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { db } from '@/lib/store';
 import { sendAssignmentNotification } from '@/lib/notifications';
 import { z } from 'zod';
 
@@ -30,7 +29,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user's church_id and role using admin client (bypasses RLS)
     const { data: userData } = await supabaseAdmin
       .from('users')
       .select('church_id, role')
@@ -41,7 +39,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No church context' }, { status: 400 });
     }
 
-    // Only admins/leaders can bulk-assign
     if (userData.role === 'team') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
@@ -63,30 +60,59 @@ export async function POST(req: NextRequest) {
 
     const { serviceId, assignments } = parsed.data;
 
-    const rows = assignments.map((a) => ({
+    // Verify the service belongs to this church
+    const { data: service } = await supabaseAdmin
+      .from('services')
+      .select('id, title, date')
+      .eq('id', serviceId)
+      .eq('church_id', userData.church_id)
+      .single();
+
+    if (!service) {
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+    }
+
+    // Verify team members belong to this church
+    const memberIds = assignments.map(a => a.team_member_id);
+    const { data: members } = await supabaseAdmin
+      .from('team_members')
+      .select('id, user_id')
+      .in('id', memberIds)
+      .eq('church_id', userData.church_id);
+
+    const validMemberIds = new Set((members || []).map(m => m.id));
+    const validAssignments = assignments.filter(a => validMemberIds.has(a.team_member_id));
+
+    if (!validAssignments.length) {
+      return NextResponse.json({ error: 'No valid team members found' }, { status: 400 });
+    }
+
+    // Bulk insert
+    const rows = validAssignments.map(a => ({
       service_id: serviceId,
       team_member_id: a.team_member_id,
       role: a.role,
+      status: 'pending',
     }));
 
-    const created = await db.assignments.bulkCreate(rows, userData.church_id);
-    if (!created.length) {
+    const { data: created, error: insertError } = await supabaseAdmin
+      .from('service_assignments')
+      .insert(rows)
+      .select();
+
+    if (insertError || !created?.length) {
+      console.error('[BulkAssignments] Insert error:', insertError);
       return NextResponse.json(
         { error: 'Failed to create assignments' },
         { status: 500 }
       );
     }
 
-    // Fetch service details and team member user IDs for notifications
-    const service = await db.services.getById(serviceId, userData.church_id);
-    const teamMemberIds = [...new Set(created.map((a: any) => a.team_member_id))];
-    const teamMembers = await db.teamMembers.getByChurch(userData.church_id);
-    const memberMap = new Map(teamMembers.map((m) => [m.id, m]));
-
     // Fire-and-forget notifications
+    const memberMap = new Map((members || []).map(m => [m.id, m]));
     for (const assignment of created) {
       const member = memberMap.get(assignment.team_member_id);
-      if (member?.user_id && service) {
+      if (member?.user_id) {
         sendAssignmentNotification({
           userId: member.user_id,
           serviceId,
