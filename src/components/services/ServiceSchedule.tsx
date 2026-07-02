@@ -125,6 +125,23 @@ export default function ServiceSchedule({
     }
   };
 
+  const handleRemoveAssignment = async (assignmentId: string) => {
+    try {
+      setProcessing(assignmentId);
+      const response = await fetch(apiUrl(`/api/assignments/${assignmentId}`), {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to remove');
+      toast({ title: 'Removed', description: 'Member removed from schedule', status: 'info' });
+      await loadAssignments();
+    } catch (error) {
+      console.error('[ServiceSchedule] Remove failed:', error);
+      toast({ title: 'Error', description: 'Failed to remove member', status: 'error' });
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const handleDecline = async (assignmentId: string) => {
     try {
       setProcessing(assignmentId);
@@ -436,38 +453,39 @@ export default function ServiceSchedule({
                 boxShadow={highlighted ? '0 0 0 3px rgba(66,153,225,0.15)' : '0 1px 2px rgba(0,0,0,0.04)'}
                 transition="all 0.15s ease"
               >
-                <HStack spacing="3" align="center" justify="space-between">
-                  {/* Left: Avatar + Info */}
-                  <HStack spacing="3" flex="1" minW="0">
-                    <Avatar
-                      name={assignment.team_member?.name || 'Unknown'}
-                      src={assignment.team_member?.avatar_url}
-                      size="sm"
-                    />
-                    <VStack align="start" spacing="0" flex="1" minW="0">
-                      <HStack spacing="2" wrap="wrap">
-                        <Text fontWeight="600" color={headingColor} fontSize="sm" isTruncated>
-                          {assignment.team_member?.name || 'Unknown'}
-                        </Text>
-                        <StatusBadge
-                          status={mapAssignmentStatus(assignment.status)}
-                          size="sm"
-                        />
-                      </HStack>
-                      <Text fontSize="xs" color={subTextColor} isTruncated>
-                        {assignment.role}
+              <HStack spacing="3" align="center" justify="space-between">
+                {/* Left: Avatar + Info */}
+                <HStack spacing="3" flex="1" minW="0">
+                  <Avatar
+                    name={assignment.team_member?.name || 'Unknown'}
+                    src={assignment.team_member?.avatar_url}
+                    size="sm"
+                  />
+                  <VStack align="start" spacing="0" flex="1" minW="0">
+                    <HStack spacing="2" wrap="wrap">
+                      <Text fontWeight="600" color={headingColor} fontSize="sm" isTruncated>
+                        {assignment.team_member?.name || 'Unknown'}
                       </Text>
-                      {highlighted && (
-                        <Text fontSize="xs" color="blue.600" fontWeight="500" mt="0.5">
-                          Please confirm your attendance →
-                        </Text>
-                      )}
-                    </VStack>
-                  </HStack>
+                      <StatusBadge
+                        status={mapAssignmentStatus(assignment.status)}
+                        size="sm"
+                      />
+                    </HStack>
+                    <Text fontSize="xs" color={subTextColor} isTruncated>
+                      {assignment.role}
+                    </Text>
+                    {highlighted && (
+                      <Text fontSize="xs" color="blue.600" fontWeight="500" mt="0.5">
+                        Please confirm your attendance →
+                      </Text>
+                    )}
+                  </VStack>
+                </HStack>
 
-                  {/* Right: Actions */}
+                {/* Right: Actions */}
+                <HStack spacing="2" flexShrink="0">
                   {showActions && (
-                    <HStack spacing="2" flexShrink="0">
+                    <>
                       <Button
                         size="sm"
                         variant="primary"
@@ -484,9 +502,23 @@ export default function ServiceSchedule({
                       >
                         Decline
                       </Button>
-                    </HStack>
+                    </>
+                  )}
+                  {/* Only admins/leaders see remove — no email sent */}
+                  {!isOwnAssignment(assignment) && (
+                    <IconButton
+                      aria-label="Remove member"
+                      icon={<X size={16} />}
+                      size="sm"
+                      variant="ghost"
+                      color="gray.400"
+                      _hover={{ color: 'red.500' }}
+                      onClick={() => handleRemoveAssignment(assignment.id)}
+                      isDisabled={processing === assignment.id}
+                    />
                   )}
                 </HStack>
+              </HStack>
               </Box>
             );
           })}
