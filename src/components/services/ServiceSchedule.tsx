@@ -62,11 +62,13 @@ export default function ServiceSchedule({
     loadAssignments();
   }, [service.id, churchId]);
 
+  const prevCountRef = useRef<number>(0);
   useEffect(() => {
-    if (onAssignmentsChange) {
-      onAssignmentsChange(assignments.length);
+    if (prevCountRef.current !== assignments.length) {
+      prevCountRef.current = assignments.length;
+      onAssignmentsChange?.(assignments.length);
     }
-  }, [assignments.length, onAssignmentsChange]);
+  }, [assignments.length]);
 
   // Scroll to highlighted assignment
   useEffect(() => {
