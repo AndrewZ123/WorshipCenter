@@ -1,6 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import {
+  Box, Text, HStack, VStack, Flex, Spinner, Center, IconButton,
+  useColorModeValue, Textarea,
+} from '@chakra-ui/react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Send, MessageCircle, ArrowDown } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import { db } from '@/lib/store';
 import type { User } from '@/lib/types';
@@ -27,17 +33,6 @@ interface ServiceChatProps {
   currentUser: User | null;
   isDemo?: boolean;
 }
-
-type RenderItem =
-  | { type: 'date'; key: string; label: string }
-  | {
-      type: 'message';
-      key: string;
-      message: Message;
-      isOwn: boolean;
-      isFirstInGroup: boolean;
-      isLastInGroup: boolean;
-    };
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -74,7 +69,131 @@ function isNewDay(prevDate: string, currDate: string): boolean {
   return new Date(prevDate).toDateString() !== new Date(currDate).toDateString();
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+function DateSeparator({ label }: { label: string }) {
+  const lineColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.400', 'gray.500');
+
+  return (
+    <Flex align="center" my="4">
+      <Box flex="1" h="1px" bg={lineColor} />
+      <Text
+        fontSize="xs"
+        fontWeight="600"
+        color={textColor}
+        textTransform="uppercase"
+        letterSpacing="wide"
+        px="3"
+      >
+        {label}
+      </Text>
+      <Box flex="1" h="1px" bg={lineColor} />
+    </Flex>
+  );
+}
+
+function MessageRow({
+  message,
+  isOwn,
+  isFirstInGroup,
+  isLastInGroup,
+}: {
+  message: Message;
+  isOwn: boolean;
+  isFirstInGroup: boolean;
+  isLastInGroup: boolean;
+}) {
+  const ownBubbleBg = useColorModeValue('teal.500', 'teal.400');
+  const otherBubbleBg = useColorModeValue('white', 'gray.700');
+  const otherBubbleBorder = useColorModeValue('gray.200', 'gray.600');
+  const ownTextColor = 'white';
+  const otherTextColor = useColorModeValue('gray.800', 'white');
+  const timeColor = useColorModeValue('gray.400', 'gray.500');
+  const nameColor = useColorModeValue('gray.600', 'gray.300');
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Flex
+        align="end"
+        gap="2"
+        flexDir={isOwn ? 'row-reverse' : 'row'}
+        mt={isFirstInGroup ? '3' : '0.5'}
+      >
+        {/* Avatar — show on last message of a group */}
+        {!isOwn && (
+          <Box w="32px" h="32px" flexShrink={0}>
+            {isLastInGroup && (
+              <Avatar
+                name={message.sender.name}
+                src={message.sender.avatar_url}
+                size="sm"
+              />
+            )}
+          </Box>
+        )}
+
+        <VStack
+          align={isOwn ? 'flex-end' : 'flex-start'}
+          spacing="0.5"
+          maxW={{ base: '75%', md: '65%' }}
+        >
+          {/* Sender name (first in group, others only) */}
+          {!isOwn && isFirstInGroup && (
+            <Text fontSize="xs" fontWeight="600" color={nameColor} px="1" mb="0.5">
+              {message.sender.name}
+            </Text>
+          )}
+
+          {/* Bubble */}
+          <Box
+            px="3.5"
+            py="2"
+            borderRadius="2xl"
+            bg={isOwn ? ownBubbleBg : otherBubbleBg}
+            color={isOwn ? ownTextColor : otherTextColor}
+            borderBottomRightRadius={isOwn ? 'sm' : '2xl'}
+            borderBottomLeftRadius={isOwn ? '2xl' : 'sm'}
+            boxShadow={isOwn
+              ? '0 2px 8px rgba(13, 148, 136, 0.2)'
+              : '0 1px 2px rgba(0,0,0,0.06)'}
+            border={isOwn ? 'none' : '1px solid'}
+            borderColor={isOwn ? 'transparent' : otherBubbleBorder}
+          >
+            <Text fontSize="sm" lineHeight="1.5" whiteSpace="pre-wrap" wordBreak="break-word">
+              {message.content}
+            </Text>
+          </Box>
+
+          {/* Timestamp + read receipt (last in group only) */}
+          {isLastInGroup && (
+            <HStack
+              spacing="1"
+              mt="0.5"
+              px="1"
+              flexDir={isOwn ? 'row-reverse' : 'row'}
+            >
+              <Text fontSize="10px" color={timeColor}>
+                {formatTime(message.created_at)}
+              </Text>
+              {isOwn && message.read_at && (
+                <Text fontSize="10px" color="teal.500" fontWeight="500">
+                  Read
+                </Text>
+              )}
+            </HStack>
+          )}
+        </VStack>
+      </Flex>
+    </motion.div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 
 export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }: ServiceChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -90,6 +209,15 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   const isInitialLoadRef = useRef(true);
   const messageIdSetRef = useRef<Set<string>>(new Set());
   const hasMarkedReadRef = useRef(false);
+
+  // Color mode values
+  const bgColor = useColorModeValue('gray.50', 'gray.800');
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const inputBg = useColorModeValue('gray.50', 'gray.700');
+  const inputBorder = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
   // ─── Textarea helpers ──────────────────────────────────────────────────────
 
@@ -150,13 +278,12 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   // ─── Realtime subscription ──────────────────────────────────────────────────
 
   useEffect(() => {
-    if (isDemo) return; // Demo mode: no realtime
+    if (isDemo) return;
 
     const unsubscribe = db.serviceChat.subscribe(
       serviceId,
       churchId,
       (message: Message) => {
-        // Dedup by message ID (prevents duplicates from optimistic + realtime)
         if (messageIdSetRef.current.has(message.id)) return;
         messageIdSetRef.current.add(message.id);
         setMessages((prev) => [...prev, message]);
@@ -176,10 +303,8 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   useEffect(() => {
     if (messages.length === 0) return;
     if (isNearBottomRef.current) {
-      // Use instant jump on first load, smooth thereafter
       const behavior = isInitialLoadRef.current ? 'auto' : 'smooth';
       isInitialLoadRef.current = false;
-      // Use rAF to ensure DOM has painted the new content
       requestAnimationFrame(() => scrollToBottom(behavior));
     }
   }, [messages, scrollToBottom]);
@@ -199,7 +324,7 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
       .markAsRead(serviceId, churchId, currentUser.id)
       .catch((err: unknown) => {
         console.error('[ServiceChat] Error marking as read:', err);
-        hasMarkedReadRef.current = false; // Allow retry next time
+        hasMarkedReadRef.current = false;
       });
   }, [messages, currentUser, serviceId, churchId, isDemo]);
 
@@ -224,18 +349,16 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
       },
     };
 
-    // Optimistic update
     setMessages((prev) => [...prev, optimisticMsg]);
     setInputValue('');
     resetTextareaHeight();
     setSending(true);
     setError(null);
-    isNearBottomRef.current = true; // Force scroll to bottom for optimistic message
+    isNearBottomRef.current = true;
 
     try {
       const message = await db.serviceChat.createMessage(serviceId, churchId, currentUser.id, content);
 
-      // Replace optimistic message with real one (dedup-safe)
       setMessages((prev) => {
         const withoutTemp = prev.filter((m) => m.id !== tempId);
         if (message && !messageIdSetRef.current.has(message.id)) {
@@ -246,9 +369,7 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
       });
     } catch (err) {
       console.error('[ServiceChat] Failed to send message:', err);
-      // Remove the optimistic message
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      // Restore text so user doesn't lose their message
       setInputValue(content);
       setError('Failed to send message. Please try again.');
     } finally {
@@ -265,7 +386,6 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter to send; Shift+Enter for newline
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -274,7 +394,11 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
 
   // ─── Compute render items (date separators + grouped messages) ──────────────
 
-  const renderItems = useMemo<RenderItem[]>(() => {
+  const renderItems = useMemo(() => {
+    type RenderItem =
+      | { type: 'date'; key: string; label: string }
+      | { type: 'message'; key: string; message: Message; isOwn: boolean; isFirstInGroup: boolean; isLastInGroup: boolean };
+
     const items: RenderItem[] = [];
     const currentUserId = currentUser?.id;
 
@@ -283,7 +407,6 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
       const prev = i > 0 ? messages[i - 1] : null;
       const next = i < messages.length - 1 ? messages[i + 1] : null;
 
-      // Date separator on new day
       if (!prev || isNewDay(prev.created_at, msg.created_at)) {
         items.push({ type: 'date', key: `date-${msg.id}`, label: getDateSeparator(msg.created_at) });
       }
@@ -317,30 +440,27 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
 
   if (!currentUser) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-        <svg className="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-        <p className="text-sm text-gray-500">Sign in to participate in the chat.</p>
-      </div>
+      <Center h="300px">
+        <VStack spacing="3">
+          <Box p="3" borderRadius="full" bg="gray.100" color="gray.400">
+            <MessageCircle size={32} />
+          </Box>
+          <Text fontSize="sm" color={subtextColor}>Sign in to participate in the chat.</Text>
+        </VStack>
+      </Center>
     );
   }
 
-  // ─── Loading skeleton ────────────────────────────────────────────────────────
+  // ─── Loading state ───────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-3 p-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className={`flex gap-2 ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-            {i % 2 === 0 && <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />}
-            <div className="space-y-2">
-              <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
-              <div className={`h-8 ${i % 2 === 0 ? 'w-56' : 'w-44'} bg-gray-200 rounded-2xl animate-pulse`} />
-            </div>
-          </div>
-        ))}
-      </div>
+      <Center h="400px">
+        <VStack spacing="3">
+          <Spinner size="xl" color="teal.500" />
+          <Text fontSize="sm" color={subtextColor}>Loading messages…</Text>
+        </VStack>
+      </Center>
     );
   }
 
@@ -348,196 +468,187 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
 
   if (error && messages.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-        <svg className="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <p className="text-sm text-gray-500 mb-3">{error}</p>
-        <button
-          onClick={loadMessages}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Try Again
-        </button>
-      </div>
+      <Center h="300px">
+        <VStack spacing="4">
+          <Box p="3" borderRadius="full" bg="red.50" color="red.400">
+            <MessageCircle size={32} />
+          </Box>
+          <Text fontSize="sm" color={subtextColor}>{error}</Text>
+          <IconButton
+            aria-label="Try again"
+            icon={<span>↻</span>}
+            onClick={loadMessages}
+            colorScheme="teal"
+            variant="outline"
+            size="sm"
+          />
+        </VStack>
+      </Center>
     );
   }
 
   // ─── Main render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full min-h-[400px]">
-      {/* Inline error banner (messages exist) */}
+    <Box
+      display="flex"
+      flexDirection="column"
+      h={{ base: 'calc(100vh - 220px)', md: '600px' }}
+      minH="400px"
+      bg={cardBg}
+      overflow="hidden"
+    >
+      {/* Inline error banner */}
       {error && messages.length > 0 && (
-        <div className="px-4 py-2 bg-red-50 border-b border-red-100 flex items-center justify-between gap-2">
-          <p className="text-xs text-red-600 truncate">{error}</p>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 flex-shrink-0" aria-label="Dismiss error">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <Box
+          px="4"
+          py="2"
+          bg="red.50"
+          borderBottom="1px solid"
+          borderColor="red.100"
+        >
+          <HStack justify="space-between">
+            <Text fontSize="xs" color="red.600" noOfLines={1}>{error}</Text>
+            <IconButton
+              aria-label="Dismiss error"
+              icon={<span>✕</span>}
+              size="xs"
+              variant="ghost"
+              color="red.400"
+              onClick={() => setError(null)}
+            />
+          </HStack>
+        </Box>
       )}
 
       {/* Messages scroll area */}
-      <div className="relative flex-1 min-h-0">
-        <div
+      <Box position="relative" flex="1" minH="0">
+        <Box
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="h-full overflow-y-auto px-2 sm:px-4 py-4"
+          h="full"
+          overflowY="auto"
+          px={{ base: '3', md: '4' }}
+          py="4"
+          bg={bgColor}
+          css={{
+            '::-webkit-scrollbar': { width: '6px' },
+            '::-webkit-scrollbar-track': { background: 'transparent' },
+            '::-webkit-scrollbar-thumb': { background: '#d1d5db', borderRadius: '3px' },
+          }}
         >
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center py-12">
-              <svg className="w-16 h-16 text-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <p className="text-sm font-medium text-gray-500 mb-1">No messages yet</p>
-              <p className="text-xs text-gray-400">Start the conversation for this service.</p>
-            </div>
+            <Center h="full" minH="250px">
+              <VStack spacing="4">
+                <Box p="4" borderRadius="full" bg="teal.50" color="teal.400">
+                  <MessageCircle size={40} />
+                </Box>
+                <VStack spacing="1">
+                  <Text fontSize="md" fontWeight="600" color={textColor}>
+                    No messages yet
+                  </Text>
+                  <Text fontSize="sm" color={subtextColor} textAlign="center">
+                    Start the conversation for this service.
+                  </Text>
+                </VStack>
+              </VStack>
+            </Center>
           ) : (
-            <div className="space-y-0.5">
+            <AnimatePresence initial={false}>
               {renderItems.map((item) => {
                 if (item.type === 'date') {
-                  return (
-                    <div key={item.key} className="flex items-center justify-center my-4">
-                      <span className="px-3 py-1 rounded-full bg-gray-100 text-xs font-medium text-gray-500">
-                        {item.label}
-                      </span>
-                    </div>
-                  );
+                  return <DateSeparator key={item.key} label={item.label} />;
                 }
-
-                const { message, isOwn, isFirstInGroup, isLastInGroup } = item;
-
                 return (
-                  <div
+                  <MessageRow
                     key={item.key}
-                    className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${
-                      isFirstInGroup ? 'mt-3' : 'mt-0.5'
-                    }`}
-                  >
-                    {/* Avatar (others only — shown on last message of group) */}
-                    {!isOwn && (
-                      <div className="w-8 flex-shrink-0 flex items-end pb-0.5">
-                        {isLastInGroup && (
-                          <Avatar
-                            name={message.sender.name}
-                            src={message.sender.avatar_url}
-                            size="sm"
-                            className="w-8 h-8"
-                          />
-                        )}
-                      </div>
-                    )}
-
-                    <div
-                      className={`flex flex-col max-w-[75%] sm:max-w-[70%] ${
-                        isOwn ? 'items-end' : 'items-start'
-                      }`}
-                    >
-                      {/* Sender name */}
-                      {!isOwn && isFirstInGroup && (
-                        <span className="text-xs font-medium text-gray-600 ml-1 mb-0.5">
-                          {message.sender.name}
-                        </span>
-                      )}
-
-                      {/* Message bubble */}
-                      <div
-                        className={`px-3.5 py-2 text-sm whitespace-pre-wrap break-words shadow-sm ${
-                          isOwn
-                            ? 'bg-blue-600 text-white rounded-2xl rounded-br-md'
-                            : 'bg-gray-100 text-gray-900 rounded-2xl rounded-bl-md'
-                        }`}
-                      >
-                        {message.content}
-                      </div>
-
-                      {/* Timestamp + read receipt (last in group) */}
-                      {isLastInGroup && (
-                        <div
-                          className={`flex items-center gap-1.5 mt-0.5 px-1 ${
-                            isOwn ? 'flex-row-reverse' : 'flex-row'
-                          }`}
-                        >
-                          <span className="text-[11px] text-gray-400">
-                            {formatTime(message.created_at)}
-                          </span>
-                          {isOwn && message.read_at && (
-                            <span className="text-[11px] text-blue-500 flex items-center gap-0.5">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                              </svg>
-                              Read
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    message={item.message}
+                    isOwn={item.isOwn}
+                    isFirstInGroup={item.isFirstInGroup}
+                    isLastInGroup={item.isLastInGroup}
+                  />
                 );
               })}
-            </div>
+            </AnimatePresence>
           )}
-        </div>
+        </Box>
 
-        {/* Scroll-to-bottom floating button */}
+        {/* Scroll-to-bottom button */}
         {showScrollButton && (
-          <button
+          <IconButton
+            aria-label="Scroll to latest"
+            icon={<ArrowDown size={16} />}
             onClick={() => scrollToBottom('smooth')}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
-            aria-label="Scroll to latest messages"
-          >
-            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </button>
+            position="absolute"
+            bottom="4"
+            left="50%"
+            transform="translateX(-50%)"
+            zIndex={10}
+            size="sm"
+            borderRadius="full"
+            bg={cardBg}
+            boxShadow="md"
+            border="1px solid"
+            borderColor={borderColor}
+            color="gray.600"
+            _hover={{ bg: 'gray.50' }}
+          />
         )}
-      </div>
+      </Box>
 
       {/* Input area */}
-      <div className="border-t border-gray-200 p-3 sm:p-4">
-        <div className="flex items-end gap-2">
-          <textarea
-            ref={textareaRef}
-            value={inputValue}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message…"
-            rows={1}
-            maxLength={MAX_MESSAGE_LENGTH}
-            disabled={sending}
-            className="flex-1 resize-none px-3.5 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 max-h-[120px]"
-          />
-          <button
-            onClick={handleSend}
-            disabled={sending || !inputValue.trim()}
-            className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+      <Box
+        borderTop="1px solid"
+        borderColor={borderColor}
+        p={{ base: '3', md: '4' }}
+        bg={cardBg}
+      >
+        <HStack spacing="2" align="end">
+          <Box flex="1" position="relative">
+            <Textarea
+              ref={textareaRef}
+              value={inputValue}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message…"
+              rows={1}
+              maxLength={MAX_MESSAGE_LENGTH}
+              isDisabled={sending}
+              resize="none"
+              bg={inputBg}
+              border="1px solid"
+              borderColor={inputBorder}
+              borderRadius="xl"
+              fontSize="sm"
+              px="3.5"
+              py="2.5"
+              maxH="120px"
+              _placeholder={{ color: 'gray.400' }}
+              _focus={{
+                borderColor: 'teal.400',
+                boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)',
+              }}
+            />
+          </Box>
+          <IconButton
             aria-label="Send message"
-          >
-            {sending ? (
-              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            )}
-          </button>
-        </div>
-        {/* Character count (only when approaching limit) */}
+            icon={<Send size={18} />}
+            onClick={handleSend}
+            isDisabled={sending || !inputValue.trim()}
+            isLoading={sending}
+            w="44px"
+            h="44px"
+            borderRadius="xl"
+            colorScheme="teal"
+            flexShrink={0}
+          />
+        </HStack>
         {inputValue.length > MAX_MESSAGE_LENGTH * 0.8 && (
-          <p className="text-xs text-gray-400 mt-1 text-right">
+          <Text fontSize="xs" color="gray.400" mt="1" textAlign="right">
             {inputValue.length} / {MAX_MESSAGE_LENGTH}
-          </p>
+          </Text>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }

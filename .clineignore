@@ -1,0 +1,26 @@
+# Block Dependencies & Framework Caches
+node_modules/
+.git/
+.next/
+.nuxt/
+.svelte-kit/
+dist/
+build/
+out/
+coverage/
+
+# Block Lockfiles and Heavy Assets
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+*.mp4
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.gif
+
+# Block Logs & System Files
+*.log
+.DS_Store
+Thumbs.db
