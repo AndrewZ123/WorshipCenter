@@ -19,6 +19,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 import { formatServiceDate } from '@/lib/formatDate';
+import { apiUrl } from '@/lib/api-base';
 import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
 import ServiceTasks from '@/components/services/ServiceTasks';
@@ -472,11 +473,30 @@ export default function ServiceDetailClient() {
         status: 'pending',
       });
       
+      // Send invitation email to the assigned member
+      const member = teamMembers.find(m => m.id === assignMemberId);
+      if (member?.email) {
+        fetch(apiUrl('/api/notifications/send-invitation'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assignmentId: '',
+            churchId: church.id,
+            serviceTitle: service?.title || '',
+            serviceDate: service?.date || '',
+            serviceTime: service?.time || '',
+            memberName: member.name,
+            memberEmail: member.email,
+            role: assignRole,
+          }),
+        }).catch(err => console.error('[Invite] Failed to send:', err));
+      }
+      
       assignModal.onClose();
       setAssignMemberId('');
       setAssignRole('');
       await loadData();
-      toast({ title: 'Team member assigned', status: 'success', duration: 2000 });
+      toast({ title: 'Team member assigned & notified', status: 'success', duration: 2000 });
     } catch (error) {
       console.error('Error assigning team member:', error);
       toast({ title: 'Error assigning team member', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
