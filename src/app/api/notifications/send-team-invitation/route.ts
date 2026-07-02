@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { db } from '@/lib/store';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { teamInvitationEmail } from '@/lib/email-templates';
 import { z } from 'zod';
 import type { TeamMember, Church } from '@/lib/types';
 
@@ -59,22 +60,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const { html, text } = teamInvitationEmail({ name: teamMember.name || '', churchName: church.name, inviteUrl });
     const emailResult = await sendEmail({
       to: teamMember.email,
       subject: `You're invited to join ${church.name} on WorshipCenter`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #319795;">You're invited to join ${church.name}!</h2>
-          <p>Hello ${teamMember.name || 'there'},</p>
-          <p>You've been invited to join the team at ${church.name} on WorshipCenter.</p>
-          <p style="margin: 30px 0;">
-            <a href="${inviteUrl}" style="background-color: #319795; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-              Accept Invitation
-            </a>
-          </p>
-        </div>
-      `,
-      text: `You're invited to join ${church.name} on WorshipCenter!\n\n${inviteUrl}`,
+      html,
+      text,
     });
 
     return NextResponse.json({ success: true, emailSent: !!emailResult?.success, inviteUrl });

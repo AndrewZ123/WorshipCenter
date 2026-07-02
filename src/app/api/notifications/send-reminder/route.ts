@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { db } from '@/lib/store';
+import { sendEmail, isEmailConfigured } from '@/lib/email';
+import { serviceReminderEmail } from '@/lib/email-templates';
 import { z } from 'zod';
 
 const SendReminderSchema = z.object({
@@ -42,6 +44,8 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ success: true, message: 'No team members to remind', emailsSent: 0 });
     }
 
+    const emailConfigured = await isEmailConfigured();
+
     const teamMembers = await Promise.all(
       assignments.map(async (assignment) => {
         const member = await db.teamMembers.getById(assignment.team_member_id, churchId);
@@ -53,19 +57,33 @@ export async function POST(request: NextRequest) {
     for (const { member, role, status } of teamMembers) {
       if (!member || !member.email || status !== 'confirmed') continue;
 
-      const formattedRole = role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-
       await db.notifications.create({
         church_id: churchId,
         user_id: '',
         type: 'service_reminder',
         title: `Service Reminder: ${serviceTitle}`,
-        message: `Reminder: You're serving as ${formattedRole} on ${new Date(serviceDate).toLocaleDateString()} at ${serviceTime}`,
+        message: `Reminder: You're serving as ${role} on ${new Date(serviceDate).toLocaleDateString()} at ${serviceTime}`,
         service_id: serviceId,
         read: false,
       });
 
-      emailsSent++;
+      if (emailConfigured) {
+        const { html, text } = serviceReminderEmail({
+          memberName: member.name,
+          churchName: church.name,
+          serviceTitle,
+          serviceDate,
+          serviceTime,
+          role,
+        });
+        const result = await sendEmail({
+          to: member.email,
+          subject: `Reminder: Serving ${role} — ${serviceTitle}`,
+          html,
+          text,
+        });
+        if (result.success) emailsSent++;
+      }
     }
 
     return jsonResponse({ success: true, emailsSent });
