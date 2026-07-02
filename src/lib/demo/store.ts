@@ -54,6 +54,89 @@ type DemoContextType = {
   createServiceFromTemplate: (templateId: string, dateString: string) => Service | null;
 };
 
+// In-memory persistence for demo service chat messages (keyed by serviceId)
+const demoServiceMessages: Record<string, any[]> = {};
+
+function createDemoServiceChat(getDemoContext: () => DemoContextType) {
+  const ensureSeeded = async (serviceId: string) => {
+    const chatId = `demo-chat-${serviceId}`;
+    if (!demoServiceMessages[serviceId]) {
+      const demo = getDemoContext();
+      const seed: any[] = [];
+      if (demo.user) {
+        seed.push({
+          id: `seed-${serviceId}-1`,
+          chat_id: chatId,
+          content: "Don't forget rehearsal Thursday at 7pm! 🎸",
+          created_at: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
+          sender_user_id: 'demo-teammate',
+          read_at: null,
+          sender: { id: 'demo-teammate', name: 'Sarah Johnson', avatar_url: undefined },
+        });
+        seed.push({
+          id: `seed-${serviceId}-2`,
+          chat_id: chatId,
+          content: "Sounds great! I'll have the chord charts ready.",
+          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+          sender_user_id: demo.user.id,
+          read_at: new Date().toISOString(),
+          sender: { id: demo.user.id, name: demo.user.name, avatar_url: demo.user.avatar_url },
+        });
+      }
+      demoServiceMessages[serviceId] = seed;
+    }
+    return chatId;
+  };
+
+  return {
+    getOrCreate: async (serviceId: string, churchId: string): Promise<any> => {
+      const chatId = await ensureSeeded(serviceId);
+      return { id: chatId, service_id: serviceId, church_id: churchId, created_at: new Date().toISOString() };
+    },
+    getMessages: async (serviceId: string, _churchId: string): Promise<any[]> => {
+      await ensureSeeded(serviceId);
+      return [...demoServiceMessages[serviceId]];
+    },
+    createMessage: async (
+      serviceId: string,
+      _churchId: string,
+      senderUserId: string,
+      content: string,
+    ): Promise<any> => {
+      await ensureSeeded(serviceId);
+      const demo = getDemoContext();
+      const message = {
+        id: `demo-msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        chat_id: `demo-chat-${serviceId}`,
+        content,
+        created_at: new Date().toISOString(),
+        sender_user_id: senderUserId,
+        read_at: null,
+        sender: {
+          id: demo.user?.id || senderUserId,
+          name: demo.user?.name || 'Unknown',
+          avatar_url: demo.user?.avatar_url,
+        },
+      };
+      demoServiceMessages[serviceId].push(message);
+      return message;
+    },
+    subscribe: (_serviceId: string, _churchId: string, _callback: (message: any) => void) => {
+      return () => {};
+    },
+    markAsRead: async (serviceId: string, _churchId: string, userId: string): Promise<void> => {
+      const msgs = demoServiceMessages[serviceId];
+      if (msgs) {
+        msgs.forEach((m) => {
+          if (m.sender_user_id !== userId && !m.read_at) {
+            m.read_at = new Date().toISOString();
+          }
+        });
+      }
+    },
+  };
+}
+
 // This creates a demo store object that mirrors the real db interface
 export function createDemoStore(getDemoContext: () => DemoContextType) {
   return {
@@ -456,40 +539,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       },
     },
 
-    serviceChat: {
-      getOrCreate: async (_serviceId: string, _churchId: string): Promise<any> => {
-        return { id: 'demo-chat-1', service_id: _serviceId, created_at: new Date().toISOString() };
-      },
-      getMessages: async (_serviceId: string, _churchId: string): Promise<any[]> => {
-        const demo = getDemoContext();
-        if (!demo.user) return [];
-        return [
-          {
-            id: '1',
-            chat_id: 'demo-chat-1',
-            content: 'Let\'s run through the new worship set before the service.',
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-            sender_user_id: demo.user.id,
-            sender: { id: demo.user.id, name: demo.user.name, avatar_url: demo.user.avatar_url },
-          },
-        ];
-      },
-      createMessage: async (_serviceId: string, _churchId: string, senderUserId: string, content: string): Promise<any> => {
-        const demo = getDemoContext();
-        return {
-          id: `demo-msg-${Date.now()}`,
-          chat_id: 'demo-chat-1',
-          content,
-          created_at: new Date().toISOString(),
-          sender_user_id: senderUserId,
-          sender: { id: demo.user?.id || 'unknown', name: demo.user?.name || 'Unknown', avatar_url: demo.user?.avatar_url },
-        };
-      },
-      subscribe: (_serviceId: string, _churchId: string, _callback: (message: any) => void) => {
-        return () => {};
-      },
-      markAsRead: async (_serviceId: string, _churchId: string, _userId: string): Promise<void> => {},
-    },
+    serviceChat: createDemoServiceChat(getDemoContext),
 
     // ─── Task Dependencies (demo stubs) ────────────────────────────────
     taskDependencies: {

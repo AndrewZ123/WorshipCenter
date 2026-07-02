@@ -1090,7 +1090,7 @@ export const db = {
         .select('church_id')
         .eq('id', serviceId)
         .single();
-      
+
       if (!service || service.church_id !== churchId) {
         console.error('[ServiceChat] GetOrCreate failed: service not found or access denied', { serviceId, churchId });
         return null;
@@ -1101,18 +1101,28 @@ export const db = {
         .from('service_chats')
         .select('*')
         .eq('service_id', serviceId)
-        .single();
+        .maybeSingle();
 
       if (existingChat) {
         return existingChat;
       }
 
-      // Create new chat
-      const { data: newChat } = await supabase
+      // Create new chat (include church_id — required NOT NULL column)
+      const { data: newChat, error } = await supabase
         .from('service_chats')
-        .insert({ service_id: serviceId })
+        .insert({ service_id: serviceId, church_id: churchId })
         .select()
         .single();
+
+      if (error) {
+        // Race condition: another request may have created it concurrently
+        const { data: fallback } = await supabase
+          .from('service_chats')
+          .select('*')
+          .eq('service_id', serviceId)
+          .maybeSingle();
+        return fallback;
+      }
 
       return newChat;
     },
@@ -1125,7 +1135,7 @@ export const db = {
         .select('church_id')
         .eq('id', serviceId)
         .single();
-      
+
       if (!service || service.church_id !== churchId) {
         console.error('[ServiceChat] GetMessages failed: service not found or access denied', { serviceId, churchId });
         return [];
@@ -1136,30 +1146,35 @@ export const db = {
         .from('service_chats')
         .select('id')
         .eq('service_id', serviceId)
-        .single();
+        .maybeSingle();
 
       if (!chat) {
         return [];
       }
 
-      // Get messages
-      const { data } = await supabase
+      // Get messages (join users table — schema uses user_id, not sender_user_id)
+      const { data, error } = await supabase
         .from('service_chat_messages')
-        .select('*, profiles!inner(id, name, avatar_url)')
+        .select('*, users!inner(id, name, avatar_url)')
         .eq('chat_id', chat.id)
         .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('[ServiceChat] GetMessages query failed:', error);
+        return [];
+      }
 
       return (data || []).map((msg: any) => ({
         id: msg.id,
         chat_id: msg.chat_id,
         content: msg.content,
         created_at: msg.created_at,
-        sender_user_id: msg.sender_user_id,
+        sender_user_id: msg.user_id,
         read_at: msg.read_at ?? null,
         sender: {
-          id: msg.profiles.id,
-          name: msg.profiles.name,
-          avatar_url: msg.profiles.avatar_url,
+          id: msg.users.id,
+          name: msg.users.name,
+          avatar_url: msg.users.avatar_url,
         },
       }));
     },
@@ -1172,7 +1187,7 @@ export const db = {
         .select('church_id')
         .eq('id', serviceId)
         .single();
-      
+
       if (!service || service.church_id !== churchId) {
         console.error('[ServiceChat] CreateMessage failed: service not found or access denied', { serviceId, churchId });
         return null;
@@ -1184,28 +1199,33 @@ export const db = {
         return null;
       }
 
-      // Create message
-      const { data } = await supabase
+      // Create message (schema uses user_id, not sender_user_id)
+      const { data, error } = await supabase
         .from('service_chat_messages')
         .insert({
           chat_id: chat.id,
-          sender_user_id: senderUserId,
+          user_id: senderUserId,
           content: sanitizeInput.chatMessage({ content }).content,
         })
-        .select('*, profiles(id, name, avatar_url)')
+        .select('*, users(id, name, avatar_url)')
         .single();
+
+      if (error) {
+        console.error('[ServiceChat] CreateMessage insert failed:', error);
+        return null;
+      }
 
       return data ? {
         id: data.id,
         chat_id: data.chat_id,
         content: data.content,
         created_at: data.created_at,
-        sender_user_id: data.sender_user_id,
+        sender_user_id: data.user_id,
         read_at: data.read_at ?? null,
         sender: {
-          id: data.profiles.id,
-          name: data.profiles.name,
-          avatar_url: data.profiles.avatar_url,
+          id: data.users.id,
+          name: data.users.name,
+          avatar_url: data.users.avatar_url,
         },
       } : null;
     },
@@ -1231,20 +1251,20 @@ export const db = {
             async (payload) => {
               try {
                 const { data: userData } = await supabase
-                  .from('profiles')
+                  .from('users')
                   .select('id, name, avatar_url')
-                  .eq('id', payload.new.sender_user_id)
-                  .single();
+                  .eq('id', payload.new.user_id)
+                  .maybeSingle();
 
                 const message = {
                   id: payload.new.id,
                   chat_id: payload.new.chat_id,
                   content: payload.new.content,
                   created_at: payload.new.created_at,
-                  sender_user_id: payload.new.sender_user_id,
+                  sender_user_id: payload.new.user_id,
                   read_at: payload.new.read_at ?? null,
                   sender: userData || {
-                    id: payload.new.sender_user_id,
+                    id: payload.new.user_id,
                     name: 'Unknown',
                     avatar_url: undefined,
                   },
@@ -1298,13 +1318,17 @@ export const db = {
 
       if (!chat) return;
 
-      // Mark unread messages from other users as read
-      await supabase
+      // Mark unread messages from other users as read (schema uses user_id)
+      const { error: updateError } = await supabase
         .from('service_chat_messages')
         .update({ read_at: new Date().toISOString() })
         .eq('chat_id', chat.id)
-        .neq('sender_user_id', userId)
+        .neq('user_id', userId)
         .is('read_at', null);
+
+      if (updateError) {
+        console.error('[ServiceChat] MarkAsRead update failed:', updateError);
+      }
     },
   },
 
