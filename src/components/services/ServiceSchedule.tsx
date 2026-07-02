@@ -14,6 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { X, UserPlus, Users } from 'lucide-react';
 import { apiUrl } from '@/lib/api-base';
+import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
 import type { Service, ServiceAssignmentPopulated, TeamMember } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
@@ -180,9 +181,15 @@ export default function ServiceSchedule({
     try {
       setBulkSaving(true);
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch(apiUrl('/api/assignments/bulk'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           serviceId: service.id,
           assignments: Array.from(selectedMembers).map((memberId) => ({
