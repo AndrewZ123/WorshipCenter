@@ -9,6 +9,7 @@ import type {
   SongFile,
   TeamMember,
   ServiceAssignment,
+  ServiceAssignmentPopulated,
   SongUsage,
   ServiceTemplate,
   Notification,
@@ -1154,6 +1155,7 @@ export const db = {
         content: msg.content,
         created_at: msg.created_at,
         sender_user_id: msg.sender_user_id,
+        read_at: msg.read_at ?? null,
         sender: {
           id: msg.profiles.id,
           name: msg.profiles.name,
@@ -1199,6 +1201,7 @@ export const db = {
         content: data.content,
         created_at: data.created_at,
         sender_user_id: data.sender_user_id,
+        read_at: data.read_at ?? null,
         sender: {
           id: data.profiles.id,
           name: data.profiles.name,
@@ -1239,6 +1242,7 @@ export const db = {
                   content: payload.new.content,
                   created_at: payload.new.created_at,
                   sender_user_id: payload.new.sender_user_id,
+                  read_at: payload.new.read_at ?? null,
                   sender: userData || {
                     id: payload.new.sender_user_id,
                     name: 'Unknown',
@@ -1318,8 +1322,14 @@ export const db = {
         return [];
       }
       
-      const { data } = await supabase.from('service_assignments').select('*').eq('service_id', serviceId);
-      return (data || []) as ServiceAssignment[];
+      const { data } = await supabase
+        .from('service_assignments')
+        .select('*, team_members(*)')
+        .eq('service_id', serviceId);
+      return (data || []).map((a: any) => ({
+        ...a,
+        team_member: a.team_members || undefined,
+      })) as ServiceAssignmentPopulated[];
     },
     getByTeamMember: async (teamMemberId: string, churchId: string) => {
       // Verify: team member belongs to church

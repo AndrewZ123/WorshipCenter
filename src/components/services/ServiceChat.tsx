@@ -13,7 +13,7 @@ interface Message {
   content: string;
   created_at: string;
   sender_user_id: string;
-  read_by?: string[]; // user IDs who have read this message
+  read_at: string | null; // timestamp when message was read (null = unread)
   sender: {
     id: string;
     name: string;
@@ -90,23 +90,26 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   const markMessagesAsRead = useCallback(async () => {
     if (!currentUser || messages.length === 0) return;
 
-    const unreadMessages = messages.filter(
-      (m) => m.sender_user_id !== currentUser.id && !m.read_by?.includes(currentUser.id)
+    // Check for any unread messages from other users
+    const hasUnread = messages.some(
+      (m) => m.sender_user_id !== currentUser.id && m.read_at === null
     );
 
-    if (unreadMessages.length === 0) return;
+    if (!hasUnread) return;
 
-    const lastMessage = unreadMessages[unreadMessages.length - 1];
+    const lastMessage = messages[messages.length - 1];
     if (lastReadMessageId.current === lastMessage.id) return;
 
     lastReadMessageId.current = lastMessage.id;
 
     try {
-      await db.serviceChat.markAsRead(serviceId, lastMessage.id, currentUser.id);
+      // Store signature: markAsRead(serviceId, churchId, userId)
+      // Marks all unread messages from other users as read
+      await db.serviceChat.markAsRead(serviceId, churchId, currentUser.id);
     } catch (error) {
       console.error('[ServiceChat] Error marking as read:', error);
     }
-  }, [currentUser, messages, serviceId]);
+  }, [currentUser, messages, serviceId, churchId]);
 
   // Mark messages as read when messages change
   useEffect(() => {
@@ -243,12 +246,12 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
                     </p>
                   </div>
                   {/* Read receipts for own messages */}
-                  {isOwnMessage && message.read_by && message.read_by.length > 0 && (
+                  {isOwnMessage && message.read_at && (
                     <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      <span>Read by {message.read_by.length}</span>
+                      <span>Read</span>
                     </div>
                   )}
                 </div>

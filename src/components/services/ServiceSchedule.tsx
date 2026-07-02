@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '@chakra-ui/react';
-import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
 import type { Service, ServiceAssignmentPopulated, TeamMember } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
@@ -329,7 +328,7 @@ export default function ServiceSchedule({
                     <Avatar name={member.name} src={member.avatar_url} size="sm" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">{member.name}</p>
-                      <p className="text-xs text-gray-500 capitalize">{member.roles}</p>
+                      <p className="text-xs text-gray-500">{member.roles.join(', ')}</p>
                     </div>
                   </label>
                 ))}
