@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -7,6 +8,7 @@ import { StoreProvider } from '@/lib/StoreContext';
 import { db } from '@/lib/store';
 import AppShell from '@/components/layout/AppShell';
 import { SubscriptionGate } from '@/components/layout/SubscriptionGate';
+import { SubscriptionProvider } from '@/components/providers/SubscriptionProvider';
 import { Center, Spinner, VStack, Text } from '@chakra-ui/react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -62,9 +64,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Wrap with subscription gate unless it's an always-accessible path
   return (
     <StoreProvider store={db}>
-      <AppShell>
-        {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
-      </AppShell>
+      <SubscriptionProvider>
+        <AppShell>
+          {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
+        </AppShell>
+      </SubscriptionProvider>
     </StoreProvider>
   );
 }
