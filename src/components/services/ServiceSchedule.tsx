@@ -6,19 +6,19 @@ import {
   HStack,
   Text,
   Box,
+  Input,
+  Checkbox,
   IconButton,
+  useToast,
   useColorModeValue,
 } from '@chakra-ui/react';
-import { useToast } from '@chakra-ui/react';
-import { X } from 'lucide-react';
+import { X, UserPlus, Users } from 'lucide-react';
 import { db } from '@/lib/store';
 import type { Service, ServiceAssignmentPopulated, TeamMember } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import StatusBadge, { mapAssignmentStatus } from '@/components/ui/StatusBadge';
-import EmptyState from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { formatServiceDate } from '@/lib/formatDate';
 
 interface ServiceScheduleProps {
   service: Service;
@@ -203,9 +203,7 @@ export default function ServiceSchedule({
         status: 'success',
       });
 
-      setShowBulkAdd(false);
-      setSelectedMembers(new Set());
-      setBulkRole('');
+      resetBulkAdd();
       await loadAssignments();
     } catch (error) {
       console.error('[ServiceSchedule] Bulk assign failed:', error);
@@ -230,10 +228,6 @@ export default function ServiceSchedule({
     loadTeamMembersForBulk();
   };
 
-  const isHighlighted = (assignmentId: string) => {
-    return assignmentId === highlightedAssignmentId;
-  };
-
   const isOwnAssignment = (assignment: ServiceAssignmentPopulated) => {
     if (!assignment.team_member?.user_id) return false;
     return assignment.team_member.user_id === currentUserId;
@@ -242,64 +236,36 @@ export default function ServiceSchedule({
   // ─── Loading State ───────────────────────────────────────────────────
   if (loading) {
     return (
-      <VStack spacing="3" align="stretch" mt="6">
+      <VStack spacing="3" align="stretch" p="6">
         {Array.from({ length: 3 }).map((_, i) => (
-          <Box
-            key={i}
-            bg={cardBg}
-            border="1px solid"
-            borderColor={borderColor}
-            borderRadius="lg"
-            p="4"
-          >
-            <HStack spacing="3" align="start">
-              <Skeleton height="40px" width="40px" borderRadius="full" />
-              <VStack align="start" spacing="2" flex="1">
-                <HStack spacing="2">
-                  <Skeleton height="18px" width="120px" />
-                  <Skeleton height="18px" width="60px" borderRadius="full" />
-                </HStack>
-                <Skeleton height="14px" width="140px" />
-              </VStack>
-            </HStack>
-          </Box>
+          <HStack key={i} spacing="3" align="start">
+            <Skeleton height="40px" width="40px" borderRadius="full" />
+            <VStack align="start" spacing="2" flex="1">
+              <Skeleton height="16px" width="140px" />
+              <Skeleton height="12px" width="90px" />
+            </VStack>
+          </HStack>
         ))}
       </VStack>
     );
   }
 
-  // ─── Empty State ─────────────────────────────────────────────────────
-  if (assignments.length === 0 && !showBulkAdd) {
-    return (
-      <Box mt="6">
-        <EmptyState
-          icon="userCheck"
-          title="No team members scheduled"
-          description="Add team members to the schedule to get started."
-          ctaLabel="Add Team Members"
-          ctaOnClick={startBulkAdd}
-          size="sm"
-        />
-      </Box>
-    );
-  }
-
-  // ─── Main Schedule ───────────────────────────────────────────────────
+  // ─── Main Content ────────────────────────────────────────────────────
   return (
-    <Box mt="6">
-      {/* Header */}
+    <Box p="6">
+      {/* Toolbar */}
       <HStack justify="space-between" align="center" mb="4">
-        <VStack align="start" spacing="0">
-          <Text fontSize="lg" fontWeight="600" color={headingColor}>
-            Team Schedule
-          </Text>
-          <Text fontSize="sm" color={subTextColor}>
-            {formatServiceDate(service.date, service.time)}
-          </Text>
-        </VStack>
+        <Text fontSize="sm" color={subTextColor}>
+          {assignments.length} {assignments.length === 1 ? 'person' : 'people'} scheduled
+        </Text>
         {!showBulkAdd && (
-          <Button variant="secondary" size="sm" onClick={startBulkAdd}>
-            + Add Members
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={UserPlus}
+            onClick={startBulkAdd}
+          >
+            Add Members
           </Button>
         )}
       </HStack>
@@ -315,12 +281,12 @@ export default function ServiceSchedule({
           mb="4"
         >
           <HStack justify="space-between" mb="4">
-            <Text fontWeight="600" color={headingColor}>
+            <Text fontWeight="600" color={headingColor} fontSize="sm">
               Add Team Members
             </Text>
             <IconButton
               aria-label="Close"
-              icon={<X size={18} />}
+              icon={<X size={16} />}
               size="sm"
               variant="ghost"
               onClick={resetBulkAdd}
@@ -329,39 +295,24 @@ export default function ServiceSchedule({
 
           <VStack spacing="4" align="stretch">
             {/* Role input */}
-            <VStack align="start" spacing="1">
-              <Text fontSize="sm" fontWeight="500" color={roleTextColor}>
-                Role / Position
+            <Box>
+              <Text fontSize="xs" fontWeight="500" color={roleTextColor} mb="1.5">
+                ROLE / POSITION
               </Text>
-              <input
-                type="text"
+              <Input
+                size="sm"
+                borderRadius="md"
                 value={bulkRole}
                 onChange={(e) => setBulkRole(e.target.value)}
-                placeholder="e.g., Worship Leader, Guitar, Vocals, Drums..."
-                style={{
-                  width: '100%',
-                  borderRadius: '0.375rem',
-                  border: '1px solid #d1d5db',
-                  padding: '0.5rem 0.75rem',
-                  fontSize: '0.875rem',
-                  outline: 'none',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#3182ce';
-                  e.target.style.boxShadow = '0 0 0 1px #3182ce';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#d1d5db';
-                  e.target.style.boxShadow = 'none';
-                }}
+                placeholder="e.g., Worship Leader, Guitar, Vocals..."
+                bg={cardBg}
               />
-            </VStack>
+            </Box>
 
             {/* Member selection */}
-            <VStack align="start" spacing="2">
-              <Text fontSize="sm" fontWeight="500" color={roleTextColor}>
-                Select Members
-                {selectedMembers.size > 0 && ` (${selectedMembers.size} selected)`}
+            <Box>
+              <Text fontSize="xs" fontWeight="500" color={roleTextColor} mb="1.5">
+                SELECT MEMBERS{selectedMembers.size > 0 && ` (${selectedMembers.size} selected)`}
               </Text>
               {teamMembers.length === 0 ? (
                 <Text fontSize="sm" color={subTextColor} py="2">
@@ -376,7 +327,6 @@ export default function ServiceSchedule({
                   borderColor={borderColor}
                   borderRadius="md"
                   p="2"
-                  w="100%"
                 >
                   {teamMembers.map((member) => (
                     <HStack
@@ -388,35 +338,26 @@ export default function ServiceSchedule({
                       _hover={{ bg: subtleBg }}
                       onClick={() => toggleMemberSelection(member.id)}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedMembers.has(member.id)}
+                      <Checkbox
+                        isChecked={selectedMembers.has(member.id)}
                         onChange={() => toggleMemberSelection(member.id)}
-                        style={{
-                          height: '16px',
-                          width: '16px',
-                          borderRadius: '4px',
-                          borderColor: '#d1d5db',
-                          cursor: 'pointer',
-                        }}
+                        size="sm"
                       />
                       <Avatar name={member.name} src={member.avatar_url} size="sm" />
-                      <VStack align="start" spacing="0">
-                        <Text fontSize="sm" fontWeight="500" color={headingColor}>
-                          {member.name}
-                        </Text>
-                        <Text fontSize="xs" color={subTextColor}>
-                          {member.roles.join(', ')}
-                        </Text>
-                      </VStack>
+                      <Text fontSize="sm" fontWeight="500" color={headingColor}>
+                        {member.name}
+                      </Text>
+                      <Text fontSize="xs" color={subTextColor} ml="auto">
+                        {member.roles.join(', ')}
+                      </Text>
                     </HStack>
                   ))}
                 </Box>
               )}
-            </VStack>
+            </Box>
 
             {/* Actions */}
-            <HStack justify="flex-end" spacing="2" pt="2">
+            <HStack justify="flex-end" spacing="2" pt="1">
               <Button variant="ghost" size="sm" onClick={resetBulkAdd}>
                 Cancel
               </Button>
@@ -435,79 +376,104 @@ export default function ServiceSchedule({
         </Box>
       )}
 
-      {/* Assignment Cards */}
-      <VStack spacing="3" align="stretch">
-        {assignments.map((assignment) => {
-          const highlighted = isHighlighted(assignment.id);
-          const isOwn = isOwnAssignment(assignment);
-          const showActions = isOwn && assignment.status === 'pending';
+      {/* Assignment List */}
+      {assignments.length === 0 && !showBulkAdd ? (
+        <Box
+          textAlign="center"
+          py="10"
+          px="6"
+          borderRadius="lg"
+          border="1px solid"
+          borderColor={borderColor}
+          bg={cardBg}
+        >
+          <Users size={28} className="text-gray-300 mx-auto mb-3" />
+          <Text fontSize="sm" fontWeight="600" color={headingColor}>
+            No team members scheduled
+          </Text>
+          <Text fontSize="xs" color={subTextColor} mt="1" mb="4">
+            Add team members to the schedule to get started.
+          </Text>
+          <Button variant="secondary" size="sm" leftIcon={UserPlus} onClick={startBulkAdd}>
+            Add Team Members
+          </Button>
+        </Box>
+      ) : (
+        <VStack spacing="2" align="stretch">
+          {assignments.map((assignment) => {
+            const highlighted = assignment.id === highlightedAssignmentId;
+            const isOwn = isOwnAssignment(assignment);
+            const showActions = isOwn && assignment.status === 'pending';
 
-          return (
-            <Box
-              key={assignment.id}
-              ref={highlighted ? highlightedRef : null}
-              bg={highlighted ? 'blue.50' : cardBg}
-              border="1px solid"
-              borderColor={highlighted ? 'blue.400' : borderColor}
-              borderRadius="lg"
-              p="4"
-              transition="all 0.2s"
-            >
-              <HStack spacing="3" align="start" justify="space-between">
-                {/* Left: Avatar + Info */}
-                <HStack spacing="3" align="start" flex="1">
-                  <Avatar
-                    name={assignment.team_member?.name || 'Unknown'}
-                    src={assignment.team_member?.avatar_url}
-                    size="md"
-                  />
-                  <VStack align="start" spacing="1" flex="1">
-                    <HStack spacing="2" wrap="wrap">
-                      <Text fontWeight="600" color={headingColor} fontSize="sm">
-                        {assignment.team_member?.name || 'Unknown'}
-                      </Text>
-                      <StatusBadge
-                        status={mapAssignmentStatus(assignment.status)}
-                        size="sm"
-                      />
-                    </HStack>
-                    <Text fontSize="sm" color={subTextColor}>
-                      {assignment.role}
-                    </Text>
-                    {highlighted && (
-                      <Text fontSize="xs" color="blue.600" fontWeight="500" mt="1">
-                        Please confirm your attendance below
-                      </Text>
-                    )}
-                  </VStack>
-                </HStack>
-
-                {/* Right: Actions */}
-                {showActions && (
-                  <HStack spacing="2" flexShrink={0}>
-                    <Button
+            return (
+              <Box
+                key={assignment.id}
+                ref={highlighted ? highlightedRef : null}
+                bg={highlighted ? 'blue.50' : cardBg}
+                border="1px solid"
+                borderColor={highlighted ? 'blue.400' : borderColor}
+                borderRadius="lg"
+                px="4"
+                py="3"
+                boxShadow={highlighted ? '0 0 0 3px rgba(66,153,225,0.15)' : '0 1px 2px rgba(0,0,0,0.04)'}
+                transition="all 0.15s ease"
+              >
+                <HStack spacing="3" align="center" justify="space-between">
+                  {/* Left: Avatar + Info */}
+                  <HStack spacing="3" flex="1" minW="0">
+                    <Avatar
+                      name={assignment.team_member?.name || 'Unknown'}
+                      src={assignment.team_member?.avatar_url}
                       size="sm"
-                      variant="primary"
-                      onClick={() => handleConfirm(assignment.id)}
-                      isDisabled={processing === assignment.id}
-                    >
-                      Confirm
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDecline(assignment.id)}
-                      isDisabled={processing === assignment.id}
-                    >
-                      Decline
-                    </Button>
+                    />
+                    <VStack align="start" spacing="0" flex="1" minW="0">
+                      <HStack spacing="2" wrap="wrap">
+                        <Text fontWeight="600" color={headingColor} fontSize="sm" isTruncated>
+                          {assignment.team_member?.name || 'Unknown'}
+                        </Text>
+                        <StatusBadge
+                          status={mapAssignmentStatus(assignment.status)}
+                          size="sm"
+                        />
+                      </HStack>
+                      <Text fontSize="xs" color={subTextColor} isTruncated>
+                        {assignment.role}
+                      </Text>
+                      {highlighted && (
+                        <Text fontSize="xs" color="blue.600" fontWeight="500" mt="0.5">
+                          Please confirm your attendance →
+                        </Text>
+                      )}
+                    </VStack>
                   </HStack>
-                )}
-              </HStack>
-            </Box>
-          );
-        })}
-      </VStack>
+
+                  {/* Right: Actions */}
+                  {showActions && (
+                    <HStack spacing="2" flexShrink="0">
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => handleConfirm(assignment.id)}
+                        isDisabled={processing === assignment.id}
+                      >
+                        Confirm
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDecline(assignment.id)}
+                        isDisabled={processing === assignment.id}
+                      >
+                        Decline
+                      </Button>
+                    </HStack>
+                  )}
+                </HStack>
+              </Box>
+            );
+          })}
+        </VStack>
+      )}
     </Box>
   );
 }
