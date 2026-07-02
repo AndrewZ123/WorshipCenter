@@ -14,11 +14,13 @@ import { useStore } from '@/lib/StoreContext';
 import type { Song, SongUsage } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
+import { parseChordPro } from '@/lib/chordpro';
+import type { ChordProParsed } from '@/lib/chordpro';
 
 // Lucide icons
 import { 
   Plus, Search, Music, MoreVertical, Trash2, Edit, 
-  SlidersHorizontal, Mic2
+  SlidersHorizontal, Mic2, Upload
 } from 'lucide-react';
 
 export default function SongsPage() {
@@ -32,6 +34,12 @@ export default function SongsPage() {
   const [search, setSearch] = useState('');
   const [filterRecent, setFilterRecent] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // ChordPro import
+  const importDisclosure = useDisclosure();
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importParsed, setImportParsed] = useState<ChordProParsed | null>(null);
+  const [importing, setImporting] = useState(false);
 
   // Delete
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -156,17 +164,31 @@ export default function SongsPage() {
           <Text color={subtextColor} fontSize="sm" mt="1">Manage your worship songs and chord charts</Text>
         </Box>
         {!isReadOnly && (
-          <Button 
-            onClick={onOpen} 
-            size="sm" 
-            colorScheme="teal" 
-            fontWeight="600"
-            leftIcon={<Plus size={16} />}
-            px="4"
-            py="2"
-          >
-            Add Song
-          </Button>
+          <HStack spacing="2">
+            <Button 
+              onClick={importDisclosure.onOpen} 
+              size="sm" 
+              variant="outline"
+              colorScheme="teal" 
+              fontWeight="600"
+              leftIcon={<Upload size={14} />}
+              px="4"
+              py="2"
+            >
+              Import ChordPro
+            </Button>
+            <Button 
+              onClick={onOpen} 
+              size="sm" 
+              colorScheme="teal" 
+              fontWeight="600"
+              leftIcon={<Plus size={16} />}
+              px="4"
+              py="2"
+            >
+              Add Song
+            </Button>
+          </HStack>
         )}
       </Flex>
 
@@ -505,6 +527,121 @@ export default function SongsPage() {
           <ModalFooter gap="2">
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
             <Button colorScheme="teal" onClick={handleCreate} isDisabled={!title} fontWeight="600">Add Song</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Import ChordPro Modal */}
+      <Modal isOpen={importDisclosure.isOpen} onClose={() => { importDisclosure.onClose(); setImportFile(null); setImportParsed(null); }} isCentered size="lg">
+        <ModalOverlay backdropBlur="sm" />
+        <ModalContent borderRadius="2xl" mx="4">
+          <ModalHeader fontWeight="700">Import ChordPro File</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb="6">
+            <VStack spacing="4">
+              <Text fontSize="sm" color={subtextColor}>
+                Upload a <strong>.pro</strong>, <strong>.chordpro</strong>, or <strong>.txt</strong> file exported from SongSelect. The song's metadata (title, artist, key, CCLI) will be parsed automatically.
+              </Text>
+              <FormControl>
+                <Button 
+                  as="label" 
+                  htmlFor="chordpro-upload"
+                  variant="outline" 
+                  w="full" 
+                  h="120px" 
+                  border="2px dashed" 
+                  borderColor={importParsed ? 'teal.300' : borderColor}
+                  borderRadius="xl"
+                  cursor="pointer"
+                  display="flex"
+                  flexDirection="column"
+                  gap="2"
+                  _hover={{ borderColor: 'teal.400', bg: 'gray.50' }}
+                >
+                  <Upload size={24} className={importParsed ? 'text-teal-500' : 'text-gray-400'} />
+                  <Text fontSize="sm" color={importParsed ? 'teal.600' : subtextColor}>
+                    {importFile ? importFile.name : 'Click to select a ChordPro file'}
+                  </Text>
+                  <input
+                    id="chordpro-upload"
+                    type="file"
+                    accept=".pro,.chordpro,.chopro,.txt"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setImportFile(file);
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const result = parseChordPro(reader.result as string);
+                        setImportParsed(result);
+                      };
+                      reader.readAsText(file);
+                    }}
+                  />
+                </Button>
+              </FormControl>
+
+              {importParsed && (
+                <Box w="full" p="4" bg={useColorModeValue('teal.50', 'gray.700')} borderRadius="lg">
+                  <Text fontWeight="600" fontSize="sm" mb="3" color="teal.700">Parsed Metadata</Text>
+                  <VStack spacing="2" align="stretch" fontSize="sm">
+                    {importParsed.meta.title && (
+                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">Title:</Text><Text>{importParsed.meta.title}</Text></HStack>
+                    )}
+                    {importParsed.meta.artist && (
+                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">Artist:</Text><Text>{importParsed.meta.artist}</Text></HStack>
+                    )}
+                    {importParsed.meta.key && (
+                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">Key:</Text><Text>{importParsed.meta.key}</Text></HStack>
+                    )}
+                    {importParsed.meta.ccli && (
+                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">CCLI:</Text><Text>{importParsed.meta.ccli}</Text></HStack>
+                    )}
+                    {importParsed.meta.tags.length > 0 && (
+                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">Tags:</Text><Text>{importParsed.meta.tags.join(', ')}</Text></HStack>
+                    )}
+                    <Text fontSize="xs" color="gray.400" mt="1">{importParsed.lines.length} lyric lines parsed</Text>
+                  </VStack>
+                </Box>
+              )}
+            </VStack>
+          </ModalBody>
+          <ModalFooter gap="2">
+            <Button variant="ghost" onClick={() => { importDisclosure.onClose(); setImportFile(null); setImportParsed(null); }}>Cancel</Button>
+              <Button 
+                colorScheme="teal" 
+                isDisabled={!importParsed} 
+                isLoading={importing}
+                fontWeight="600"
+                onClick={async () => {
+                  if (!importParsed || !importFile || !church) return;
+                  setImporting(true);
+                  try {
+                    const { meta } = importParsed;
+                    await store.songs.create({
+                      church_id: church.id,
+                      title: meta.title || importFile.name.replace(/\.(pro|chordpro|chopro|txt)$/i, ''),
+                      artist: meta.artist || '',
+                      default_key: meta.key || 'C',
+                      ccli_number: meta.ccli || '',
+                      tags: meta.tags,
+                    });
+                    toast({ title: 'Song imported', description: `${meta.title || importFile.name} has been added. You can now upload the file on the song detail page.`, status: 'success', duration: 3000 });
+                    importDisclosure.onClose();
+                    setImportFile(null);
+                    setImportParsed(null);
+                    await loadSongs();
+                  } catch (err) {
+                    console.error('Import failed:', err);
+                    toast({ title: 'Import failed', description: 'Could not import the file. Try again.', status: 'error', duration: 3000 });
+                  } finally {
+                    setImporting(false);
+                  }
+                }}
+              >
+                Import Song
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
