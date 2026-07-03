@@ -113,13 +113,21 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const isTrialing = subscription?.status === 'trialing';
   const isCanceled = subscription?.status === 'canceled';
   const isPastDue = subscription?.status === 'past_due';
-  const isFreeTrial = isTrialing || !isActive;
+  const isFreeTrial = isTrialing;
 
   const daysRemaining = (() => {
-    if (!subscription?.trial_end) return 0;
-    const trialEnd = new Date(subscription.trial_end);
+    // For trialing subscriptions, show remaining trial days from trial_end.
+    // For active/past_due/canceled subscriptions, show remaining billing
+    // period days from current_period_end.
+    const isSubscriptionActive = isActive || isPastDue || isCanceled;
+    const dateField = isSubscriptionActive
+      ? subscription?.current_period_end
+      : subscription?.trial_end;
+
+    if (!dateField) return 0;
+    const end = new Date(dateField);
     const now = new Date();
-    const diff = trialEnd.getTime() - now.getTime();
+    const diff = end.getTime() - now.getTime();
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   })();
 

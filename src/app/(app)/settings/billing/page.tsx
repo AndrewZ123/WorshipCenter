@@ -172,8 +172,10 @@ export default function BillingPage() {
 
   // ── Calculate trial days remaining ──────────────────────────────────────
   const getTrialDaysLeft = () => {
-    if (!subscription?.current_period_end) return 0;
-    const end = new Date(subscription.current_period_end).getTime();
+    // Use trial_end for trialing subscriptions (current_period_end may be NULL
+    // for newly-created trial rows from the DB trigger)
+    if (!subscription?.trial_end) return 0;
+    const end = new Date(subscription.trial_end).getTime();
     const now = Date.now();
     return Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
   };
@@ -350,7 +352,7 @@ export default function BillingPage() {
           </div>
           {isTrialing && (
             <p style={{ fontSize: '13px', color: '#718096', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-              Your trial ends on {formatDate(subscription?.current_period_end)}. Upgrade now to continue using all features.
+              Your trial ends on {formatDate(subscription?.trial_end)}. Upgrade now to continue using all features.
             </p>
           )}
           {subscription?.canceled_at && (

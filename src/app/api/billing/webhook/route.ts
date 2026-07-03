@@ -166,7 +166,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const currentPeriodStart = new Date(sub.current_period_start * 1000).toISOString();
 
   // Determine our status from Stripe status
-  const status = mapStripeStatus(sub.status);
+  const incomingStatus = mapStripeStatus(sub.status);
   const priceType = sub.metadata?.price_type || 'monthly';
 
   // If subscription is canceled at period end, record that
@@ -174,9 +174,35 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     ? new Date(sub.canceled_at * 1000).toISOString()
     : null;
 
+  // ── Protect against downgrading active → trialing ───────────────────────
+  // When a Stripe Price has trial_period_days configured, Stripe creates the
+  // subscription in 'trialing' status. Our checkout.session.completed handler
+  // correctly sets status='active' because the user has already paid, but the
+  // subsequent customer.subscription.updated event carries Stripe's 'trialing'
+  // status.  Without this guard, paying users would be incorrectly displayed
+  // as being on a free trial.
+  let effectiveStatus = incomingStatus;
+  if (incomingStatus === 'trialing') {
+    const { data: existing } = await supabaseAdmin
+      .from('subscriptions')
+      .select('status')
+      .eq('church_id', churchId)
+      .maybeSingle();
+
+    if (existing?.status === 'active') {
+      console.log(
+        '[Webhook] Skipping trialing→active downgrade for church:',
+        churchId,
+        '(already active via checkout.session.completed)',
+      );
+      effectiveStatus = 'active';
+    }
+  }
+
   console.log('[Webhook] Updating subscription:', {
     churchId,
-    status,
+    incomingStatus,
+    effectiveStatus,
     priceType,
     currentPeriodEnd,
     canceledAt,
@@ -185,7 +211,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const { error } = await supabaseAdmin
     .from('subscriptions')
     .update({
-      status,
+      status: effectiveStatus,
       price_type: priceType,
       current_period_start: currentPeriodStart,
       current_period_end: currentPeriodEnd,
