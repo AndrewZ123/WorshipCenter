@@ -35,7 +35,7 @@ import {
   Music, AlignLeft, Send, CheckCircle, Calendar, Clock, 
   BookOpen, UserCheck, MessageSquare, Calendar as CalendarIcon,
   ListMusic, Users, ListChecks, Monitor, Printer, CheckSquare,
-  Star
+  Star, ChevronDown
 } from 'lucide-react';
 
 // dnd-kit imports
@@ -777,56 +777,66 @@ export default function ServiceDetailClient() {
                     <span>Schedule ({assignedCount})</span>
                   </HStack>
                 </Tab>
-                <Tab 
-                  fontSize="sm" 
-                  fontWeight="600" 
-                  color={activeTab === 3 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
-                >
-                  <HStack spacing="2">
-                    <ListChecks size={16} />
-                    <span>Tasks</span>
-                  </HStack>
-                </Tab>
-                <Tab 
-                  fontSize="sm" 
-                  fontWeight="600" 
-                  color={activeTab === 4 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
-                >
-                  <HStack spacing="2">
-                    <MessageSquare size={16} />
-                    <span>Chat</span>
-                  </HStack>
-                </Tab>
-                {user && (user.team_member_id || user.role !== 'team') && (
-                  <Tab 
-                    fontSize="sm" 
-                    fontWeight="600" 
-                    color={activeTab === 5 ? 'teal.600' : 'gray.500'}
-                    _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                <Menu>
+                  <MenuButton
+                    as={Box}
+                    role="button"
+                    tabIndex={0}
+                    px="4"
+                    py="3"
+                    fontSize="sm"
+                    fontWeight="600"
+                    cursor="pointer"
+                    borderBottom="2px solid"
+                    borderBottomColor={activeTab >= 3 ? 'teal.600' : 'transparent'}
+                    color={activeTab >= 3 ? 'teal.600' : 'gray.500'}
                     _hover={{ color: 'teal.500' }}
+                    transition="color 0.15s"
                   >
-                    <HStack spacing="2">
-                      <CheckSquare size={16} />
-                      <span>Rehearsal</span>
+                    <HStack spacing="1">
+                      <span>More</span>
+                      <ChevronDown size={14} />
                     </HStack>
-                  </Tab>
-                )}
-                <Tab 
-                  fontSize="sm" 
-                  fontWeight="600" 
-                  color={activeTab === 6 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
-                >
-                  <HStack spacing="2">
-                    <Star size={16} />
-                    <span>Debrief ({debriefEntries.length})</span>
-                  </HStack>
-                </Tab>
+                  </MenuButton>
+                  <Portal>
+                    <MenuList borderRadius="xl" zIndex={50} minW="160px">
+                      <MenuItem
+                        icon={<ListChecks size={16} />}
+                        onClick={() => setActiveTab(3)}
+                        fontWeight={activeTab === 3 ? '700' : '500'}
+                        color={activeTab === 3 ? 'teal.600' : undefined}
+                      >
+                        Tasks
+                      </MenuItem>
+                      <MenuItem
+                        icon={<MessageSquare size={16} />}
+                        onClick={() => setActiveTab(4)}
+                        fontWeight={activeTab === 4 ? '700' : '500'}
+                        color={activeTab === 4 ? 'teal.600' : undefined}
+                      >
+                        Chat
+                      </MenuItem>
+                      {user && (user.team_member_id || user.role !== 'team') && (
+                        <MenuItem
+                          icon={<CheckSquare size={16} />}
+                          onClick={() => setActiveTab(5)}
+                          fontWeight={activeTab === 5 ? '700' : '500'}
+                          color={activeTab === 5 ? 'teal.600' : undefined}
+                        >
+                          Rehearsal
+                        </MenuItem>
+                      )}
+                      <MenuItem
+                        icon={<Star size={16} />}
+                        onClick={() => setActiveTab(6)}
+                        fontWeight={activeTab === 6 ? '700' : '500'}
+                        color={activeTab === 6 ? 'teal.600' : undefined}
+                      >
+                        Debrief ({debriefEntries.length})
+                      </MenuItem>
+                    </MenuList>
+                  </Portal>
+                </Menu>
               </TabList>
 
               <TabPanels>
