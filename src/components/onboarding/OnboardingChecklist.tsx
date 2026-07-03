@@ -197,11 +197,11 @@ export default function OnboardingChecklist() {
                     p="2"
                     borderRadius="lg"
                     bg={item.completed ? 'teal.100' : 'gray.100'}
+                    color={item.completed ? 'teal.600' : 'gray.500'}
                     flexShrink={0}
                   >
                     <item.icon
                       size={16}
-                      color={item.completed ? 'var(--chakra-colors-teal-600)' : 'var(--chakra-colors-gray-500)'}
                     />
                   </Box>
                   <Box>
