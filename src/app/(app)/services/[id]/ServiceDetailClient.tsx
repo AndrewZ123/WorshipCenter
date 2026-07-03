@@ -68,6 +68,7 @@ export default function ServiceDetailClient() {
   const highlightedAssignmentId = searchParams.get('assignmentId');
 
   const [activeTab, setActiveTab] = useState(0);
+  const [primaryTab, setPrimaryTab] = useState(0); // 0=Overview, 1=Plan, 2=Team
   const [service, setService] = useState<Service | null>(null);
   const [items, setItems] = useState<ServiceItem[]>([]);
   const [assignments, setAssignments] = useState<ServiceAssignment[]>([]);
@@ -216,13 +217,15 @@ export default function ServiceDetailClient() {
     const tab = searchParams.get('tab');
     if (tab === 'debrief') {
       setActiveTab(6);
+      setPrimaryTab(2);
     }
   }, [searchParams]);
 
   // Switch to Schedule tab if assignmentId is present
   useEffect(() => {
     if (highlightedAssignmentId) {
-      setActiveTab(2); // Schedule tab
+      setActiveTab(2);
+      setPrimaryTab(2);
     }
   }, [highlightedAssignmentId]);
 
@@ -737,112 +740,211 @@ export default function ServiceDetailClient() {
 
       {!loading && service && (
         <>
-          {/* Tabs */}
+          {/* Tabs — Two-level navigation */}
           <Card mb="6" bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
             <Tabs onChange={setActiveTab} index={activeTab}>
-              <Box
-                overflowX="auto"
-                whiteSpace="nowrap"
-                sx={{
-                  '&::-webkit-scrollbar': { display: 'none' },
-                  scrollbarWidth: 'none',
-                }}
-              >
-              <TabList px="4" pt="4" borderBottom="1px solid" borderColor={borderColor} flexWrap="nowrap">
-                <Tab
-                  flexShrink={0}
-                  fontSize="sm"
-                  fontWeight="600"
-                  color={activeTab === 0 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
+              {/* Primary tab bar */}
+              <Box px={{ base: 3, md: 5 }} pt={4}>
+                <Flex
+                  gap={1}
+                  role="tablist"
+                  overflowX="auto"
+                  sx={{ '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}
                 >
-                  <HStack spacing="2">
-                    <CalendarIcon size={16} />
-                    <span>Overview</span>
-                  </HStack>
-                </Tab>
-                <Tab
-                  flexShrink={0}
-                  fontSize="sm"
-                  fontWeight="600"
-                  color={activeTab === 1 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
-                >
-                  <HStack spacing="2">
-                    <ListMusic size={16} />
-                    <span>Plan ({items.length})</span>
-                  </HStack>
-                </Tab>
-                <Tab
-                  flexShrink={0}
-                  fontSize="sm"
-                  fontWeight="600"
-                  color={activeTab === 2 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
-                >
-                  <HStack spacing="2">
-                    <Users size={16} />
-                    <span>Schedule ({assignedCount})</span>
-                  </HStack>
-                </Tab>
-                <Tab
-                  flexShrink={0}
-                  fontSize="sm"
-                  fontWeight="600"
-                  color={activeTab === 3 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
-                >
-                  <HStack spacing="2">
-                    <ListChecks size={16} />
-                    <span>Tasks</span>
-                  </HStack>
-                </Tab>
-                <Tab
-                  flexShrink={0}
-                  fontSize="sm"
-                  fontWeight="600"
-                  color={activeTab === 4 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
-                >
-                  <HStack spacing="2">
-                    <MessageSquare size={16} />
-                    <span>Chat</span>
-                  </HStack>
-                </Tab>
-                {user && (user.team_member_id || user.role !== 'team') && (
-                  <Tab
-                    flexShrink={0}
+                  <Box
+                    as="button"
+                    role="tab"
+                    onClick={() => { setPrimaryTab(0); setActiveTab(0); }}
+                    px={{ base: 3, md: 5 }}
+                    py={3}
+                    borderRadius="lg"
                     fontSize="sm"
-                    fontWeight="600"
-                    color={activeTab === 5 ? 'teal.600' : 'gray.500'}
-                    _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                    _hover={{ color: 'teal.500' }}
+                    fontWeight="700"
+                    letterSpacing="tight"
+                    transition="all 0.15s"
+                    bg={primaryTab === 0 ? 'teal.50' : 'transparent'}
+                    color={primaryTab === 0 ? 'teal.700' : subtextColor}
+                    _hover={{ bg: primaryTab === 0 ? 'teal.50' : hoverBg, color: primaryTab === 0 ? 'teal.700' : headingColor }}
+                    _dark={{
+                      bg: primaryTab === 0 ? 'teal.900' : 'transparent',
+                      color: primaryTab === 0 ? 'teal.200' : subtextColor,
+                      _hover: { bg: primaryTab === 0 ? 'teal.900' : 'whiteAlpha.100', color: primaryTab === 0 ? 'teal.200' : 'whiteAlpha.800' },
+                    }}
+                    flexShrink={0}
                   >
-                    <HStack spacing="2">
-                      <CheckSquare size={16} />
-                      <span>Rehearsal</span>
+                    <HStack spacing={2.5}>
+                      <CalendarIcon size={18} />
+                      <Text>Overview</Text>
                     </HStack>
-                  </Tab>
+                  </Box>
+                  <Box
+                    as="button"
+                    role="tab"
+                    onClick={() => { setPrimaryTab(1); if (activeTab !== 1 && activeTab !== 3) setActiveTab(1); }}
+                    px={{ base: 3, md: 5 }}
+                    py={3}
+                    borderRadius="lg"
+                    fontSize="sm"
+                    fontWeight="700"
+                    letterSpacing="tight"
+                    transition="all 0.15s"
+                    bg={primaryTab === 1 ? 'teal.50' : 'transparent'}
+                    color={primaryTab === 1 ? 'teal.700' : subtextColor}
+                    _hover={{ bg: primaryTab === 1 ? 'teal.50' : hoverBg, color: primaryTab === 1 ? 'teal.700' : headingColor }}
+                    _dark={{
+                      bg: primaryTab === 1 ? 'teal.900' : 'transparent',
+                      color: primaryTab === 1 ? 'teal.200' : subtextColor,
+                      _hover: { bg: primaryTab === 1 ? 'teal.900' : 'whiteAlpha.100', color: primaryTab === 1 ? 'teal.200' : 'whiteAlpha.800' },
+                    }}
+                    flexShrink={0}
+                  >
+                    <HStack spacing={2.5}>
+                      <ListMusic size={18} />
+                      <Text>Plan ({items.length})</Text>
+                    </HStack>
+                  </Box>
+                  <Box
+                    as="button"
+                    role="tab"
+                    onClick={() => { setPrimaryTab(2); if (activeTab !== 2 && activeTab !== 4 && activeTab !== 5 && activeTab !== 6) setActiveTab(2); }}
+                    px={{ base: 3, md: 5 }}
+                    py={3}
+                    borderRadius="lg"
+                    fontSize="sm"
+                    fontWeight="700"
+                    letterSpacing="tight"
+                    transition="all 0.15s"
+                    bg={primaryTab === 2 ? 'teal.50' : 'transparent'}
+                    color={primaryTab === 2 ? 'teal.700' : subtextColor}
+                    _hover={{ bg: primaryTab === 2 ? 'teal.50' : hoverBg, color: primaryTab === 2 ? 'teal.700' : headingColor }}
+                    _dark={{
+                      bg: primaryTab === 2 ? 'teal.900' : 'transparent',
+                      color: primaryTab === 2 ? 'teal.200' : subtextColor,
+                      _hover: { bg: primaryTab === 2 ? 'teal.900' : 'whiteAlpha.100', color: primaryTab === 2 ? 'teal.200' : 'whiteAlpha.800' },
+                    }}
+                    flexShrink={0}
+                  >
+                    <HStack spacing={2.5}>
+                      <Users size={18} />
+                      <Text>Team</Text>
+                    </HStack>
+                  </Box>
+                </Flex>
+
+                {/* Secondary tab bar — Plan */}
+                {primaryTab === 1 && (
+                  <Flex mt={1} gap={1} role="tablist" borderBottom="1px solid" borderColor={borderColor} px={1}>
+                    <Tab
+                      flexShrink={0}
+                      fontSize="sm"
+                      fontWeight="500"
+                      pb={3}
+                      pt={2}
+                      px={3}
+                      color={activeTab === 1 ? 'teal.600' : subtextColor}
+                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      _hover={{ color: 'teal.500' }}
+                    >
+                      <HStack spacing={1.5}>
+                        <ListMusic size={14} />
+                        <span>Items</span>
+                      </HStack>
+                    </Tab>
+                    <Tab
+                      flexShrink={0}
+                      fontSize="sm"
+                      fontWeight="500"
+                      pb={3}
+                      pt={2}
+                      px={3}
+                      color={activeTab === 3 ? 'teal.600' : subtextColor}
+                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      _hover={{ color: 'teal.500' }}
+                    >
+                      <HStack spacing={1.5}>
+                        <ListChecks size={14} />
+                        <span>Tasks</span>
+                      </HStack>
+                    </Tab>
+                  </Flex>
                 )}
-                <Tab
-                  flexShrink={0}
-                  fontSize="sm"
-                  fontWeight="600"
-                  color={activeTab === 6 ? 'teal.600' : 'gray.500'}
-                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
-                  _hover={{ color: 'teal.500' }}
-                >
-                  <HStack spacing="2">
-                    <Star size={16} />
-                    <span>Debrief ({debriefEntries.length})</span>
-                  </HStack>
-                </Tab>
-              </TabList>
+
+                {/* Secondary tab bar — Team */}
+                {primaryTab === 2 && (
+                  <Flex mt={1} gap={1} role="tablist" borderBottom="1px solid" borderColor={borderColor} px={1} overflowX="auto" sx={{ '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}>
+                    <Tab
+                      flexShrink={0}
+                      fontSize="sm"
+                      fontWeight="500"
+                      pb={3}
+                      pt={2}
+                      px={3}
+                      color={activeTab === 2 ? 'teal.600' : subtextColor}
+                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      _hover={{ color: 'teal.500' }}
+                    >
+                      <HStack spacing={1.5}>
+                        <Users size={14} />
+                        <span>Schedule ({assignedCount})</span>
+                      </HStack>
+                    </Tab>
+                    <Tab
+                      flexShrink={0}
+                      fontSize="sm"
+                      fontWeight="500"
+                      pb={3}
+                      pt={2}
+                      px={3}
+                      color={activeTab === 4 ? 'teal.600' : subtextColor}
+                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      _hover={{ color: 'teal.500' }}
+                    >
+                      <HStack spacing={1.5}>
+                        <MessageSquare size={14} />
+                        <span>Chat</span>
+                      </HStack>
+                    </Tab>
+                    {user && (user.team_member_id || user.role !== 'team') && (
+                      <Tab
+                        flexShrink={0}
+                        fontSize="sm"
+                        fontWeight="500"
+                        pb={3}
+                        pt={2}
+                        px={3}
+                        color={activeTab === 5 ? 'teal.600' : subtextColor}
+                        _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                        _hover={{ color: 'teal.500' }}
+                      >
+                        <HStack spacing={1.5}>
+                          <CheckSquare size={14} />
+                          <span>Rehearsal</span>
+                        </HStack>
+                      </Tab>
+                    )}
+                    <Tab
+                      flexShrink={0}
+                      fontSize="sm"
+                      fontWeight="500"
+                      pb={3}
+                      pt={2}
+                      px={3}
+                      color={activeTab === 6 ? 'teal.600' : subtextColor}
+                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      _hover={{ color: 'teal.500' }}
+                    >
+                      <HStack spacing={1.5}>
+                        <Star size={14} />
+                        <span>Debrief ({debriefEntries.length})</span>
+                      </HStack>
+                    </Tab>
+                  </Flex>
+                )}
+
+                {/* Bottom border when there's no secondary bar (Overview) */}
+                {primaryTab === 0 && (
+                  <Box borderBottom="1px solid" borderColor={borderColor} mt={1} />
+                )}
               </Box>
 
               <TabPanels>
