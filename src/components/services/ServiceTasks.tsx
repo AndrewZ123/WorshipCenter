@@ -302,7 +302,7 @@ export default function ServiceTasks({
   };
 
   return (
-    <Box>
+    <Box p="6">
       {/* Header */}
       <HStack justify="space-between" align="center" mb="4" flexWrap="wrap" gap="2">
         <HStack spacing="3">
