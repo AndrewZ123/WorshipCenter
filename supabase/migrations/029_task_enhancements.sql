@@ -161,57 +161,37 @@ CREATE OR REPLACE FUNCTION create_task_from_template(
 RETURNS UUID AS $$
 DECLARE
   new_task_id UUID;
-  template_item task_template_items%ROWTYPE;
-  template task_templates%ROWTYPE;
-  service_date DATE;
+  v_church_id UUID;
+  v_template_id UUID;
+  v_title TEXT;
+  v_default_notes TEXT;
+  v_position INT;
+  v_priority TEXT;
+  v_estimated_duration_minutes INTEGER;
 BEGIN
-  -- Get template item with template info
-  SELECT 
-    tti.*, 
-    tt.recurrence,
-    tt.role_scope,
-    tt.church_id
-  INTO template_item, template
+  SELECT tt.church_id, tti.template_id, tti.title,
+         COALESCE(tti.default_notes, ''), tti.position,
+         COALESCE(tti.priority, 'medium'), COALESCE(tti.estimated_duration_minutes, 0)
+  INTO v_church_id, v_template_id, v_title,
+       v_default_notes, v_position,
+       v_priority, v_estimated_duration_minutes
   FROM task_template_items tti
   JOIN task_templates tt ON tti.template_id = tt.id
   WHERE tti.id = template_item_uuid;
-  
-  -- Get service date
-  SELECT date::DATE INTO service_date
-  FROM services
-  WHERE id = service_uuid;
-  
-  -- Create the task
+
   INSERT INTO service_tasks (
-    service_id,
-    church_id,
-    template_id,
-    title,
-    notes,
-    assigned_team_member_id,
-    assigned_role,
-    position,
-    status,
-    priority,
-    due_offset_minutes,
-    estimated_duration_minutes
+    service_id, church_id, template_id, title, notes,
+    assigned_team_member_id, assigned_role, position, status,
+    priority, due_offset_minutes, estimated_duration_minutes
   )
   VALUES (
-    service_uuid,
-    template_item.church_id,
-    template_item.template_id,
-    template_item.title,
-    COALESCE(template_item.default_notes, ''),
-    assigned_member_uuid,
-    assigned_role_param,
-    template_item.position,
-    'pending',
-    template_item.priority,
-    NULL, -- Calculate based on service time if needed
-    template_item.estimated_duration_minutes
+    service_uuid, v_church_id, v_template_id,
+    v_title, v_default_notes,
+    assigned_member_uuid, assigned_role_param, v_position, 'pending',
+    v_priority, NULL, v_estimated_duration_minutes
   )
   RETURNING id INTO new_task_id;
-  
+
   RETURN new_task_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
