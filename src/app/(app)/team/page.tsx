@@ -431,7 +431,7 @@ export default function TeamPage() {
                     <Td color={subtextColor} fontSize="sm">{member.email || '—'}</Td>
                     <Td>
                       <HStack spacing="2">
-                        <Calendar size={14} className="text-gray-400" />
+                        <Calendar size={14} color="var(--chakra-colors-gray-400)" />
                         <Text color={subtextColor} fontSize="sm">{formatRelativeDate(lastScheduledMap[member.id])}</Text>
                       </HStack>
                     </Td>
@@ -521,7 +521,7 @@ export default function TeamPage() {
                           )}
                         </HStack>
                         <HStack spacing="2" mt="2">
-                          <Calendar size={12} className="text-gray-400" />
+                          <Calendar size={12} color="var(--chakra-colors-gray-400)" />
                           <Text fontSize="xs" color="gray.400">{formatRelativeDate(lastScheduledMap[member.id])}</Text>
                         </HStack>
                       </Box>

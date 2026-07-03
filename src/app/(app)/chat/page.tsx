@@ -451,8 +451,8 @@ export default function ChatPage() {
         display="flex" 
         flexDirection="column" 
         flex="1"
-        minH={{ base: 'auto', md: 'calc(100vh - 280px)' }}
-        maxH={{ base: 'calc(100vh - 180px)', md: 'calc(100vh - 280px)' }}
+        minH={{ base: 'auto', md: 'calc(100dvh - 280px)' }}
+        maxH={{ base: 'calc(100dvh - 180px)', md: 'calc(100dvh - 280px)' }}
       >
         {/* Messages Area */}
         <Box 

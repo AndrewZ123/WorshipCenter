@@ -90,7 +90,7 @@ export default function EmptyState({
         {description && (
           <Text
             fontSize={descSize}
-            color="gray.400"
+            color="gray.500"
             maxW="xs"
           >
             {description}

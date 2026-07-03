@@ -42,7 +42,7 @@ export interface StatusBadgeProps {
 export default function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
   const config = useColorModeValue(LIGHT_CONFIG[status], DARK_CONFIG[status]) || LIGHT_CONFIG.draft;
   
-  const fontSize = size === 'sm' ? '2xs' : 'xs';
+  const fontSize = size === 'sm' ? { base: 'xs', md: '2xs' } : 'xs';
   const px = size === 'sm' ? '2' : '3';
   const py = size === 'sm' ? '0.5' : '1';
   

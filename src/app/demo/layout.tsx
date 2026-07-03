@@ -137,7 +137,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             px="3" 
             py="2"
           >
-            <Building2 size={14} className="text-gray-400" />
+            <Building2 size={14} color="var(--chakra-colors-gray-400)" />
             <Text fontSize="sm" fontWeight="500" color="gray.700" noOfLines={1}>
               {church.name}
             </Text>
@@ -171,7 +171,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               tabIndex={0}
             >
               <Box flexShrink={0}>
-                <IconComponent size={20} className={isActive ? 'text-teal-600' : ''} />
+                <IconComponent size={20} color={isActive ? 'var(--chakra-colors-teal-600)' : 'currentColor'} />
               </Box>
               <Text fontSize="sm">{item.label}</Text>
             </HStack>
@@ -214,7 +214,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       <Box px="6" py="3" borderTop="1px solid" borderColor={borderColor}>
         <HStack justify="space-between">
           <HStack spacing="2">
-            <Moon size={16} className="text-gray-400" />
+            <Moon size={16} color="var(--chakra-colors-gray-400)" />
             <Text fontSize="sm" color={textColor}>Dark mode</Text>
           </HStack>
           <Switch 
@@ -273,7 +273,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
   const headingColor = useColorModeValue('gray.900', 'white');
 
   return (
-    <Flex h="100vh" overflow="hidden" direction="column">
+    <Flex h="100dvh" overflow="hidden" direction="column">
       <DemoBanner />
       
       <Flex flex="1" overflow="hidden">
@@ -282,7 +282,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
           display={{ base: 'none', lg: 'block' }}
           w="260px"
           flexShrink={0}
-          h="calc(100vh - 44px)"
+          h="calc(100dvh - 44px)"
           position="sticky"
           top="0"
           overflowY="auto"

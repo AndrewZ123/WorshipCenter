@@ -4,6 +4,13 @@ import { ChakraProviderWrapper } from '@/components/providers/ChakraProvider';
 import { MobileBootstrap } from '@/components/providers/MobileBootstrap';
 import { AuthProvider } from '@/lib/auth';
 import { Analytics } from '@vercel/analytics/next';
+import { Inter } from 'next/font/google';
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '500', '600', '700', '800'],
+});
 
 export const metadata: Metadata = {
   title: 'WorshipCenter — Plan Services, Build Setlists, Coordinate Your Team',
@@ -12,7 +19,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'WorshipCenter',
   },
   icons: {
@@ -21,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#6B46C1',
+  themeColor: '#0D9488',
   minimumScale: 1,
   initialScale: 1,
   width: 'device-width',
@@ -30,16 +37,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={inter.className}>
       <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
         {/* iOS splash screen meta */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
         <link rel="apple-touch-startup-image" href="/icons/icon-512.png" />
         
         {/* Security Headers */}

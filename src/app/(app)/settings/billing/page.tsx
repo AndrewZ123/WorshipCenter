@@ -19,6 +19,7 @@ import { PRICING } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiUrl } from '@/lib/api-base';
+import { SimpleGrid } from '@chakra-ui/react';
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
 
@@ -400,7 +401,7 @@ export default function BillingPage() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing="5">
             {/* Monthly */}
             <div style={{
               padding: '28px', borderRadius: '12px',
@@ -544,7 +545,7 @@ export default function BillingPage() {
                 {currentPlan === 'yearly' ? 'Current Plan' : checkoutLoading ? 'Processing...' : isActive ? 'Switch to Yearly' : 'Start Free Trial'}
               </button>
             </div>
-          </div>
+          </SimpleGrid>
         </div>
       )}
 

@@ -277,7 +277,7 @@ export default function SongDetailClient() {
             <Text fontSize="2xl" fontWeight="bold" color={headingColor} letterSpacing="tight">{song.title}</Text>
             <HStack mt="1" spacing="3">
               <HStack spacing="1">
-                <Mic2 size={14} className="text-gray-400" />
+                <Mic2 size={14} color="var(--chakra-colors-gray-400)" />
                 <Text color={subtextColor} fontSize="sm">{song.artist || 'Unknown artist'}</Text>
               </HStack>
               {!isTeam && totalUsageCount > 0 && (
@@ -351,7 +351,7 @@ export default function SongDetailClient() {
               {/* Metadata strip */}
               <Flex gap="4" wrap="wrap" align="center">
                 <HStack spacing="2">
-                  <Music size={14} className="text-gray-400" />
+                  <Music size={14} color="var(--chakra-colors-gray-400)" />
                   <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase">Key:</Text>
                   <Badge variant="subtle" colorScheme="teal" fontSize="sm" borderRadius="md" px="2">{song.default_key}</Badge>
                 </HStack>
@@ -457,13 +457,13 @@ export default function SongDetailClient() {
                   alignItems="center" 
                   justifyContent="center"
                 >
-                  <FileText size={16} className="text-gray-500" />
+                  <FileText size={16} color="var(--chakra-colors-gray-500)" />
                 </Box>
                 <Link href={f.file_url} download={f.file_name} color="teal.600" fontWeight="500" fontSize="sm" _hover={{ textDecoration: 'underline' }}>
                   {f.file_name}
                 </Link>
               </HStack>
-              <HStack spacing="1">
+              <HStack spacing="2">
                 <IconButton 
                   aria-label="View file" 
                   icon={<Eye size={16} />} 
@@ -565,7 +565,7 @@ export default function SongDetailClient() {
                   >
                     <HStack justify="space-between">
                       <HStack spacing="3">
-                        <Calendar size={16} className="text-gray-400" />
+                        <Calendar size={16} color="var(--chakra-colors-gray-400)" />
                         <Text color="teal.600" fontWeight="600" noOfLines={1}>{entry.service.title}</Text>
                       </HStack>
                       <Text fontSize="sm" color={subtextColor}>{formatDate(entry.date)}</Text>
@@ -586,7 +586,7 @@ export default function SongDetailClient() {
           <ModalCloseButton />
           <ModalBody overflowY="auto" pb="6">
             {viewFile && isPdf(viewFile) && (
-              <Box as="iframe" src={viewFile.file_url} w="100%" h="600px" borderRadius="lg" border="1px solid" borderColor={borderColor} />
+              <Box as="iframe" src={viewFile.file_url} w="100%" h={{ base: '70vh', md: '600px' }} borderRadius="lg" border="1px solid" borderColor={borderColor} />
             )}
             {viewFile && isChordPro(viewFile) && (
               <Box p="4" bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="lg" border="1px solid" borderColor={borderColor}>

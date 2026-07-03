@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/store';
 import type { Notification } from '@/lib/types';
 import { TrialBanner, TrialExpiredBanner, FloatingSubscribeCTA } from './TrialBanner';
+import BottomNav from './BottomNav';
 import { useSubscription } from '@/lib/useSubscription';
 import Avatar from '@/components/ui/Avatar';
 
@@ -171,8 +172,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               fontWeight={isActive ? '600' : '500'}
               borderLeft={isActive ? '3px solid' : '3px solid transparent'}
               borderColor={isActive ? logoAccent : 'transparent'}
-              marginLeft={isActive ? '-3px' : '0'}
-              paddingLeft={isActive ? 'calc(1rem + 3px)' : '1rem'}
+              pl="calc(1rem + 3px)"
               _hover={{ bg: isActive ? activeNavBg : hoverBg, color: isActive ? activeNavColor : logoColor }}
               transition="all 0.15s ease"
               onClick={() => handleNav(item.href)}
@@ -200,6 +200,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             isChecked={colorMode === 'dark'} 
             onChange={toggleColorMode} 
             colorScheme="teal" 
+            aria-label="Toggle dark mode"
           />
         </HStack>
       </Box>
@@ -215,7 +216,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         >
           <HStack justify="space-between">
             <HStack spacing="2">
-              <Smartphone size={14} className="text-teal-600" />
+              <Smartphone size={14} color="var(--chakra-colors-teal-600)" />
               <Text fontSize="xs" color={activeNavColor} fontWeight="500">
                 Install App
               </Text>
@@ -383,13 +384,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const logoAccent = useColorModeValue('teal.600', 'teal.300');
 
   return (
-    <Flex h="100vh" overflow="hidden">
+    <Flex h="100dvh" overflow="hidden">
+      <Box
+        as="a"
+        href="#main-content"
+        className="skip-link"
+        _focus={{ top: 0 }}
+      >
+        Skip to main content
+      </Box>
       {/* Desktop sidebar */}
       <Box
         display={{ base: 'none', lg: 'block' }}
         w="260px"
         flexShrink={0}
-        h="100vh"
+        h="100dvh"
         position="sticky"
         top="0"
       >
@@ -406,7 +415,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         bg={headerBg}
         borderBottom="1px solid"
         borderColor={borderColor}
-        zIndex="10"
+        zIndex="1000"
         sx={{
           paddingTop: 'env(safe-area-inset-top)',
         }}
@@ -440,7 +449,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             borderRadius="0 16px 16px 0"
             boxShadow="2xl"
             m="0"
-            mt="env(safe-area-inset-top)"
         >
           <DrawerCloseButton 
             size="lg" 
@@ -457,23 +465,29 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <Box 
+        id="main-content"
+        role="main"
         flex="1" 
-        overflowY="auto" 
+        overflowY={isOpen ? 'hidden' : 'auto'}
         overflowX="hidden"
         bg={mainBg}
         className="main-content"
         sx={{
           paddingTop: ['calc(56px + env(safe-area-inset-top))', null, null, '0'],
+          paddingBottom: { base: 'calc(56px + env(safe-area-inset-bottom))', lg: '0' },
         }}
       >
         {/* Trial status banners */}
         <TrialBanner />
         <TrialExpiredBanner />
         
-        <Box w="full" maxW="100vw" overflowX="hidden">
+        <Box w="full">
           {children}
         </Box>
         
+        {/* Bottom navigation for mobile */}
+        <BottomNav onOpenDrawer={onOpen} />
+
         {/* Floating subscribe CTA for trial users */}
         <FloatingSubscribeCTA />
       </Box>

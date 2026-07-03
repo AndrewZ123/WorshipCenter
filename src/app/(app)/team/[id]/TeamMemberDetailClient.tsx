@@ -260,17 +260,25 @@ export default function TeamMemberDetailClient() {
               
               {/* Info rows */}
               <HStack spacing="3">
-                <Mail size={16} className="text-gray-400" />
+                <Mail size={16} color="var(--chakra-colors-gray-400)" />
                 <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" w="60px">Email</Text>
-                <Text fontSize="sm" color={subtextColor}>{member.email || 'Not provided'}</Text>
+                {member.email ? (
+                  <Text fontSize="sm" color={subtextColor} as="a" href={`mailto:${member.email}`} _hover={{ textDecoration: 'underline', color: 'teal.600' }}>{member.email}</Text>
+                ) : (
+                  <Text fontSize="sm" color={subtextColor}>Not provided</Text>
+                )}
               </HStack>
               <HStack spacing="3">
-                <Phone size={16} className="text-gray-400" />
+                <Phone size={16} color="var(--chakra-colors-gray-400)" />
                 <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" w="60px">Phone</Text>
-                <Text fontSize="sm" color={subtextColor}>{member.phone || 'Not provided'}</Text>
+                {member.phone ? (
+                  <Text fontSize="sm" color={subtextColor} as="a" href={`tel:${member.phone}`} _hover={{ textDecoration: 'underline', color: 'teal.600' }}>{member.phone}</Text>
+                ) : (
+                  <Text fontSize="sm" color={subtextColor}>Not provided</Text>
+                )}
               </HStack>
               <HStack spacing="3">
-                <Briefcase size={16} className="text-gray-400" />
+                <Briefcase size={16} color="var(--chakra-colors-gray-400)" />
                 <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" w="60px">Roles</Text>
                 <HStack spacing="1" flexWrap="wrap">
                   {member.roles.length > 0 ? member.roles.map((role) => (

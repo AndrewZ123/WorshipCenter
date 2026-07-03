@@ -9,7 +9,7 @@
     "hostname": "worshipcenter.app"
   },
   "ios": {
-    "contentInset": "always",
+    "contentInset": "never",
     "backgroundColor": "#ffffff",
     "preferredContentMode": "mobile",
     "scrollEnabled": true
@@ -21,13 +21,13 @@
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 2000,
-      "backgroundColor": "#6B46C1",
+      "backgroundColor": "#0D9488",
       "showSpinner": false,
       "androidScaleType": "CENTER_CROP"
     },
     "StatusBar": {
       "style": "DARK",
-      "backgroundColor": "#6B46C1",
+      "backgroundColor": "#0D9488",
       "overlaysWebView": false
     },
     "CapacitorHttp": {

@@ -62,7 +62,7 @@ export function SongRowSkeleton() {
         minW="32px"
         h="32px"
         borderRadius="lg"
-        bg="gray.100"
+        bg={useColorModeValue('gray.100', 'gray.700')}
         className="animate-pulse"
       />
       <VStack align="start" spacing="1" flex="1">
@@ -84,7 +84,7 @@ export function TeamMemberRowSkeleton() {
         w="28px"
         h="28px"
         borderRadius="full"
-        bg="gray.100"
+        bg={useColorModeValue('gray.100', 'gray.700')}
         className="animate-pulse"
       />
       <VStack align="start" spacing="1" flex="1">
@@ -116,7 +116,7 @@ export function StatCardSkeleton() {
         <Box
           p="2"
           borderRadius="lg"
-          bg="gray.100"
+          bg={useColorModeValue('gray.100', 'gray.700')}
           className="animate-pulse"
           w="40px"
           h="40px"

@@ -40,7 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // No spinner flash on page refresh or tab navigation.
   if (loading) {
     return (
-      <Center h="100vh">
+      <Center h="100dvh">
         <VStack spacing="4">
           <Spinner size="xl" color="brand.500" thickness="4px" />
           <Text color="gray.500" fontWeight="500">Checking authentication...</Text>
@@ -51,7 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return (
-      <Center h="100vh">
+      <Center h="100dvh">
         <VStack spacing="4">
           <Spinner size="xl" color="brand.500" thickness="4px" />
           <Text color="gray.500" fontWeight="500">Logging you in...</Text>

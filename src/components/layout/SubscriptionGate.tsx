@@ -22,7 +22,7 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
   // Show loading state
   if (loading) {
     return (
-      <Box w="full" h="100vh" display="flex" alignItems="center" justifyContent="center" bg={bgColor}>
+      <Box w="full" h="100dvh" display="flex" alignItems="center" justifyContent="center" bg={bgColor}>
         <Text color="gray.400">Loading...</Text>
       </Box>
     );
@@ -35,7 +35,7 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
   
   // User doesn't have access - show subscription required screen
   return (
-    <Box w="full" minH="100vh" display="flex" alignItems="center" justifyContent="center" bg={bgColor} p={4}>
+    <Box w="full" minH="100dvh" display="flex" alignItems="center" justifyContent="center" bg={bgColor} p={4}>
       <Container maxW="md">
         <VStack
           bg={cardBg}

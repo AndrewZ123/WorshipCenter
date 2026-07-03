@@ -324,7 +324,7 @@ export default function DashboardPage() {
                     justify="space-between"
                   >
                     <HStack spacing="3">
-                      <CheckSquare size={16} className="text-teal-600" />
+                      <CheckSquare size={16} color="var(--chakra-colors-teal-600)" />
                       <Box>
                         <Text fontWeight="500" fontSize="sm" color={textColor}>{task.title}</Text>
                         <Text fontSize="xs" color={subtextColor}>
@@ -419,7 +419,7 @@ export default function DashboardPage() {
             onClick={() => router.push('/services')}
           >
             <VStack spacing="1">
-              <Calendar size={24} className="text-teal-600" />
+              <Calendar size={24} color="var(--chakra-colors-teal-600)" />
               <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>New Service</Text>
             </VStack>
           </Button>
@@ -433,7 +433,7 @@ export default function DashboardPage() {
             onClick={() => router.push('/songs')}
           >
             <VStack spacing="1">
-              <Music size={24} className="text-teal-600" />
+              <Music size={24} color="var(--chakra-colors-teal-600)" />
               <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>Add Song</Text>
             </VStack>
           </Button>
@@ -447,7 +447,7 @@ export default function DashboardPage() {
             onClick={() => router.push('/team')}
           >
             <VStack spacing="1">
-              <Users size={24} className="text-teal-600" />
+              <Users size={24} color="var(--chakra-colors-teal-600)" />
               <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>Add Member</Text>
             </VStack>
           </Button>
@@ -461,7 +461,7 @@ export default function DashboardPage() {
             onClick={() => router.push('/usage')}
           >
             <VStack spacing="1">
-              <BarChart2 size={24} className="text-teal-600" />
+              <BarChart2 size={24} color="var(--chakra-colors-teal-600)" />
               <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>Song Usage</Text>
             </VStack>
           </Button>

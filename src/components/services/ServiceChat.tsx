@@ -493,7 +493,7 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
     <Box
       display="flex"
       flexDirection="column"
-      h={{ base: 'calc(100vh - 220px)', md: '600px' }}
+      h={{ base: 'calc(100dvh - 220px)', md: '600px' }}
       minH="400px"
       bg={cardBg}
       overflow="hidden"

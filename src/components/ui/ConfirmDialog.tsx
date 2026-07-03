@@ -3,7 +3,7 @@
 import React, { useRef } from 'react';
 import {
   AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader,
-  AlertDialogContent, AlertDialogOverlay, Button, Icon,
+  AlertDialogContent, AlertDialogOverlay, Button, Icon, useColorModeValue,
 } from '@chakra-ui/react';
 import { AlertTriangle, Trash2, UserX, FileX } from 'lucide-react';
 
@@ -64,6 +64,7 @@ export default function ConfirmDialog({
   
   const config = variantConfig[variant];
   const IconComponent = icon ? iconMap[icon] : config.icon;
+  const bodyColor = useColorModeValue('gray.600', 'gray.300');
 
   return (
     <AlertDialog 
@@ -95,7 +96,7 @@ export default function ConfirmDialog({
             {title}
           </AlertDialogHeader>
           
-          <AlertDialogBody color="gray.600">
+          <AlertDialogBody color={bodyColor}>
             {message}
           </AlertDialogBody>
           

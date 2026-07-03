@@ -447,7 +447,7 @@ export default function ServiceSchedule({
           borderColor={borderColor}
           bg={cardBg}
         >
-          <Users size={28} className="text-gray-300 mx-auto mb-3" />
+          <Users size={28} color="var(--chakra-colors-gray-300)" />
           <Text fontSize="sm" fontWeight="600" color={headingColor}>
             No team members scheduled
           </Text>

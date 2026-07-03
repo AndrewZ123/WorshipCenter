@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Box, VStack, Text, HStack, IconButton, Collapse, Flex, Badge, Link,
+  Box, VStack, Text, HStack, IconButton, Collapse, Flex, Badge, Link, Button,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/store';
@@ -144,9 +144,9 @@ export default function OnboardingChecklist() {
             bg={allComplete ? 'teal.50' : 'blue.50'}
           >
             {allComplete ? (
-              <Check size={20} className="text-teal-600" />
+              <Check size={20} color="var(--chakra-colors-teal-600)" />
             ) : (
-              <Plus size={20} className="text-blue-600" />
+              <Plus size={20} color="var(--chakra-colors-blue-600)" />
             )}
           </Box>
           <Box>
@@ -201,7 +201,7 @@ export default function OnboardingChecklist() {
                   >
                     <item.icon
                       size={16}
-                      className={item.completed ? 'text-teal-600' : 'text-gray-500'}
+                      color={item.completed ? 'var(--chakra-colors-teal-600)' : 'var(--chakra-colors-gray-500)'}
                     />
                   </Box>
                   <Box>
@@ -230,7 +230,7 @@ export default function OnboardingChecklist() {
                     {item.actionText}
                   </Link>
                   {item.completed && (
-                    <Check size={16} className="text-teal-600" />
+                    <Check size={16} color="var(--chakra-colors-teal-600)" />
                   )}
                 </Flex>
               </Flex>
@@ -267,18 +267,18 @@ export default function OnboardingChecklist() {
           {/* Dismiss button */}
           {!allComplete && (
             <Flex justify="flex-end" mt="4">
-              <Link
+              <Button
+                variant="ghost"
+                size="sm"
                 color="gray.400"
-                fontSize="xs"
-                fontWeight="600"
-                _hover={{ color: 'gray.600', textDecoration: 'underline' }}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDismiss();
                 }}
+                minH="44px"
               >
                 Dismiss
-              </Link>
+              </Button>
             </Flex>
           )}
         </Box>

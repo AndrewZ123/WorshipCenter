@@ -174,7 +174,7 @@ export default function UsagePage() {
             <Box flex="1" minW="140px">
               <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" mb="2">From</Text>
               <HStack>
-                <Calendar size={16} className="text-gray-400" />
+                <Calendar size={16} color="var(--chakra-colors-gray-400)" />
                 <Input
                   type="date"
                   value={dateFrom}
@@ -191,7 +191,7 @@ export default function UsagePage() {
             <Box flex="1" minW="140px">
               <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" mb="2">To</Text>
               <HStack>
-                <Calendar size={16} className="text-gray-400" />
+                <Calendar size={16} color="var(--chakra-colors-gray-400)" />
                 <Input
                   type="date"
                   value={dateTo}
@@ -321,7 +321,7 @@ export default function UsagePage() {
               >
                 <HStack justify="space-between" mb="2">
                   <HStack spacing="2">
-                    <Music size={14} className="text-teal-500" />
+                    <Music size={14} color="var(--chakra-colors-teal-500)" />
                     <Text fontWeight="600" color={headingColor}>{row.songTitle}</Text>
                   </HStack>
                   <Text fontSize="sm" color={subtextColor}>{formatShortDate(row.date)}</Text>

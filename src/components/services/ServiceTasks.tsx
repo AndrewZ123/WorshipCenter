@@ -5,6 +5,7 @@ import {
   Box,
   VStack,
   HStack,
+  SimpleGrid,
   Text,
   Button,
   IconButton,
@@ -463,13 +464,13 @@ export default function ServiceTasks({
                     <HStack spacing="3" mt="1" flexWrap="wrap">
                       {assigneeName && (
                         <HStack spacing="1">
-                          <User size={12} className="text-gray-400" />
+                          <User size={12} color="var(--chakra-colors-gray-400)" />
                           <Text fontSize="xs" color={mutedText}>{assigneeName}</Text>
                         </HStack>
                       )}
                       {task.due_date && (
                         <HStack spacing="1">
-                          <Calendar size={12} className={overdue ? 'text-red-500' : 'text-gray-400'} />
+                          <Calendar size={12} color={overdue ? 'var(--chakra-colors-red-500)' : 'var(--chakra-colors-gray-400)'} />
                           <Text
                             fontSize="xs"
                             color={overdue ? 'red.500' : 'gray.500'}
@@ -482,7 +483,7 @@ export default function ServiceTasks({
                       {depTitle && (
                         <Tooltip label={`Depends on: ${depTitle}`} placement="top">
                           <HStack spacing="1">
-                            <Link2 size={12} className={depMet ? 'text-gray.400' : 'text-orange-500'} />
+                            <Link2 size={12} color={depMet ? 'var(--chakra-colors-gray-400)' : 'var(--chakra-colors-orange-500)'} />
                             <Text
                               fontSize="xs"
                               color={depMet ? 'gray.400' : 'orange.600'}
@@ -495,7 +496,7 @@ export default function ServiceTasks({
                       )}
                       {!depMet && !isDone && (
                         <HStack spacing="1">
-                          <AlertCircle size={12} className="text-orange-500" />
+                          <AlertCircle size={12} color="var(--chakra-colors-orange-500)" />
                           <Text fontSize="xs" color="orange.600">Waiting on dependency</Text>
                         </HStack>
                       )}
@@ -581,8 +582,8 @@ export default function ServiceTasks({
                   rows={2}
                 />
               </FormControl>
-              <HStack spacing="4" align="start">
-                <FormControl flex="1">
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing="4">
+                <FormControl>
                   <Text fontSize="sm" fontWeight="600" mb="1">Assign to (optional)</Text>
                   <Select
                     value={editingTask ? editingTask.assigned_team_member_id || '' : newTaskAssignee}
@@ -599,7 +600,7 @@ export default function ServiceTasks({
                     ))}
                   </Select>
                 </FormControl>
-                <FormControl flex="1">
+                <FormControl>
                   <Text fontSize="sm" fontWeight="600" mb="1">Priority</Text>
                   <Select
                     value={editingTask ? editingTask.priority || 'medium' : newTaskPriority}
@@ -616,9 +617,9 @@ export default function ServiceTasks({
                     <option value="urgent">Urgent</option>
                   </Select>
                 </FormControl>
-              </HStack>
-              <HStack spacing="4" align="start">
-                <FormControl flex="1">
+              </SimpleGrid>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing="4">
+                <FormControl>
                   <Text fontSize="sm" fontWeight="600" mb="1">Due date (optional)</Text>
                   <Input
                     type="datetime-local"
@@ -631,7 +632,7 @@ export default function ServiceTasks({
                     borderRadius="lg"
                   />
                 </FormControl>
-                <FormControl flex="1">
+                <FormControl>
                   <Text fontSize="sm" fontWeight="600" mb="1">Depends on (optional)</Text>
                   <Select
                     value={editingTask ? editingTask.depends_on_task_id || '' : newTaskDependsOn}
@@ -650,7 +651,7 @@ export default function ServiceTasks({
                       ))}
                   </Select>
                 </FormControl>
-              </HStack>
+              </SimpleGrid>
             </VStack>
           </ModalBody>
           <ModalFooter>

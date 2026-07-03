@@ -98,7 +98,7 @@ export default function SignupPage() {
   };
 
   return (
-    <Flex minH="100vh" align="center" justify="center" px={{ base: '4', md: '4' }} py={{ base: '6', md: '0' }}>
+    <Flex minH="100dvh" align="center" justify="center" px={{ base: '4', md: '4' }} py={{ base: '6', md: '0' }}>
       <Box w="full" maxW="440px">
         <VStack spacing={{ base: '4', md: '6' }} mb={{ base: '6', md: '8' }} textAlign="center">
           <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="800" color="brand.500">♫ WorshipCenter</Text>

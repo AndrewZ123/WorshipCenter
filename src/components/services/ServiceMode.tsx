@@ -243,7 +243,7 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         color={textColor}
         borderRadius="0"
         m="0"
-        h="100vh"
+        h="100dvh"
         maxW="100vw"
         overflow="hidden"
       >
@@ -320,7 +320,7 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         </Flex>
 
         {/* Main Content */}
-        <Flex h="calc(100vh - 73px)" direction={{ base: 'column', lg: 'row' }}>
+        <Flex h={{ base: 'calc(100dvh - 56px)', lg: 'calc(100vh - 73px)' }} direction={{ base: 'column', lg: 'row' }}>
           {/* Presenter Notes Panel */}
           {showPresenterNotes && (
             <Box

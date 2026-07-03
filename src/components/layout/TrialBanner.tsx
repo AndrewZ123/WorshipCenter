@@ -128,7 +128,7 @@ export function FloatingSubscribeCTA() {
   return (
     <Box
       position="fixed"
-      bottom="24px"
+      bottom={{ base: 'calc(24px + env(safe-area-inset-bottom))', md: '24px' }}
       right="24px"
       zIndex="1000"
       bg={bgColor}

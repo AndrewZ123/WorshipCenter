@@ -398,7 +398,7 @@ export default function DemoServicesPage() {
                   >
                     <Td fontWeight="500">
                       <HStack spacing="2">
-                        <Calendar size={14} className="text-gray-400" />
+                        <Calendar size={14} color="var(--chakra-colors-gray-400)" />
                         <Text>{formatServiceDate(service.date)}</Text>
                       </HStack>
                     </Td>

@@ -219,6 +219,7 @@ export default function SongsPage() {
             borderRadius="lg"
             border="1px solid"
             borderColor={borderColor}
+            aria-label="Search songs"
             _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 2px rgba(56, 178, 172, 0.2)' }}
           />
         </Box>
@@ -428,7 +429,7 @@ export default function SongsPage() {
                         <Box>
                           <Text fontWeight="600" color={headingColor}>{song.title}</Text>
                           <HStack spacing="2" mt="1">
-                            <Mic2 size={12} className="text-gray-400" />
+                            <Mic2 size={12} color="var(--chakra-colors-gray-400)" />
                             <Text fontSize="sm" color={subtextColor}>{song.artist || 'Unknown'}</Text>
                             <Text color={mutedText}>·</Text>
                             <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md">{song.default_key}</Badge>

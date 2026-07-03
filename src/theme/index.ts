@@ -7,6 +7,14 @@ const config: ThemeConfig = {
 
 const theme = extendTheme({
   config,
+  breakpoints: {
+    base: '0em',
+    sm: '30em',
+    md: '48em',
+    lg: '64em',
+    xl: '80em',
+    '2xl': '96em',
+  },
   fonts: {
     heading: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
     body: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,

@@ -151,7 +151,7 @@ export default function DemoUsagePage() {
             <Box flex="1" minW="140px">
               <Text fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500" mb="2">From</Text>
               <HStack>
-                <Calendar size={16} className="text-gray-400" />
+                <Calendar size={16} color="var(--chakra-colors-gray-400)" />
                 <Input
                   type="date"
                   value={dateFrom}
@@ -167,7 +167,7 @@ export default function DemoUsagePage() {
             <Box flex="1" minW="140px">
               <Text fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500" mb="2">To</Text>
               <HStack>
-                <Calendar size={16} className="text-gray-400" />
+                <Calendar size={16} color="var(--chakra-colors-gray-400)" />
                 <Input
                   type="date"
                   value={dateTo}

@@ -423,7 +423,7 @@ export default function ServicesPage() {
                   >
                     <Td fontWeight="500" color={textColor}>
                       <HStack spacing="2">
-                        <Calendar size={14} className="text-gray-400" />
+                        <Calendar size={14} color="var(--chakra-colors-gray-400)" />
                         <span>{formatServiceDate(service.date)}</span>
                       </HStack>
                     </Td>

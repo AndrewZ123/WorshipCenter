@@ -128,7 +128,7 @@ export default function DemoReportsPage() {
                   {data.upcomingPlanned} planned · {data.upcomingFinalized} finalized
                 </StatHelpText>
               </Stat>
-              <Calendar size={28} className="text-teal-500" />
+              <Calendar size={28} color="var(--chakra-colors-teal-500)" />
             </HStack>
           </CardBody>
         </Card>
@@ -143,7 +143,7 @@ export default function DemoReportsPage() {
                   {data.confirmedCount} of {data.totalAssignments} assignments
                 </StatHelpText>
               </Stat>
-              <CheckCircle size={28} className="text-green-500" />
+              <CheckCircle size={28} color="var(--chakra-colors-green-500)" />
             </HStack>
           </CardBody>
         </Card>
@@ -158,7 +158,7 @@ export default function DemoReportsPage() {
                   {data.declinedCount} declined
                 </StatHelpText>
               </Stat>
-              <XCircle size={28} className="text-red-500" />
+              <XCircle size={28} color="var(--chakra-colors-red-500)" />
             </HStack>
           </CardBody>
         </Card>
@@ -173,7 +173,7 @@ export default function DemoReportsPage() {
                   {data.completedTasks} of {data.totalTasks} tasks
                 </StatHelpText>
               </Stat>
-              <CheckSquare size={28} className="text-blue-500" />
+              <CheckSquare size={28} color="var(--chakra-colors-blue-500)" />
             </HStack>
           </CardBody>
         </Card>
@@ -182,7 +182,7 @@ export default function DemoReportsPage() {
       <Card bg={cardBg} border="1px solid" borderColor={borderColor} shadow="sm" mb={6}>
         <CardHeader pb={2}>
           <HStack spacing={2}>
-            <Users size={20} className="text-teal-500" />
+            <Users size={20} color="var(--chakra-colors-teal-500)" />
             <Heading size="sm">Team Participation</Heading>
           </HStack>
         </CardHeader>
@@ -241,7 +241,7 @@ export default function DemoReportsPage() {
         <Card bg={cardBg} border="1px solid" borderColor={borderColor} shadow="sm">
           <CardHeader pb={2}>
             <HStack spacing={2}>
-              <TrendingUp size={20} className="text-blue-500" />
+              <TrendingUp size={20} color="var(--chakra-colors-blue-500)" />
               <Heading size="sm">Service Status Breakdown</Heading>
             </HStack>
           </CardHeader>
@@ -249,21 +249,21 @@ export default function DemoReportsPage() {
             <VStack spacing={3} align="stretch">
               <HStack justify="space-between">
                 <HStack spacing={2}>
-                  <Clock size={16} className="text-gray-400" />
+                  <Clock size={16} color="var(--chakra-colors-gray-400)" />
                   <Text fontSize="sm">Planned (upcoming)</Text>
                 </HStack>
                 <Badge colorScheme="gray">{data.upcomingPlanned}</Badge>
               </HStack>
               <HStack justify="space-between">
                 <HStack spacing={2}>
-                  <CheckCircle size={16} className="text-teal-500" />
+                  <CheckCircle size={16} color="var(--chakra-colors-teal-500)" />
                   <Text fontSize="sm">Finalized (upcoming)</Text>
                 </HStack>
                 <Badge colorScheme="teal">{data.upcomingFinalized}</Badge>
               </HStack>
               <HStack justify="space-between">
                 <HStack spacing={2}>
-                  <Calendar size={16} className="text-gray-500" />
+                  <Calendar size={16} color="var(--chakra-colors-gray-500)" />
                   <Text fontSize="sm">Completed (past)</Text>
                 </HStack>
                 <Badge colorScheme="blue">{data.pastServices}</Badge>
@@ -275,7 +275,7 @@ export default function DemoReportsPage() {
         <Card bg={cardBg} border="1px solid" borderColor={borderColor} shadow="sm">
           <CardHeader pb={2}>
             <HStack spacing={2}>
-              <CheckSquare size={20} className="text-purple-500" />
+              <CheckSquare size={20} color="var(--chakra-colors-purple-500)" />
               <Heading size="sm">Task Health</Heading>
             </HStack>
           </CardHeader>

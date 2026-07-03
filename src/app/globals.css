@@ -44,16 +44,9 @@ html, body {
   }
 }
 
-/* Drawer sidebar safe area padding for mobile */
-@media (max-width: 1023px) {
-  .chakra-modal__content {
-    padding-top: env(safe-area-inset-top);
-  }
-
-  /* Add extra padding to sidebar logo in drawer */
-  .sidebar-logo {
-    padding-top: calc(20px + env(safe-area-inset-top)) !important;
-  }
+/* Add extra padding to sidebar logo in drawer */
+.sidebar-logo {
+  padding-top: calc(20px + env(safe-area-inset-top)) !important;
 }
 
 /* Mobile drag-and-drop optimizations */
@@ -99,10 +92,6 @@ html, body {
 
 /* Prevent horizontal scroll on mobile */
 @media (max-width: 1023px) {
-  html, body {
-    overflow-x: hidden;
-  }
-
   .main-content {
     overflow-x: hidden;
   }
@@ -117,10 +106,12 @@ html, body {
   /* Better touch targets for buttons */
   button, .chakra-button {
     min-height: 44px;
+    min-width: 44px;
   }
 
   /* Ensure inputs are touch-friendly */
-  input, .chakra-input {
+  input, .chakra-input,
+  textarea, .chakra-textarea {
     font-size: 16px !important; /* Prevents iOS zoom on focus */
   }
 
@@ -147,14 +138,14 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid #319795; /* teal.500 */
+  outline: 2px solid var(--chakra-colors-brand-500);
   outline-offset: 2px;
 }
 
 /* High contrast focus for better visibility */
 .chakra-button:focus-visible,
 .chakra-iconbutton:focus-visible {
-  box-shadow: 0 0 0 3px rgba(49, 151, 149, 0.4);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.4);
 }
 
 /* ============================================
@@ -254,7 +245,7 @@ textarea:focus-visible,
   position: absolute;
   top: -40px;
   left: 0;
-  background: #319795;
+  background: var(--chakra-colors-brand-500);
   color: white;
   padding: 8px 16px;
   z-index: 9999;
@@ -267,24 +258,7 @@ textarea:focus-visible,
   top: 0;
 }
 
-/* ============================================
-   LANDMARK REGIONS FOR SCREEN READERS
-   ============================================ */
-[role="banner"] { /* header */
-  /* Ensure proper landmark */
-}
 
-[role="navigation"] { /* nav */
-  /* Ensure proper landmark */
-}
-
-[role="main"] { /* main content */
-  /* Ensure proper landmark */
-}
-
-[role="contentinfo"] { /* footer */
-  /* Ensure proper landmark */
-}
 
 /* ============================================
    IMPROVED TAP TARGETS FOR ICON BUTTONS
@@ -396,35 +370,34 @@ body.dragging-active {
   /* Ensure drag handles are large enough for touch */
   .drag-handle,
   [data-dnd-kit-drag-handle="true"] {
-    min-width: 44px !important;
-    min-height: 44px !important;
-    min-height: var(--min-touch-target) !important;
+    min-width: var(--min-touch-target);
+    min-height: var(--min-touch-target);
   }
 
   /* Prevent text selection during drag */
   .sortable-item,
   [data-dnd-kit-draggable="true"] {
-    -webkit-user-select: none !important;
-    -moz-user-select: none !important;
-    -ms-user-select: none !important;
-    user-select: none !important;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
   }
 
   /* Prevent context menu on long press */
   .drag-handle,
   [data-dnd-kit-drag-handle="true"] {
-    -webkit-touch-callout: none !important;
+    -webkit-touch-callout: none;
   }
 }
 
 /* Ensure smooth drag on all devices */
 [data-dnd-kit-drag-handle="true"] {
   touch-action: none !important;
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
-  user-select: none !important;
-  -webkit-tap-highlight-color: transparent !important;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Visual feedback for dragging state */
@@ -438,22 +411,10 @@ body.dragging-active {
   pointer-events: none;
 }
 
-/* Prevent text copying on drag */
-* {
-  -webkit-user-drag: none !important;
-  user-select: none !important;
-}
-
-/* Allow text selection for input fields */
-input,
-textarea,
-[contenteditable="true"],
-.chakra-input,
-.chakra-textarea {
-  -webkit-user-select: text !important;
-  -moz-user-select: text !important;
-  -ms-user-select: text !important;
-  user-select: text !important;
+/* Prevent image drag during drag interactions */
+img {
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 /* ============================================
@@ -472,10 +433,6 @@ textarea,
   background: rgba(13, 148, 136, 0.2) !important;
 }
 
-/* Fix text-gray-500 on dark backgrounds - make it readable */
-.chakra-ui-dark [class*="text-gray-500"] {
-  color: #9CA3AF !important;
-}
 
 /* Fix gray.200 borders on dark backgrounds */
 .chakra-ui-dark [style*="border-color: var(--chakra-colors-gray-200)"] {
@@ -530,24 +487,6 @@ textarea,
 /* Fix division lines */
 .chakra-ui-dark hr {
   border-color: #374151 !important;
-}
-
-/* Fix Lucide icon brightness in dark mode */
-.chakra-ui-dark .lucide {
-  color: #9CA3AF;
-}
-
-.chakra-ui-dark .lucide.text-teal-600,
-.chakra-ui-dark [class*="text-teal-600"] {
-  color: #5EEAD4 !important;
-}
-
-.chakra-ui-dark [class*="text-gray-400"] {
-  color: #6B7280 !important;
-}
-
-.chakra-ui-dark [class*="text-gray-500"]:not(chakra) {
-  color: #9CA3AF !important;
 }
 
 .chakra-ui-dark [style*="color: var(--chakra-colors-gray-200)"] {

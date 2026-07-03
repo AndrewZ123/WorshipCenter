@@ -44,6 +44,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -156,6 +157,12 @@ export default function ServiceDetailClient() {
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 10, // Must drag 10px before activating (prevents accidental drags on mobile)
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -956,7 +963,7 @@ export default function ServiceDetailClient() {
                         <FormLabel fontWeight="600" fontSize="sm">Title</FormLabel>
                         <Input value={title} onChange={(e) => setTitle(e.target.value)} borderRadius="lg" />
                       </FormControl>
-                      <HStack spacing="4">
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing="4">
                         <FormControl>
                           <FormLabel fontWeight="600" fontSize="sm">Date</FormLabel>
                           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} borderRadius="lg" />
@@ -965,7 +972,7 @@ export default function ServiceDetailClient() {
                           <FormLabel fontWeight="600" fontSize="sm">Time</FormLabel>
                           <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} borderRadius="lg" />
                         </FormControl>
-                      </HStack>
+                      </SimpleGrid>
                       <FormControl>
                         <FormLabel fontWeight="600" fontSize="sm">Status</FormLabel>
                         <Select value={status} onChange={(e) => setStatus(e.target.value as ServiceStatus)} borderRadius="lg">
@@ -1202,9 +1209,9 @@ export default function ServiceDetailClient() {
                                     justifyContent="center"
                                   >
                                     {item.type === 'song' ? (
-                                      <Music size={16} className="text-teal-600" />
+                                      <Music size={16} color="var(--chakra-colors-teal-600)" />
                                     ) : (
-                                      <AlignLeft size={16} className="text-gray-500" />
+                                      <AlignLeft size={16} color="var(--chakra-colors-gray-500)" />
                                     )}
                                   </Box>
 
@@ -1213,10 +1220,10 @@ export default function ServiceDetailClient() {
 
                                   {/* Title */}
                                   <VStack spacing="0" align="start" flex="1">
-                                    <Text fontWeight="600" color={itemTitleColor}>{item.title}</Text>
+                                    <Text fontWeight="600" color={itemTitleColor} noOfLines={1}>{item.title}</Text>
                                     {item.assigned_to && (
                                       <HStack spacing="1">
-                                        <UserCheck size={12} className="text-gray-400" />
+                                        <UserCheck size={12} color="var(--chakra-colors-gray-400)" />
                                         <Text fontSize="xs" color="gray.500">{item.assigned_to}</Text>
                                       </HStack>
                                     )}
@@ -1242,6 +1249,7 @@ export default function ServiceDetailClient() {
                                           size="sm"
                                           variant="ghost"
                                           color="gray.400"
+                                          aria-label="Item actions"
                                           _hover={{ color: 'gray.600', bg: 'gray.100' }}
                                         />
                                         <Portal>
@@ -1289,9 +1297,9 @@ export default function ServiceDetailClient() {
                       }}
                     />
                   ) : (
-                    <div className="text-center py-12">
-                      <div className="text-gray-500">Loading...</div>
-                    </div>
+                    <Box textAlign="center" py="12">
+                      <Text color="gray.500">Loading...</Text>
+                    </Box>
                   )}
                 </TabPanel>
 
@@ -1305,18 +1313,18 @@ export default function ServiceDetailClient() {
                       isReadOnly={isReadOnly}
                     />
                   ) : (
-                    <div className="text-center py-12">
-                      <div className="text-gray-500">Loading...</div>
-                    </div>
+                    <Box textAlign="center" py="12">
+                      <Text color="gray.500">Loading...</Text>
+                    </Box>
                   )}
                 </TabPanel>
 
                 {/* Chat Tab */}
                 <TabPanel p="0">
                   {!church ? (
-                    <div className="text-center py-12">
-                      <div className="text-gray-500">Loading...</div>
-                    </div>
+                    <Box textAlign="center" py="12">
+                      <Text color="gray.500">Loading...</Text>
+                    </Box>
                   ) : (
                     <ServiceChat
                       serviceId={serviceId}

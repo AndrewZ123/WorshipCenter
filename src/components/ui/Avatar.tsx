@@ -80,7 +80,15 @@ export default function Avatar({
   const initial = name ? getInitial(name) : '?';
   const bgColor = name ? getAvatarColor(name) : 'gray.400';
   
-  // Show image if available
+  const commonProps = onClick ? {
+    as: 'button' as const,
+    onClick,
+    role: 'button' as const,
+    tabIndex: 0,
+    cursor: 'pointer',
+    'aria-label': name ? `${name}'s avatar` : 'User avatar',
+  } : {};
+
   if (src) {
     return (
       <Box
@@ -88,8 +96,8 @@ export default function Avatar({
         borderRadius="full"
         overflow="hidden"
         flexShrink={0}
-        onClick={onClick}
         className={className}
+        {...commonProps}
       >
         <Image
           src={src}
@@ -115,8 +123,7 @@ export default function Avatar({
       </Box>
     );
   }
-  
-  // Show initial circle
+
   return (
     <Box
       boxSize={boxSize}
@@ -126,8 +133,8 @@ export default function Avatar({
       alignItems="center"
       justifyContent="center"
       flexShrink={0}
-      onClick={onClick}
       className={className}
+      {...commonProps}
     >
       <Text color="white" fontSize={fontSize} fontWeight="600">
         {initial}

@@ -8,7 +8,7 @@ export default function OfflinePage() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        height: '100vh',
+        height: '100dvh',
         fontFamily: 'Inter, sans-serif',
         background: 'linear-gradient(135deg, #6B46C1 0%, #553C9A 100%)',
         color: 'white',

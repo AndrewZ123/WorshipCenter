@@ -90,14 +90,14 @@ function JoinForm() {
 
   if (pageLoading) {
     return (
-      <Flex minH="100vh" align="center" justify="center" bg="gray.50">
+      <Flex minH="100dvh" align="center" justify="center" bg="gray.50">
         <Spinner size="xl" color="brand.500" />
       </Flex>
     );
   }
 
   return (
-    <Flex minH="100vh" align="center" justify="center" bg="gray.50" px="4">
+    <Flex minH="100dvh" align="center" justify="center" bg="gray.50" px="4">
       <Box w="full" maxW="440px">
         <VStack spacing="6" mb="8" textAlign="center">
           <Text fontSize="3xl" fontWeight="800" color="brand.500">♫ WorshipCenter</Text>
@@ -171,7 +171,7 @@ function JoinForm() {
 export default function JoinPage() {
   return (
     <React.Suspense fallback={
-      <Flex minH="100vh" align="center" justify="center" bg="gray.50">
+      <Flex minH="100dvh" align="center" justify="center" bg="gray.50">
         <Spinner size="xl" color="brand.500" />
       </Flex>
     }>

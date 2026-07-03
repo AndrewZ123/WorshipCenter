@@ -68,7 +68,7 @@ const variantStyles: Record<ButtonVariant, object> = {
     bg: 'transparent',
     color: 'gray.400',
     p: 2,
-    minW: 'auto',
+    minW: { base: '44px', md: 'auto' },
     _hover: { bg: 'gray.100', color: 'gray.600' },
     _active: { bg: 'gray.200' },
   },
@@ -80,12 +80,14 @@ const sizeStyles: Record<ButtonSize, object> = {
     px: 2,
     py: 1,
     h: 'auto',
+    minW: { base: '44px', md: 'auto' },
   },
   sm: {
     fontSize: 'sm',
     px: 3,
     py: 1.5,
     h: 'auto',
+    minW: { base: '44px', md: 'auto' },
   },
   md: {
     fontSize: 'md',
@@ -198,8 +200,8 @@ export function IconButton({
     <Tooltip label={label} placement="top">
       <ChakraButton
         p={p}
-        minW="auto"
-        h="auto"
+        minW={{ base: '44px', md: 'auto' }}
+        h={{ base: '44px', md: 'auto' }}
         borderRadius="lg"
         bg={isActive ? 'teal.50' : 'transparent'}
         color={isActive ? 'teal.600' : 'gray.400'}

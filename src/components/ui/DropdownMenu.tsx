@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, VStack, Text, Icon, Portal } from '@chakra-ui/react';
+import { Box, VStack, Text, Icon, Portal, useColorModeValue } from '@chakra-ui/react';
 import { MoreVertical, Edit, Trash2, Copy, ExternalLink } from 'lucide-react';
 
 export interface DropdownItem {
@@ -24,6 +24,11 @@ export default function DropdownMenu({ items, trigger }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuBg = useColorModeValue('white', 'gray.800');
+  const menuBorder = useColorModeValue('gray.100', 'gray.700');
+  const menuText = useColorModeValue('gray.700', 'gray.200');
+  const itemHoverBg = useColorModeValue('gray.50', 'gray.700');
+  const itemDestructiveHover = useColorModeValue('red.50', 'red.900');
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -69,11 +74,11 @@ export default function DropdownMenu({ items, trigger }: DropdownMenuProps) {
             ref={menuRef}
             position="fixed"
             zIndex={50}
-            bg="white"
+            bg={menuBg}
             borderRadius="xl"
             boxShadow="lg"
             border="1px solid"
-            borderColor="gray.100"
+            borderColor={menuBorder}
             py={1}
             minW="160px"
             style={{
@@ -101,9 +106,9 @@ export default function DropdownMenu({ items, trigger }: DropdownMenuProps) {
                     width="100%"
                     minH="44px"
                     bg="transparent"
-                    color={item.variant === 'destructive' ? 'red.600' : 'gray.700'}
+                    color={item.variant === 'destructive' ? 'red.400' : menuText}
                     _hover={{
-                      bg: item.variant === 'destructive' ? 'red.50' : 'gray.50',
+                      bg: item.variant === 'destructive' ? itemDestructiveHover : itemHoverBg,
                     }}
                     fontSize="sm"
                     fontWeight="medium"

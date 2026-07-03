@@ -240,7 +240,7 @@ export default function DemoDashboardPage() {
           borderRadius="xl"
         >
           <VStack spacing="1">
-            <Calendar size={20} className="text-teal-600" />
+            <Calendar size={20} color="var(--chakra-colors-teal-600)" />
             <Text fontSize="sm" color="gray.600">New Service</Text>
           </VStack>
         </Button>
@@ -255,7 +255,7 @@ export default function DemoDashboardPage() {
           borderRadius="xl"
         >
           <VStack spacing="1">
-            <Music size={20} className="text-teal-600" />
+            <Music size={20} color="var(--chakra-colors-teal-600)" />
             <Text fontSize="sm" color="gray.600">Add Song</Text>
           </VStack>
         </Button>
@@ -270,7 +270,7 @@ export default function DemoDashboardPage() {
           borderRadius="xl"
         >
           <VStack spacing="1">
-            <Users size={20} className="text-teal-600" />
+            <Users size={20} color="var(--chakra-colors-teal-600)" />
             <Text fontSize="sm" color="gray.600">Add Member</Text>
           </VStack>
         </Button>
@@ -285,7 +285,7 @@ export default function DemoDashboardPage() {
           borderRadius="xl"
         >
           <VStack spacing="1">
-            <BarChart2 size={20} className="text-teal-600" />
+            <BarChart2 size={20} color="var(--chakra-colors-teal-600)" />
             <Text fontSize="sm" color="gray.600">Song Usage</Text>
           </VStack>
         </Button>

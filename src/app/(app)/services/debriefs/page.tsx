@@ -6,7 +6,7 @@ import { useStore } from '@/lib/StoreContext';
 import {
   Box, VStack, HStack, Text, Button, Select, SimpleGrid,
   Stat, StatLabel, StatNumber, StatHelpText,
-  Table, Thead, Tbody, Tr, Th, Td, Badge, Spinner, Center,
+  Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Spinner, Center,
   useColorModeValue, Card, CardBody, useDisclosure, Collapse,
   Divider, Tag, TagLabel, Flex,
 } from '@chakra-ui/react';
@@ -212,55 +212,57 @@ export default function ServiceLogPage() {
                     <span>Monthly Trends</span>
                   </HStack>
                 </Text>
-                <Table variant="simple" size="sm">
-                  <Thead>
-                    <Tr>
-                      <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Period</Th>
-                      <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Debriefs</Th>
-                      <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Engagement</Th>
-                      <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Flow</Th>
-                      <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Tech</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {trends.map((t) => {
-                      const avg = (t.avg_engagement + t.avg_flow + t.avg_tech) / 3;
-                      return (
-                        <Tr key={t.period} _hover={{ bg: hoverBg }}>
-                          <Td fontWeight="600" fontSize="sm">{t.period}</Td>
-                          <Td fontSize="sm">{t.total_debriefs}</Td>
-                          <Td fontSize="sm">
-                            <Badge
-                              colorScheme={t.avg_engagement >= 4 ? 'green' : t.avg_engagement >= 3 ? 'yellow' : 'red'}
-                              variant="subtle"
-                              borderRadius="full"
-                            >
-                              {t.avg_engagement}
-                            </Badge>
-                          </Td>
-                          <Td fontSize="sm">
-                            <Badge
-                              colorScheme={t.avg_flow >= 4 ? 'green' : t.avg_flow >= 3 ? 'yellow' : 'red'}
-                              variant="subtle"
-                              borderRadius="full"
-                            >
-                              {t.avg_flow}
-                            </Badge>
-                          </Td>
-                          <Td fontSize="sm">
-                            <Badge
-                              colorScheme={t.avg_tech >= 4 ? 'green' : t.avg_tech >= 3 ? 'yellow' : 'red'}
-                              variant="subtle"
-                              borderRadius="full"
-                            >
-                              {t.avg_tech}
-                            </Badge>
-                          </Td>
-                        </Tr>
-                      );
-                    })}
-                  </Tbody>
-                </Table>
+                <TableContainer overflowX="auto">
+                  <Table variant="simple" size="sm">
+                    <Thead>
+                      <Tr>
+                        <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Period</Th>
+                        <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Debriefs</Th>
+                        <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Engagement</Th>
+                        <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Flow</Th>
+                        <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide">Tech</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {trends.map((t) => {
+                        const avg = (t.avg_engagement + t.avg_flow + t.avg_tech) / 3;
+                        return (
+                          <Tr key={t.period} _hover={{ bg: hoverBg }}>
+                            <Td fontWeight="600" fontSize="sm">{t.period}</Td>
+                            <Td fontSize="sm">{t.total_debriefs}</Td>
+                            <Td fontSize="sm">
+                              <Badge
+                                colorScheme={t.avg_engagement >= 4 ? 'green' : t.avg_engagement >= 3 ? 'yellow' : 'red'}
+                                variant="subtle"
+                                borderRadius="full"
+                              >
+                                {t.avg_engagement}
+                              </Badge>
+                            </Td>
+                            <Td fontSize="sm">
+                              <Badge
+                                colorScheme={t.avg_flow >= 4 ? 'green' : t.avg_flow >= 3 ? 'yellow' : 'red'}
+                                variant="subtle"
+                                borderRadius="full"
+                              >
+                                {t.avg_flow}
+                              </Badge>
+                            </Td>
+                            <Td fontSize="sm">
+                              <Badge
+                                colorScheme={t.avg_tech >= 4 ? 'green' : t.avg_tech >= 3 ? 'yellow' : 'red'}
+                                variant="subtle"
+                                borderRadius="full"
+                              >
+                                {t.avg_tech}
+                              </Badge>
+                            </Td>
+                          </Tr>
+                        );
+                      })}
+                    </Tbody>
+                  </Table>
+                </TableContainer>
               </CardBody>
             </Card>
           )}
@@ -383,6 +385,7 @@ export default function ServiceLogPage() {
                               <span>Timing Comparison</span>
                             </HStack>
                           </Text>
+                          <Box overflowX="auto">
                           <Table variant="simple" size="xs">
                             <Thead>
                               <Tr>
@@ -413,6 +416,7 @@ export default function ServiceLogPage() {
                               })}
                             </Tbody>
                           </Table>
+                          </Box>
                         </Box>
                       )}
                       <Text fontSize="xs" color={subtextColor}>
