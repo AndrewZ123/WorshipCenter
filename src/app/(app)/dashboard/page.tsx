@@ -13,6 +13,7 @@ import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment, Service
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatServiceDate, formatShortDate, getGreeting } from '@/lib/formatDate';
 import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
+import ServiceDetailClient from '@/app/(app)/services/[id]/ServiceDetailClient';
 
 // Lucide icons
 import { 
@@ -198,6 +199,7 @@ export default function DashboardPage() {
   const [hasData, setHasData] = useState(false);
   const [dismissedPrompt, setDismissedPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -271,8 +273,12 @@ export default function DashboardPage() {
     );
   }
 
+  if (selectedServiceId) {
+    return <ServiceDetailClient serviceId={selectedServiceId} onBack={() => setSelectedServiceId(null)} />;
+  }
+
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box p={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} maxW="1100px" mx="auto">
       {/* Greeting Header */}
       <Box mb="8">
         <Text fontSize="2xl" fontWeight="bold" letterSpacing="tight">
@@ -320,7 +326,7 @@ export default function DashboardPage() {
                     cursor="pointer"
                     _hover={{ bg: hoverBg }}
                     transition="all 0.15s ease"
-                    onClick={() => router.push(`/services/${task.service_id}`)}
+                    onClick={() => setSelectedServiceId(task.service_id)}
                     justify="space-between"
                   >
                     <HStack spacing="3">
@@ -359,7 +365,7 @@ export default function DashboardPage() {
           </Flex>
           <VStack spacing="3" align="stretch">
             {upcomingServices.map((svc) => (
-              <ServiceCard key={svc.id} svc={svc} onClick={() => router.push(`/services/${svc.id}`)} />
+              <ServiceCard key={svc.id} svc={svc} onClick={() => setSelectedServiceId(svc.id)} />
             ))}
           </VStack>
         </Box>
@@ -371,7 +377,7 @@ export default function DashboardPage() {
           <Text fontSize="lg" fontWeight="600" color={textColor} mb="4">This Week</Text>
           <VStack spacing="3" align="stretch">
             {thisWeekServices.map((svc) => (
-              <ServiceCard key={svc.id} svc={svc} onClick={() => router.push(`/services/${svc.id}`)} />
+              <ServiceCard key={svc.id} svc={svc} onClick={() => setSelectedServiceId(svc.id)} />
             ))}
           </VStack>
         </Box>
@@ -487,7 +493,7 @@ export default function DashboardPage() {
                   cursor="pointer"
                   _hover={{ bg: hoverBg }}
                   transition="all 0.15s ease"
-                  onClick={() => router.push(`/services/${svc.id}`)}
+                  onClick={() => setSelectedServiceId(svc.id)}
                   justify="space-between"
                 >
                   <HStack spacing="3">

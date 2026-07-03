@@ -10,6 +10,7 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
+import ServiceDetailClient from '@/app/(app)/services/[id]/ServiceDetailClient';
 import type { ServiceTask } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatServiceDate } from '@/lib/formatDate';
@@ -29,6 +30,7 @@ export default function MyTasksPage() {
   const [tasks, setTasks] = useState<EnrichedTask[]>([]);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState(0);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -104,8 +106,12 @@ export default function MyTasksPage() {
     );
   }
 
+  if (selectedServiceId) {
+    return <ServiceDetailClient serviceId={selectedServiceId} onBack={() => setSelectedServiceId(null)} />;
+  }
+
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="900px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
       {/* Header */}
       <VStack spacing="2" align="start" mb="6">
         <Heading size="lg" color={headingColor}>My Tasks</Heading>
@@ -172,7 +178,7 @@ export default function MyTasksPage() {
                       _hover={{ boxShadow: 'md', borderColor: 'teal.200' }}
                       transition="all 0.15s ease"
                       cursor="pointer"
-                      onClick={() => task.service_id && router.push(`/services/${task.service_id}`)}
+                      onClick={() => task.service_id && setSelectedServiceId(task.service_id)}
                     >
                       <CardBody py="3">
                         <HStack spacing="3" align="start">
@@ -246,7 +252,7 @@ export default function MyTasksPage() {
                     borderColor={borderColor}
                     opacity={0.7}
                     cursor="pointer"
-                    onClick={() => task.service_id && router.push(`/services/${task.service_id}`)}
+                    onClick={() => task.service_id && setSelectedServiceId(task.service_id)}
                   >
                     <CardBody py="3">
                       <HStack spacing="3" align="start">

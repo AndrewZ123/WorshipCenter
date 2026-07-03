@@ -14,6 +14,7 @@ import { useStore } from '@/lib/StoreContext';
 import type { Song, SongUsage } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
+import SongDetailClient from './[id]/SongDetailClient';
 import { parseChordPro } from '@/lib/chordpro';
 import type { ChordProParsed } from '@/lib/chordpro';
 
@@ -40,6 +41,7 @@ export default function SongsPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importParsed, setImportParsed] = useState<ChordProParsed | null>(null);
   const [importing, setImporting] = useState(false);
+  const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
 
   // Delete
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -166,8 +168,12 @@ export default function SongsPage() {
     );
   }
 
+  if (selectedSongId) {
+    return <SongDetailClient songId={selectedSongId} onBack={() => setSelectedSongId(null)} />;
+  }
+
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       {/* Header */}
       <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} mb="6" flexWrap="wrap" gap="4" direction={{ base: 'column', md: 'row' }}>
         <Box>
@@ -295,12 +301,13 @@ export default function SongsPage() {
                   const usage = usageMap[song.id]; 
                   const timesUsed = usage?.count || 0;
                   const health = getRotationHealth(song.id);
-                  return (
+
+  return (
                     <Tr 
                       key={song.id} 
                       cursor="pointer"
                       transition="all 0.15s" 
-                      onClick={() => router.push(`/songs/${song.id}`)}
+                      onClick={() => setSelectedSongId(song.id)}
                       sx={{ 
                         borderLeft: '3px solid transparent',
                       }}
@@ -364,7 +371,7 @@ export default function SongsPage() {
                               _hover={{ color: actionHoverColor, bg: actionHoverBg }}
                             />
                             <MenuList borderRadius="xl" zIndex={50}>
-                              <MenuItem onClick={() => router.push(`/songs/${song.id}`)}>View Details</MenuItem>
+                              <MenuItem onClick={() => setSelectedSongId(song.id)}>View Details</MenuItem>
                               <MenuItem color="red.500" onClick={() => { setDeleteId(song.id); deleteDisclosure.onOpen(); }}>Delete</MenuItem>
                             </MenuList>
                           </Menu>
@@ -408,7 +415,7 @@ export default function SongsPage() {
                     transform: 'translateY(-1px)'
                   }} 
                   transition="all 0.15s"
-                  onClick={() => router.push(`/songs/${song.id}`)}
+                  onClick={() => setSelectedSongId(song.id)}
                   borderLeft="3px solid"
                   borderLeftColor="teal.500"
                 >
@@ -453,7 +460,7 @@ export default function SongsPage() {
                               _hover={{ color: actionHoverColor, bg: actionHoverBg }}
                             />
                             <MenuList borderRadius="xl" zIndex={50}>
-                              <MenuItem onClick={() => router.push(`/songs/${song.id}`)}>View Details</MenuItem>
+                              <MenuItem onClick={() => setSelectedSongId(song.id)}>View Details</MenuItem>
                               <MenuItem color="red.500" onClick={() => { setDeleteId(song.id); deleteDisclosure.onOpen(); }}>Delete</MenuItem>
                             </MenuList>
                           </Menu>

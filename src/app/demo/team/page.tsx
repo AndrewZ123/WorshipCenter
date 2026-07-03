@@ -120,7 +120,7 @@ export default function DemoTeamPage() {
   }
 
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       {/* Header */}
       <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} mb="6" flexWrap="wrap" gap="4" direction={{ base: 'column', md: 'row' }}>
         <Box>

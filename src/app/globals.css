@@ -1,34 +1,16 @@
 /* WorshipCenter - Global styles are handled by Chakra UI theme */
 /* This file provides mobile-first enhancements and accessibility support */
 
-/* CSS Custom Properties for Safe Areas */
 :root {
   --safe-area-inset-top: env(safe-area-inset-top, 0px);
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-area-inset-left: env(safe-area-inset-left, 0px);
-  --safe-area-inset-right: env(safe-area-inset-right, 0px);
-  --mobile-header-height: 56px;
+  --mobile-header-height: 48px;
   --min-touch-target: 44px;
 }
 
-/* iOS Safe Area Support */
 html, body {
   height: 100%;
-}
-
-/* Safe area padding for mobile devices with notches */
-@supports (padding: env(safe-area-inset-top)) {
-  .main-content {
-    padding-top: calc(56px + env(safe-area-inset-top));
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  @media (min-width: 1024px) {
-    .main-content {
-      padding-top: 0;
-      padding-bottom: 0;
-    }
-  }
+  overflow: hidden;
 }
 
 /* Fallback for browsers without safe area support */
@@ -42,11 +24,6 @@ html, body {
       padding-top: 0;
     }
   }
-}
-
-/* Add extra padding to sidebar logo in drawer */
-.sidebar-logo {
-  padding-top: calc(20px + env(safe-area-inset-top)) !important;
 }
 
 /* Mobile drag-and-drop optimizations */
@@ -368,6 +345,11 @@ body.dragging-active {
   [data-dnd-kit-drag-handle="true"] {
     -webkit-touch-callout: none;
   }
+}
+
+/* Hide bottom nav when keyboard is visible on mobile */
+body.keyboard-visible .bottom-nav {
+  display: none !important;
 }
 
 /* Ensure smooth drag on all devices */

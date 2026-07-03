@@ -157,7 +157,7 @@ export default function DemoDashboardPage() {
   };
 
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       {/* Welcome Header */}
       <Box mb="8">
         <Text fontSize="2xl" fontWeight="bold" color={textColor} letterSpacing="tight">

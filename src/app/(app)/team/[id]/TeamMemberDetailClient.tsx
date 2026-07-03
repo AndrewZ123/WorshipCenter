@@ -28,13 +28,13 @@ import {
 const roleLabel = (r: string) => r.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 // ========== Main Client Component ==========
-export default function TeamMemberDetailClient() {
+export default function TeamMemberDetailClient({ memberId: propMemberId, onBack }: { memberId?: string; onBack?: () => void } = {}) {
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
   const { church, user } = useAuth();
   const store = useStore();
-  const memberId = params.id as string;
+  const memberId = propMemberId || (params.id as string);
 
   const [member, setMember] = useState<TeamMember | null>(null);
   const [editing, setEditing] = useState(false);
@@ -139,7 +139,7 @@ export default function TeamMemberDetailClient() {
     try {
       await store.teamMembers.delete(memberId, church.id);
       toast({ title: 'Team member removed', status: 'success', duration: 2000 });
-      router.push('/team');
+      if (onBack) onBack(); else router.push('/team');
     } catch (error) {
       console.error('Error deleting member:', error);
       toast({ title: 'Error removing member', status: 'error', duration: 3000 });
@@ -180,7 +180,7 @@ export default function TeamMemberDetailClient() {
   };
 
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="800px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       {/* Header */}
       <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
         <HStack spacing="3" flex="1">
@@ -188,7 +188,7 @@ export default function TeamMemberDetailClient() {
             aria-label="Back" 
             icon={<ArrowLeft size={20} />} 
             variant="ghost" 
-            onClick={() => router.push('/team')}
+            onClick={() => onBack ? onBack() : router.push('/team')}
             minW="44px"
             color="gray.500"
             _hover={{ color: 'gray.700', bg: 'gray.100' }}

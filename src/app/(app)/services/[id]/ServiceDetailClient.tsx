@@ -58,14 +58,14 @@ import {
 
 import SortableItem from '@/components/ui/SortableItem';
 
-export default function ServiceDetailClient() {
+export default function ServiceDetailClient({ serviceId: propServiceId, onBack, initialTab }: { serviceId?: string; onBack?: () => void; initialTab?: string } = {}) {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
   const { user, church } = useAuth();
   const store = useStore();
-  const serviceId = params.id as string;
+  const serviceId = propServiceId || (params.id as string);
   const highlightedAssignmentId = searchParams.get('assignmentId');
 
   const [activeTab, setActiveTab] = useState(0);
@@ -203,10 +203,6 @@ export default function ServiceDetailClient() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [serviceId]);
-
   // Load task stats for the overview dashboard
   useEffect(() => {
     if (!church || !serviceId) return;
@@ -219,14 +215,14 @@ export default function ServiceDetailClient() {
     store.debriefs.getByService(serviceId, church.id).then(setDebriefEntries).catch(() => {});
   }, [serviceId, church]);
 
-  // Switch to Debrief tab if tab=debrief query param is present
+  // Switch to Debrief tab if tab=debrief query param or initialTab is provided
   useEffect(() => {
-    const tab = searchParams.get('tab');
+    const tab = searchParams.get('tab') || initialTab;
     if (tab === 'debrief') {
       setActiveTab(6);
       setPrimaryTab(2);
     }
-  }, [searchParams]);
+  }, [searchParams, initialTab]);
 
   // Switch to Schedule tab if assignmentId is present
   useEffect(() => {
@@ -241,8 +237,10 @@ export default function ServiceDetailClient() {
 
     try {
       setLoading(true);
+      console.log('[ServiceDetail] Loading service:', serviceId, 'church:', church.id);
       const svc = await store.services.getById(serviceId, church.id);
       if (svc) {
+        console.log('[ServiceDetail] Service found:', svc.id, svc.title);
         setService(svc);
         setTitle(svc.title);
         setDate(svc.date);
@@ -250,7 +248,8 @@ export default function ServiceDetailClient() {
         setStatus(svc.status);
         setNotes(svc.notes);
       } else {
-        router.push('/services');
+        console.error('[ServiceDetail] Service NOT FOUND:', serviceId);
+        // Don't redirect — show an inline error so the user knows what happened
         return;
       }
 
@@ -272,6 +271,10 @@ export default function ServiceDetailClient() {
       setLoading(false);
     }
   }, [serviceId, church, toast, router, store]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleSave = async () => {
     if (!church) return;
@@ -324,7 +327,7 @@ export default function ServiceDetailClient() {
 
     try {
       await store.services.delete(serviceId, church.id);
-      router.push('/services');
+      if (onBack) onBack(); else router.push('/services');
       toast({ title: 'Service deleted', status: 'info', duration: 2000 });
     } catch (error) {
       console.error('Error deleting service:', error);
@@ -638,7 +641,7 @@ export default function ServiceDetailClient() {
 
   if (loading) {
     return (
-      <Box p={{ base: '4', md: '8' }} maxW="900px" mx="auto">
+      <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
         {/* Header Skeleton */}
         <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
           <HStack spacing="3" flex="1">
@@ -674,7 +677,7 @@ export default function ServiceDetailClient() {
   }
 
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="900px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
       {/* Header */}
       <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
         <HStack spacing="3" flex="1">
@@ -682,7 +685,7 @@ export default function ServiceDetailClient() {
             aria-label="Back" 
             icon={<ArrowLeft size={20} />} 
             variant="ghost" 
-            onClick={() => router.push('/services')} 
+            onClick={() => onBack ? onBack() : router.push('/services')} 
             minW="44px"
             color="gray.500"
             _hover={{ color: 'gray.700', bg: 'gray.100' }}

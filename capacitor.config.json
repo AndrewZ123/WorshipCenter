@@ -10,7 +10,7 @@
   },
   "ios": {
     "contentInset": "never",
-    "backgroundColor": "#ffffff",
+    "backgroundColor": "#000000",
     "preferredContentMode": "mobile",
     "scrollEnabled": true
   },
@@ -28,7 +28,12 @@
     "StatusBar": {
       "style": "DARK",
       "backgroundColor": "#0D9488",
-      "overlaysWebView": false
+      "overlaysWebView": true
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "dark",
+      "resizeOnFullScreen": true
     },
     "CapacitorHttp": {
       "enabled": true

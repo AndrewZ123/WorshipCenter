@@ -209,7 +209,7 @@ export default function DemoSongDetailClient() {
   const files = DEMO_FILES.filter(f => f.song_id === songId || (songId.startsWith('song-') && f.song_id === 'song-1'));
 
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="800px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
         <HStack spacing="3" w={{ base: 'full', md: 'auto' }}>
           <IconButton aria-label="Back" icon={<BackIcon />} variant="ghost" onClick={() => router.push('/demo/songs')} />

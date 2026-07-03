@@ -55,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://m.stripe.com https://m.stripe.network; style-src 'self' 'unsafe-inline' 'unsafe-hashes' https://js.stripe.com https://m.stripe.network https://fonts.googleapis.com; img-src 'self' data: blob: https: https://*.stripe.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://m.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com https://m.stripe.network https://m.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"
         />
       </head>
-      <body style={{ margin: 0 }} suppressHydrationWarning>
+      <body style={{ margin: 0, overflow: 'hidden' }} suppressHydrationWarning>
         <ChakraProviderWrapper>
           <MobileBootstrap />
           <AuthProvider>

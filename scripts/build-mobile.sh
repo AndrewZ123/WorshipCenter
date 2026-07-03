@@ -45,7 +45,7 @@ trap cleanup EXIT
 
 rm -rf out
 rm -rf .next 2>/dev/null || true
-STATIC_EXPORT=true npx next build 2>&1
+NEXT_PUBLIC_STATIC_EXPORT=true STATIC_EXPORT=true npx next build 2>&1
 
 echo "✅ Static export complete — syncing Capacitor..."
 # Use cap copy (fast, no native rebuild) then try cap sync for plugin updates.

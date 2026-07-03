@@ -26,6 +26,34 @@ export async function initMobile(): Promise<void> {
   const { SplashScreen } = await import('@capacitor/splash-screen');
   const { App: CapacitorApp } = await import('@capacitor/app');
 
+  // ── Keyboard ──────────────────────────────────────────────
+  try {
+    const { Keyboard } = await import('@capacitor/keyboard');
+
+    Keyboard.addListener('keyboardWillShow', (info) => {
+      document.documentElement.style.setProperty('--keyboard-height', `${info.keyboardHeight}px`);
+      document.body.classList.add('keyboard-visible');
+    });
+
+    Keyboard.addListener('keyboardWillHide', () => {
+      document.documentElement.style.setProperty('--keyboard-height', '0px');
+      document.body.classList.remove('keyboard-visible');
+    });
+
+    // Scroll active input into view when keyboard appears
+    Keyboard.addListener('keyboardWillShow', () => {
+      // Small delay to let the keyboard animation start
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.getAttribute('contenteditable'))) {
+          active.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
+    });
+  } catch {
+    /* keyboard plugin not available — ignore */
+  }
+
   // ── Status bar ────────────────────────────────────────────
   try {
     await StatusBar.setStyle({ style: Style.Dark }); // light icons on purple

@@ -23,14 +23,20 @@ import {
   Badge,
   Divider,
 } from '@chakra-ui/react';
-import { FiCamera, FiUser, FiHome } from 'react-icons/fi';
+import { FiCamera, FiUser, FiHome, FiHelpCircle } from 'react-icons/fi';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { useTour } from '@/lib/tour/TourContext';
+import { TOUR_STEPS } from '@/lib/tour/steps';
+import { Sparkles } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
   const { user, church } = useAuth();
   const toast = useToast();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { start } = useTour();
   
   const [userName, setUserName] = useState('');
   const [churchName, setChurchName] = useState('');
@@ -191,7 +197,7 @@ export default function SettingsPage() {
   }
   
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="800px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       <VStack spacing={8} align="stretch">
         <Box>
           <Heading size="lg" mb={2} color={textColor}>Settings</Heading>
@@ -347,6 +353,45 @@ export default function SettingsPage() {
             </CardBody>
           </Card>
         )}
+
+        {/* Walkthrough Tour */}
+        <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
+          <CardBody>
+            <HStack spacing={4} align="flex-start">
+              <Box
+                p="3"
+                borderRadius="lg"
+                bg="teal.50"
+                color="teal.600"
+                flexShrink={0}
+              >
+                <Sparkles size={22} />
+              </Box>
+              <VStack align="stretch" spacing={3} flex="1">
+                <Box>
+                  <Heading size="md" color={textColor}>Walkthrough Tour</Heading>
+                  <Text fontSize="sm" color={subtextColor} mt="1">
+                    Take a guided tour of WorshipCenter to learn about every section and feature.
+                  </Text>
+                </Box>
+                <Button
+                  colorScheme="teal"
+                  size="sm"
+                  alignSelf="flex-start"
+                  leftIcon={<Sparkles size={16} />}
+                  onClick={() => {
+                    start(TOUR_STEPS);
+                    router.push('/dashboard');
+                  }}
+                  borderRadius="lg"
+                  fontWeight="600"
+                >
+                  Start Walkthrough
+                </Button>
+              </VStack>
+            </HStack>
+          </CardBody>
+        </Card>
       </VStack>
     </Box>
   );

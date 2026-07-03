@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/lib/api-base';
+import TeamMemberDetailClient from './[id]/TeamMemberDetailClient';
 import {
   Box, Text, HStack, Button, Table, Thead, Tbody, Tr, Th, Td,
   Flex, useDisclosure, Modal, ModalOverlay, ModalContent,
@@ -44,6 +45,7 @@ export default function TeamPage() {
   const [phone, setPhone] = useState('');
   const [rolesStr, setRolesStr] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
   // Groups state
   const [groups, setGroups] = useState<any[]>([]);
@@ -340,8 +342,12 @@ export default function TeamPage() {
     );
   }
 
+  if (selectedMemberId) {
+    return <TeamMemberDetailClient memberId={selectedMemberId} onBack={() => setSelectedMemberId(null)} />;
+  }
+
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       {/* Header */}
       <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} mb="6" flexWrap="wrap" gap="4" direction={{ base: 'column', md: 'row' }}>
         <Box>
@@ -398,7 +404,7 @@ export default function TeamPage() {
                     key={member.id} 
                     cursor="pointer"
                     transition="all 0.15s"
-                    onClick={() => router.push(`/team/${member.id}`)}
+                    onClick={() => setSelectedMemberId(member.id)}
                     sx={{ borderLeft: '3px solid transparent' }}
                     _hover={{ 
                       bg: hoverBg,
@@ -448,7 +454,7 @@ export default function TeamPage() {
                             _hover={{ color: 'gray.600', bg: 'gray.100' }}
                           />
                           <MenuList borderRadius="xl" zIndex={50}>
-                            <MenuItem onClick={() => router.push(`/team/${member.id}`)}>View Profile</MenuItem>
+                            <MenuItem onClick={() => setSelectedMemberId(member.id)}>View Profile</MenuItem>
                             <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email || !!member.user_id}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
                             </MenuItem>
@@ -495,7 +501,7 @@ export default function TeamPage() {
                   transform: 'translateY(-1px)'
                 }} 
                 transition="all 0.15s"
-                onClick={() => router.push(`/team/${member.id}`)}
+                onClick={() => setSelectedMemberId(member.id)}
                 borderLeft="3px solid"
                 borderLeftColor="teal.500"
               >
@@ -539,7 +545,7 @@ export default function TeamPage() {
                             _hover={{ color: 'gray.600', bg: 'gray.100' }}
                           />
                           <MenuList borderRadius="xl" zIndex={50}>
-                            <MenuItem onClick={() => router.push(`/team/${member.id}`)}>View Profile</MenuItem>
+                            <MenuItem onClick={() => setSelectedMemberId(member.id)}>View Profile</MenuItem>
                             <MenuItem onClick={() => handleCopyInvite(member)} isDisabled={!member.email || !!member.user_id}>
                               <HStack><Link2 size={16} /><Text>Copy Invite Link</Text></HStack>
                             </MenuItem>

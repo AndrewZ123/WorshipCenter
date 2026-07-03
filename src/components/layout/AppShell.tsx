@@ -15,14 +15,16 @@ import { db } from '@/lib/store';
 import type { Notification } from '@/lib/types';
 import { TrialBanner, TrialExpiredBanner, FloatingSubscribeCTA } from './TrialBanner';
 import BottomNav from './BottomNav';
-import { useSubscription } from '@/lib/useSubscription';
 import Avatar from '@/components/ui/Avatar';
+import TourOverlay from '@/components/onboarding/TourOverlay';
+import { useTour } from '@/lib/tour/TourContext';
+import { TOUR_STEPS } from '@/lib/tour/steps';
 
 // Lucide icons
 import { 
   Calendar, Home, Music, Users, BarChart2, CreditCard,
-  LogOut, Settings, Bell, Moon, Sun, Repeat, Church, Smartphone, X, MessageCircle, HelpCircle,
-  CheckSquare, FileBarChart
+  LogOut, Settings, Bell, Moon, Sun, Repeat, Church, MessageCircle, HelpCircle,
+  CheckSquare, FileBarChart, Sparkles
 } from 'lucide-react';
 
 interface NavItem {
@@ -52,12 +54,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { colorMode, toggleColorMode } = useColorMode();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-
-  // PWA install prompt
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [showIOSInstall, setShowIOSInstall] = useState(false);
-  const [installDismissed, setInstallDismissed] = useState(false);
+  const { start } = useTour();
 
   // Color mode values at top level
   const sidebarBg = useColorModeValue('white', 'gray.800');
@@ -73,27 +70,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const actionHoverBg = useColorModeValue('gray.100', 'gray.600');
   const activeNavBg = useColorModeValue('teal.50', 'rgba(13,148,136,0.15)');
   const activeNavColor = useColorModeValue('teal.700', 'teal.300');
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-
-    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    const isInStandalone = ('standalone' in navigator) && (navigator as { standalone?: boolean }).standalone;
-    if (isIOS && !isInStandalone) setShowIOSInstall(true);
-
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstall = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === 'accepted') setInstallPrompt(null);
-  };
 
   useEffect(() => {
     async function loadNotifications() {
@@ -122,12 +98,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   return (
     <Flex direction="column" h="full" bg={sidebarBg} borderRight="1px solid" borderColor={borderColor}>
       {/* Logo Header */}
-      <Box px="6" py="5">
+      <Box px="4" py="4">
         <HStack spacing={0}>
-          <Text fontSize="xl" fontWeight="800" color={logoColor} letterSpacing="-0.5px">
+          <Text fontSize="lg" fontWeight="800" color={logoColor} letterSpacing="-0.5px">
             Worship
           </Text>
-          <Text fontSize="xl" fontWeight="800" color={logoAccent} letterSpacing="-0.5px">
+          <Text fontSize="lg" fontWeight="800" color={logoAccent} letterSpacing="-0.5px">
             Center
           </Text>
         </HStack>
@@ -135,11 +111,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         {/* Workspace row */}
         {church && (
           <HStack
-            mt="3"
-            px="3"
-            py="2"
+            mt="2"
+            px="2"
+            py="1.5"
             bg={churchBg}
-            borderRadius="lg"
+            borderRadius="md"
             spacing="2"
           >
             <Church size={16} color={iconColor} />
@@ -153,26 +129,28 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       <Divider borderColor={borderColor} />
 
       {/* Primary Nav */}
-      <VStack spacing="1" px="3" py="4" align="stretch" flex="1">
+      <VStack spacing="0.5" px="2" py="3" align="stretch" flex="1">
         {NAV_ITEMS.map((item) => {
           if (user?.role === 'team' && TEAM_HIDDEN_ITEMS.includes(item.href)) return null;
 
           const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
           const IconComponent = item.icon;
           
+          const tourAttr = `nav-${item.href.replace(/^\//, '')}`;
           return (
             <HStack
               key={item.href}
-              px="4"
+              data-tour={tourAttr}
+              px="3"
               py="2.5"
-              borderRadius="lg"
+              borderRadius="md"
               cursor="pointer"
               bg={isActive ? activeNavBg : 'transparent'}
               color={isActive ? activeNavColor : textColor}
               fontWeight={isActive ? '600' : '500'}
               borderLeft={isActive ? '3px solid' : '3px solid transparent'}
               borderColor={isActive ? logoAccent : 'transparent'}
-              pl="calc(1rem + 3px)"
+              pl="calc(0.75rem + 3px)"
               _hover={{ bg: isActive ? activeNavBg : hoverBg, color: isActive ? activeNavColor : logoColor }}
               transition="all 0.15s ease"
               onClick={() => handleNav(item.href)}
@@ -182,14 +160,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               <Box flexShrink={0}>
                 <IconComponent size={20} />
               </Box>
-              <Text fontSize="sm">{item.label}</Text>
+              <Text fontSize="sm" fontWeight="500">{item.label}</Text>
             </HStack>
           );
         })}
       </VStack>
 
       {/* Dark mode toggle */}
-      <Box px="6" py="3" borderTop="1px solid" borderColor={borderColor}>
+      <Box px="4" py="3" borderTop="1px solid" borderColor={borderColor}>
         <HStack justify="space-between">
           <HStack spacing="2">
             {colorMode === 'light' ? <Moon size={16} /> : <Sun size={16} />}
@@ -205,66 +183,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         </HStack>
       </Box>
 
-      {/* PWA Install chip */}
-      {!installDismissed && (installPrompt || showIOSInstall) && (
-        <Box
-          mx="3" mb="2" px="3" py="2"
-          borderRadius="lg"
-          bg={activeNavBg}
-          border="1px solid"
-          borderColor={useColorModeValue('teal.100', 'teal.800')}
-        >
-          <HStack justify="space-between">
-            <HStack spacing="2">
-              <Smartphone size={14} color="var(--chakra-colors-teal-600)" />
-              <Text fontSize="xs" color={activeNavColor} fontWeight="500">
-                Install App
-              </Text>
-            </HStack>
-            <HStack spacing="1">
-              {installPrompt && (
-                <Box
-                  as="button"
-                  fontSize="xs"
-                  color={logoAccent}
-                  fontWeight="600"
-                  onClick={handleInstall}
-                  cursor="pointer"
-                  _hover={{ color: 'teal.400' }}
-                >
-                  Install
-                </Box>
-              )}
-              <Box
-                as="button"
-                p="1"
-                color={iconColor}
-                _hover={{ color: textColor }}
-                onClick={() => setInstallDismissed(true)}
-                cursor="pointer"
-              >
-                <X size={12} />
-              </Box>
-            </HStack>
-          </HStack>
-        </Box>
-      )}
-
       {/* Notifications + User section */}
       {user && (
-        <Box px="4" py="4" borderTop="1px solid" borderColor={borderColor}>
+        <Box px="3" py="2" borderTop="1px solid" borderColor={borderColor}>
           {/* Notification bell */}
           <Popover placement="top-start">
             <PopoverTrigger>
               <HStack
-                spacing="3" px="3" py="2" borderRadius="lg"
+                spacing="2" px="2" py="2" borderRadius="md"
                 cursor="pointer" _hover={{ bg: hoverBg }} transition="all 0.15s ease"
-                mb="2" position="relative"
+                mb="1" position="relative"
                 role="button"
                 tabIndex={0}
                 aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
               >
-                <Bell size={20} />
+                <Bell size={18} />
                 <Text fontSize="sm" color={textColor}>Notifications</Text>
                 {unreadCount > 0 && (
                   <Badge
@@ -325,7 +258,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
           <Menu placement="top-start">
             <MenuButton w="full">
-              <HStack spacing="3" px="2" py="2" borderRadius="lg" _hover={{ bg: hoverBg }} transition="all 0.15s ease">
+              <HStack spacing="2" px="2" py="2" borderRadius="md" _hover={{ bg: hoverBg }} transition="all 0.15s ease">
                 <Avatar size="sm" name={user.name} src={user.avatar_url} />
                 <Box flex="1" textAlign="left">
                   <Text fontSize="sm" fontWeight="600" noOfLines={1}>{user.name}</Text>
@@ -358,6 +291,13 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               >
                 Help & Support
               </MenuItem>
+              <MenuItem
+                icon={<Sparkles size={16} />}
+                onClick={() => { start(TOUR_STEPS); onClose?.(); }}
+                fontSize="sm"
+              >
+                Take the Tour
+              </MenuItem>
               <Divider my={1} />
               <MenuItem
                 icon={<LogOut size={16} />}
@@ -384,6 +324,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const logoAccent = useColorModeValue('teal.600', 'teal.300');
 
   return (
+    <>
+      <TourOverlay />
       <Flex h="100dvh" overflow="hidden">
       {/* Desktop sidebar */}
       <Box
@@ -412,12 +354,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           paddingTop: 'env(safe-area-inset-top)',
         }}
       >
-        <Flex h="56px" align="center" justify="center" px="4">
+        <Flex h="48px" align="center" justify="center" px="4">
           <HStack spacing={0}>
-            <Text fontSize="lg" fontWeight="800" color={logoColor} letterSpacing="-0.5px">
+            <Text fontSize="md" fontWeight="800" color={logoColor} letterSpacing="-0.5px">
               Worship
             </Text>
-            <Text fontSize="lg" fontWeight="800" color={logoAccent} letterSpacing="-0.5px">
+            <Text fontSize="md" fontWeight="800" color={logoAccent} letterSpacing="-0.5px">
               Center
             </Text>
           </HStack>
@@ -428,15 +370,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Drawer isOpen={isOpen} placement="left" onClose={onClose} size="xs">
         <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
           <DrawerContent 
-            maxW="260px"
-            borderRadius="0 16px 16px 0"
-            boxShadow="2xl"
+            maxW="240px"
+            borderRadius="0 12px 12px 0"
+            boxShadow="xl"
             m="0"
+            sx={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           <DrawerCloseButton 
-            size="lg" 
-            top="16px" 
-            right="16px"
+            size="md" 
+            top="12px" 
+            right="12px"
             zIndex="20"
             borderRadius="full"
           />
@@ -448,14 +391,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <Box 
-        flex="1" 
+        flex="1"
+        minH="0"
         overflowY={isOpen ? 'hidden' : 'auto'}
         overflowX="hidden"
         bg={mainBg}
         className="main-content"
         sx={{
-          paddingTop: ['calc(56px + env(safe-area-inset-top))', null, null, '0'],
-          paddingBottom: { base: 'calc(56px + env(safe-area-inset-bottom))', lg: '0' },
+          paddingTop: ['calc(48px + env(safe-area-inset-top))', null, null, '0'],
+          paddingBottom: { base: 'calc(48px + env(safe-area-inset-bottom))', lg: '0' },
         }}
       >
         {/* Trial status banners */}
@@ -465,13 +409,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Box w="full">
           {children}
         </Box>
-        
-        {/* Bottom navigation for mobile */}
-        <BottomNav onOpenDrawer={onOpen} />
-
-        {/* Floating subscribe CTA for trial users */}
-        <FloatingSubscribeCTA />
       </Box>
+
+      {/* Bottom navigation - outside scroll container */}
+      <BottomNav onOpenDrawer={onOpen} />
+
+      {/* Floating subscribe CTA for trial users */}
+      <FloatingSubscribeCTA />
     </Flex>
+    </>
   );
 }

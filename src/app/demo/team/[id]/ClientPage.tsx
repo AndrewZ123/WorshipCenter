@@ -108,7 +108,7 @@ export default function DemoTeamMemberDetailClient() {
   };
 
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="800px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       <HStack mb="6" spacing="3">
         <IconButton
           aria-label="Back to team"

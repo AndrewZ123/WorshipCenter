@@ -9,6 +9,7 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
+import ServiceDetailClient from '@/app/(app)/services/[id]/ServiceDetailClient';
 import type { Song, Service, SongUsage, ServiceItem } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatShortDate } from '@/lib/formatDate';
@@ -30,6 +31,7 @@ export default function UsagePage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -142,8 +144,12 @@ export default function UsagePage() {
     );
   }
 
+  if (selectedServiceId) {
+    return <ServiceDetailClient serviceId={selectedServiceId} onBack={() => setSelectedServiceId(null)} />;
+  }
+
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       {/* Header */}
       <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} mb="6" flexWrap="wrap" gap="4" direction={{ base: 'column', md: 'row' }}>
         <Box>
@@ -287,7 +293,7 @@ export default function UsagePage() {
                         color="teal.600"
                         cursor="pointer"
                         _hover={{ textDecoration: 'underline' }}
-                        onClick={() => router.push(`/services/${row.serviceId}`)}
+                        onClick={() => setSelectedServiceId(row.serviceId)}
                       >
                         {row.serviceTitle}
                       </Text>
@@ -332,7 +338,7 @@ export default function UsagePage() {
                     color="teal.600" 
                     cursor="pointer"
                     _hover={{ textDecoration: 'underline' }}
-                    onClick={() => router.push(`/services/${row.serviceId}`)}
+                    onClick={() => setSelectedServiceId(row.serviceId)}
                   >
                     {row.serviceTitle}
                   </Text>

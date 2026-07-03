@@ -15,11 +15,14 @@ import {
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import Avatar from '@/components/ui/Avatar';
+import TourOverlay from '@/components/onboarding/TourOverlay';
+import { TourProvider, useTour } from '@/lib/tour/TourContext';
+import { TOUR_STEPS } from '@/lib/tour/steps';
 
 // Lucide icons
 import { 
   Calendar, Home, Music, Users, BarChart2, CreditCard, Menu as MenuIcon,
-  RefreshCw, ExternalLink, Moon, Repeat, Building2, PieChart, MessageSquare, CheckSquare
+  RefreshCw, ExternalLink, Moon, Repeat, Building2, PieChart, MessageSquare, CheckSquare, Sparkles
 } from 'lucide-react';
 
 interface NavItem {
@@ -102,6 +105,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
   const { user, church } = useDemo();
   const { colorMode, toggleColorMode } = useColorMode();
+  const { start } = useTour();
 
   const sidebarBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -152,9 +156,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/demo' && pathname.startsWith(item.href));
           const IconComponent = item.icon;
+          const tourAttr = `nav-${item.href.replace(/^\/demo\/?/, '') || 'dashboard'}`;
           return (
             <HStack
               key={item.href}
+              data-tour={tourAttr}
               px="4"
               py="2.5"
               borderRadius="lg"
@@ -183,9 +189,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         {ADMIN_NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href;
           const IconComponent = item.icon;
+          const tourAttr = `nav-${item.href.replace(/^\/demo\/?/, '') || 'dashboard'}`;
           return (
             <HStack
               key={item.href}
+              data-tour={tourAttr}
               px="4"
               py="2.5"
               borderRadius="lg"
@@ -241,6 +249,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             </MenuButton>
             <MenuList borderRadius="xl" zIndex={50}>
               <MenuItem
+                icon={<Sparkles size={16} />}
+                onClick={() => { start(TOUR_STEPS); onClose?.(); }}
+                fontSize="sm"
+                borderRadius="lg"
+              >
+                Take the Tour
+              </MenuItem>
+              <MenuItem
                 icon={<ExternalLink size={16} />}
                 as={NextLink}
                 href={process.env.NEXT_PUBLIC_APP_URL + '/signup' || '/signup'}
@@ -274,6 +290,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
 
   return (
     <Flex h="100dvh" overflow="hidden" direction="column">
+      <TourOverlay />
       <DemoBanner />
       
       <Flex flex="1" overflow="hidden">
@@ -304,8 +321,8 @@ function DemoShell({ children }: { children: React.ReactNode }) {
           sx={{
             paddingTop: 'env(safe-area-inset-top)',
           }}
-        >
-          <Flex h="56px" align="center" px="4">
+          >
+          <Flex h="48px" align="center" px="4">
             <IconButton
               aria-label="Open menu"
               icon={<MenuIcon size={24} />}
@@ -332,11 +349,11 @@ function DemoShell({ children }: { children: React.ReactNode }) {
         <Drawer isOpen={isOpen} placement="left" onClose={onClose} size="xs">
           <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
           <DrawerContent 
-            maxW="280px"
-            borderRadius="0 16px 16px 0"
-            boxShadow="2xl"
+            maxW="240px"
+            borderRadius="0 12px 12px 0"
+            boxShadow="xl"
             m="0"
-            mt="env(safe-area-inset-top)"
+            sx={{ paddingTop: 'env(safe-area-inset-top)' }}
           >
             <DrawerCloseButton 
               size="lg" 
@@ -353,15 +370,18 @@ function DemoShell({ children }: { children: React.ReactNode }) {
 
         {/* Main content */}
         <Box 
-          flex="1" 
+          flex="1"
+          minH="0"
           overflowY="auto" 
           overflowX="hidden"
           bg={mainBg}
           className="main-content"
-          sx={{
-            paddingTop: ['calc(100px + env(safe-area-inset-top))', null, null, '0'],
+        sx={{
+            paddingTop: ['calc(92px + env(safe-area-inset-top))', null, null, '0'],
+            paddingBottom: ['env(safe-area-inset-bottom)', null, null, '0'],
             '@media (min-width: 62em)': {
               paddingTop: '0',
+              paddingBottom: '0',
             },
           }}
         >
@@ -386,7 +406,9 @@ function DemoLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <DemoAuthProvider>
       <StoreProvider store={demoStore}>
-        <DemoShell>{children}</DemoShell>
+        <TourProvider>
+          <DemoShell>{children}</DemoShell>
+        </TourProvider>
       </StoreProvider>
     </DemoAuthProvider>
   );

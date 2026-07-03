@@ -9,6 +9,7 @@ import { db } from '@/lib/store';
 import AppShell from '@/components/layout/AppShell';
 import { SubscriptionGate } from '@/components/layout/SubscriptionGate';
 import { SubscriptionProvider } from '@/components/providers/SubscriptionProvider';
+import { TourProvider } from '@/lib/tour/TourContext';
 import { Center, Spinner, VStack, Text } from '@chakra-ui/react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -68,9 +69,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <StoreProvider store={db}>
       <SubscriptionProvider>
-        <AppShell>
-          {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
-        </AppShell>
+        <TourProvider>
+          <AppShell>
+            {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
+          </AppShell>
+        </TourProvider>
       </SubscriptionProvider>
     </StoreProvider>
   );

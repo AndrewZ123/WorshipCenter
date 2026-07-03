@@ -78,14 +78,14 @@ const YoutubeIcon = () => (
 );
 
 // ========== Main Client Component ==========
-export default function SongDetailClient() {
+export default function SongDetailClient({ songId: propSongId, onBack }: { songId?: string; onBack?: () => void } = {}) {
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
   const { user, church } = useAuth();
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const songId = params.id as string;
+  const songId = propSongId || (params.id as string);
 
   const [song, setSong] = useState<Song | null>(null);
   const [files, setFiles] = useState<SongFile[]>([]);
@@ -202,7 +202,7 @@ export default function SongDetailClient() {
     if (!church) return;
     await store.songs.delete(songId, church.id);
     toast({ title: 'Song deleted', status: 'info', duration: 2000 });
-    router.push('/songs');
+    if (onBack) onBack(); else router.push('/songs');
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -260,7 +260,7 @@ export default function SongDetailClient() {
   const health = getRotationHealth();
 
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="800px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       {/* Header */}
       <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
         <HStack spacing="3" flex="1">
@@ -268,7 +268,7 @@ export default function SongDetailClient() {
             aria-label="Back" 
             icon={<ArrowLeft size={20} />} 
             variant="ghost" 
-            onClick={() => router.push('/songs')}
+            onClick={() => onBack ? onBack() : router.push('/songs')}
             minW="44px"
             color="gray.500"
             _hover={{ color: 'gray.700', bg: 'gray.100' }}

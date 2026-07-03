@@ -42,7 +42,7 @@ export default function DemoBillingPage() {
   };
 
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       <VStack spacing={8} align="stretch">
         <Box>
           <Heading size="lg" mb={2} color={textColor}>Billing & Subscription</Heading>

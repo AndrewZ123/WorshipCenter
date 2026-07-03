@@ -14,6 +14,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
 import type { Service, ServiceTemplate, ServiceDebriefPopulated } from '@/lib/types';
+import ServiceDetailClient from './[id]/ServiceDetailClient';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
@@ -57,6 +58,8 @@ export default function ServicesPage() {
 
   // Templates
   const [templates, setTemplates] = useState<ServiceTemplate[]>([]);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const [selectedServiceTab, setSelectedServiceTab] = useState<string | undefined>(undefined);
   const [showTemplates, setShowTemplates] = useState(false);
   const templateCreateModal = useDisclosure();
   const generateModal = useDisclosure();
@@ -173,7 +176,7 @@ export default function ServicesPage() {
         generateModal.onClose();
         setGenerateTemplateId(null);
         setGenerateDate('');
-        router.push(`/services/${svc.id}`);
+        setSelectedServiceId(svc.id);
       }
     } catch (error) {
       toast({ title: 'Error generating service', status: 'error', duration: 3000 });
@@ -207,8 +210,18 @@ export default function ServicesPage() {
     );
   }
 
+  if (selectedServiceId) {
+    return (
+      <ServiceDetailClient
+        serviceId={selectedServiceId}
+        onBack={() => { setSelectedServiceId(null); setSelectedServiceTab(undefined); }}
+        initialTab={selectedServiceTab}
+      />
+    );
+  }
+
   return (
-    <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box p={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} maxW="1100px" mx="auto">
       {/* Page Header */}
       <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} mb="6" flexWrap="wrap" gap="4" direction={{ base: 'column', md: 'row' }}>
         <Box>
@@ -416,7 +429,7 @@ export default function ServicesPage() {
                     cursor="pointer" 
                     _hover={{ bg: hoverBg }} 
                     transition="background 0.15s ease" 
-                    onClick={() => router.push(`/services/${service.id}`)}
+                    onClick={() => setSelectedServiceId(service.id)}
                     borderLeft="3px solid transparent"
                     _focusWithin={{ borderLeftColor: 'teal.500' }}
                     sx={{ '&:hover': { borderLeftColor: 'teal.300' } }}
@@ -472,7 +485,7 @@ export default function ServicesPage() {
                   transform: 'translateY(-1px)',
                 }}
                 transition="all 0.15s ease" 
-                onClick={() => router.push(`/services/${service.id}`)}
+                onClick={() => setSelectedServiceId(service.id)}
               >
                 <CardBody py="3" px="4">
                   <Flex justify="space-between" align="start">

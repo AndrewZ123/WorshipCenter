@@ -37,16 +37,19 @@ export default function BottomNav({ onOpenDrawer }: { onOpenDrawer?: () => void 
       bg={bg}
       borderTop="1px solid"
       borderColor={borderColor}
+      className="bottom-nav"
       sx={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <Flex h="56px" align="center" justify="space-around" px="2">
+      <Flex h="48px" align="center" justify="space-around" px="2">
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
+          const tourAttr = item.href ? `nav-${item.href.replace(/^\//, '')}` : undefined;
 
           return (
             <Flex
               key={item.label}
+              {...(tourAttr ? { 'data-tour': tourAttr } : {})}
               direction="column"
               align="center"
               justify="center"
@@ -68,8 +71,8 @@ export default function BottomNav({ onOpenDrawer }: { onOpenDrawer?: () => void 
               _hover={{ color: activeColor }}
               transition="color 0.15s ease"
             >
-              <Icon size={22} />
-              <Text fontSize="10px" fontWeight={active ? '600' : '500'} mt="2px">
+              <Icon size={20} />
+              <Text fontSize="10px" fontWeight={active ? '600' : '500'} mt="1px">
                 {item.label}
               </Text>
             </Flex>
