@@ -47,6 +47,10 @@ function formatRole(r: string): string {
   return r.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+function firstName(full: string): string {
+  return full.split(' ')[0];
+}
+
 function detailRow(label: string, value: string): string {
   return `<span class="detail-row"><strong>${label}</strong>${value}</span>`;
 }
@@ -84,7 +88,7 @@ export function serviceInvitationEmail(p: ServiceInviteParams): { html: string; 
   const date = formatDate(p.serviceDate);
   const role = formatRole(p.role);
   const html = baseLayout(`
-    <p>Hi ${p.memberName},</p>
+    <p>Hi ${firstName(p.memberName)},</p>
     <p>You've been scheduled to serve at <strong>${p.churchName}</strong>.</p>
     <div class="detail-box">
       ${detailRow('Service:', p.serviceTitle)}
@@ -107,7 +111,7 @@ export function serviceReminderEmail(p: ReminderParams): { html: string; text: s
   const date = formatDate(p.serviceDate);
   const role = formatRole(p.role);
   const html = baseLayout(`
-    <p>Hi ${p.memberName},</p>
+    <p>Hi ${firstName(p.memberName)},</p>
     <p>Quick reminder — you're serving at <strong>${p.churchName}</strong> soon!</p>
     <div class="detail-box">
       ${detailRow('Service:', p.serviceTitle)}
@@ -129,7 +133,7 @@ export function assignmentConfirmedEmail(p: ConfirmedParams): { html: string; te
   const date = formatDate(p.serviceDate);
   const role = formatRole(p.role);
   const html = baseLayout(`
-    <p>Thanks ${p.memberName}!</p>
+    <p>Thanks ${firstName(p.memberName)}!</p>
     <p>You're confirmed to serve at <strong>${p.churchName}</strong>.</p>
     <div class="detail-box">
       ${detailRow('Service:', p.serviceTitle)}
@@ -149,9 +153,9 @@ interface DeclinedParams {
 export function assignmentDeclinedEmail(p: DeclinedParams): { html: string; text: string } {
   const role = formatRole(p.role);
   const html = baseLayout(`
-    <p><strong>${p.memberName}</strong> has declined the <strong>${role}</strong> assignment for <strong>${p.serviceTitle}</strong>.</p>
+    <p><strong>${firstName(p.memberName)}</strong> has declined the <strong>${role}</strong> assignment for <strong>${p.serviceTitle}</strong>.</p>
     <p>You may want to find a replacement as soon as possible.</p>
   `, p.churchName);
-  const text = `${p.memberName} declined ${role} for ${p.serviceTitle} at ${p.churchName}.`;
+  const text = `${firstName(p.memberName)} declined ${role} for ${p.serviceTitle} at ${p.churchName}.`;
   return { html, text };
 }
