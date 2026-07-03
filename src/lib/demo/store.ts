@@ -15,6 +15,8 @@ import type {
   Invite,
   ChatMessage,
   ChatMessagePopulated,
+  RehearsalLog,
+  RehearsalStats,
 } from '@/lib/types';
 
 // Get the demo context type from the context file
@@ -28,6 +30,7 @@ type DemoContextType = {
   assignments: ServiceAssignment[];
   songUsage: SongUsage[];
   templates: ServiceTemplate[];
+  rehearsalLogs: RehearsalLog[];
   createSong: (song: Omit<Song, 'id' | 'created_at'>) => Song;
   updateSong: (id: string, updates: Partial<Song>) => Song;
   deleteSong: (id: string) => boolean;
@@ -625,6 +628,118 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       getMembers: async (_channelId: string): Promise<any[]> => [],
       addMember: async (_channelId: string, _userId: string): Promise<any> => null,
       getMessages: async (_channelId: string): Promise<any[]> => [],
+    },
+
+    // ─── Rehearsal Tracking (demo) ─────────────────────────────────────
+    rehearsals: {
+      getByService: async (serviceId: string, _churchId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        const logs = demo.rehearsalLogs.filter(l => l.service_id === serviceId);
+        return logs.map(l => {
+          const member = demo.teamMembers.find(tm => tm.id === l.team_member_id);
+          return { ...l, team_members: member ? { name: member.name } : { name: 'Unknown' } };
+        });
+      },
+
+      getByTeamMember: async (serviceId: string, teamMemberId: string, _churchId: string): Promise<RehearsalLog[]> => {
+        const demo = getDemoContext();
+        return demo.rehearsalLogs.filter(l => l.service_id === serviceId && l.team_member_id === teamMemberId);
+      },
+
+      upsert: async (
+        serviceId: string,
+        teamMemberId: string,
+        songId: string,
+        rehearsed: boolean,
+        _churchId: string,
+      ): Promise<RehearsalLog> => {
+        const demo = getDemoContext();
+        const existing = demo.rehearsalLogs.findIndex(
+          l => l.service_id === serviceId && l.team_member_id === teamMemberId && l.song_id === songId
+        );
+        if (existing >= 0) {
+          demo.rehearsalLogs[existing] = {
+            ...demo.rehearsalLogs[existing],
+            rehearsed,
+            rehearsed_at: rehearsed ? new Date().toISOString() : null,
+            updated_at: new Date().toISOString(),
+          };
+          return demo.rehearsalLogs[existing];
+        }
+        const newLog: RehearsalLog = {
+          id: `demo-rl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          church_id: _churchId,
+          service_id: serviceId,
+          team_member_id: teamMemberId,
+          song_id: songId,
+          rehearsed,
+          rehearsed_at: rehearsed ? new Date().toISOString() : null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        demo.rehearsalLogs.push(newLog);
+        return newLog;
+      },
+
+      markAll: async (serviceId: string, teamMemberId: string, _churchId: string): Promise<void> => {
+        const demo = getDemoContext();
+        const songItems = demo.serviceItems.filter(i => i.service_id === serviceId && i.type === 'song' && i.song_id);
+        for (const item of songItems) {
+          const existing = demo.rehearsalLogs.findIndex(
+            l => l.service_id === serviceId && l.team_member_id === teamMemberId && l.song_id === item.song_id
+          );
+          if (existing >= 0) {
+            demo.rehearsalLogs[existing] = {
+              ...demo.rehearsalLogs[existing],
+              rehearsed: true,
+              rehearsed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+          } else {
+            demo.rehearsalLogs.push({
+              id: `demo-rl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              church_id: _churchId,
+              service_id: serviceId,
+              team_member_id: teamMemberId,
+              song_id: item.song_id!,
+              rehearsed: true,
+              rehearsed_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+          }
+        }
+      },
+
+      getStatsByService: async (serviceId: string, _churchId: string): Promise<RehearsalStats[]> => {
+        const demo = getDemoContext();
+        const songItems = demo.serviceItems.filter(i => i.service_id === serviceId && i.type === 'song' && i.song_id);
+        const totalSongs = songItems.length;
+
+        const serviceAssignments = demo.assignments.filter(a => a.service_id === serviceId);
+        if (serviceAssignments.length === 0 || totalSongs === 0) return [];
+
+        const rehearsalCounts: Record<string, Set<string>> = {};
+        for (const log of demo.rehearsalLogs) {
+          if (log.service_id === serviceId && log.rehearsed) {
+            if (!rehearsalCounts[log.team_member_id]) {
+              rehearsalCounts[log.team_member_id] = new Set();
+            }
+            rehearsalCounts[log.team_member_id].add(log.song_id);
+          }
+        }
+
+        return serviceAssignments.map(a => {
+          const member = demo.teamMembers.find(tm => tm.id === a.team_member_id);
+          return {
+            team_member_id: a.team_member_id,
+            member_name: member?.name || 'Unknown',
+            member_role: a.role,
+            rehearsed_count: rehearsalCounts[a.team_member_id]?.size || 0,
+            total_songs: totalSongs,
+          };
+        });
+      },
     },
   };
 }

@@ -22,6 +22,8 @@ import type {
   SongVersion,
   SongArrangement,
   SongHistory,
+  RehearsalLog,
+  RehearsalStats,
 } from './types';
 
 // Helper to sanitize string fields in objects before database operations
@@ -1888,6 +1890,126 @@ export const db = {
         .eq('channel_id', channelId)
         .order('created_at', { ascending: true });
       return (data || []) as any[];
+    },
+  },
+
+  // ─── Rehearsal Tracking ─────────────────────────────────────────────
+  rehearsals: {
+    getByService: async (serviceId: string, churchId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      if (!service || service.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('rehearsal_logs')
+        .select('*, team_members(name)')
+        .eq('service_id', serviceId);
+      return (data || []) as any[];
+    },
+
+    getByTeamMember: async (serviceId: string, teamMemberId: string, churchId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      if (!service || service.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('rehearsal_logs')
+        .select('*')
+        .eq('service_id', serviceId)
+        .eq('team_member_id', teamMemberId);
+      return (data || []) as RehearsalLog[];
+    },
+
+    upsert: async (
+      serviceId: string,
+      teamMemberId: string,
+      songId: string,
+      rehearsed: boolean,
+      churchId: string
+    ) => {
+      // Verify the team member is assigned to this service
+      const { data: assignment } = await supabase
+        .from('service_assignments')
+        .select('id')
+        .eq('service_id', serviceId)
+        .eq('team_member_id', teamMemberId)
+        .maybeSingle();
+      if (!assignment) {
+        console.error('[Rehearsals] Upsert failed: team member not assigned to this service');
+        throw new Error('Not assigned to this service');
+      }
+
+      const payload = {
+        church_id: churchId,
+        service_id: serviceId,
+        team_member_id: teamMemberId,
+        song_id: songId,
+        rehearsed,
+        rehearsed_at: rehearsed ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('rehearsal_logs')
+        .upsert(payload, { onConflict: 'service_id,team_member_id,song_id' })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Rehearsals] Upsert failed:', error);
+        throw error;
+      }
+      return data as RehearsalLog;
+    },
+
+    markAll: async (serviceId: string, teamMemberId: string, churchId: string) => {
+      const items = await db.serviceItems.getByService(serviceId);
+      const songItems = items.filter(i => i.type === 'song' && i.song_id);
+
+      await Promise.all(
+        songItems.map(item =>
+          db.rehearsals.upsert(serviceId, teamMemberId, item.song_id!, true, churchId)
+        )
+      );
+    },
+
+    getStatsByService: async (serviceId: string, churchId: string) => {
+      const items = await db.serviceItems.getByService(serviceId);
+      const totalSongs = items.filter(i => i.type === 'song' && i.song_id).length;
+
+      const assignments = await db.assignments.getByService(serviceId, churchId);
+      if (assignments.length === 0 || totalSongs === 0) return [];
+
+      const memberIds = assignments.map(a => a.team_member_id);
+
+      const { data: logs } = await supabase
+        .from('rehearsal_logs')
+        .select('team_member_id, song_id')
+        .eq('service_id', serviceId)
+        .eq('rehearsed', true)
+        .in('team_member_id', memberIds);
+
+      const rehearsalCounts: Record<string, Set<string>> = {};
+      for (const log of logs || []) {
+        if (!rehearsalCounts[log.team_member_id]) {
+          rehearsalCounts[log.team_member_id] = new Set();
+        }
+        rehearsalCounts[log.team_member_id].add(log.song_id);
+      }
+
+      return assignments.map(a => ({
+        team_member_id: a.team_member_id,
+        member_name: a.team_member?.name || 'Unknown',
+        member_role: a.role,
+        rehearsed_count: rehearsalCounts[a.team_member_id]?.size || 0,
+        total_songs: totalSongs,
+      })) as RehearsalStats[];
     },
   },
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessage, ChatMessagePopulated } from '@/lib/types';
+import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessage, ChatMessagePopulated, RehearsalLog } from '@/lib/types';
 import { getInitialDemoData } from './data';
 
 // Demo context types
@@ -20,6 +20,7 @@ interface DemoContextType {
   songUsage: SongUsage[];
   templates: ServiceTemplate[];
   chatMessages: ChatMessagePopulated[];
+  rehearsalLogs: RehearsalLog[];
   
   // Demo actions
   resetDemo: () => void;
@@ -91,6 +92,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [songUsage, setSongUsage] = useState<SongUsage[]>(initialData.songUsage);
   const [templates, setTemplates] = useState<ServiceTemplate[]>(initialData.templates);
   const [chatMessages, setChatMessages] = useState<ChatMessagePopulated[]>(initialData.chatMessages || []);
+  const [rehearsalLogs, setRehearsalLogs] = useState<RehearsalLog[]>(initialData.rehearsalLogs || []);
   
   // Reset demo
   const resetDemo = useCallback(() => {
@@ -102,6 +104,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     setAssignments(fresh.assignments);
     setSongUsage(fresh.songUsage);
     setTemplates(fresh.templates);
+    setChatMessages(fresh.chatMessages || []);
+    setRehearsalLogs(fresh.rehearsalLogs || []);
   }, []);
   
   // Song CRUD
@@ -432,6 +436,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     songUsage,
     templates,
     chatMessages,
+    rehearsalLogs,
     resetDemo,
     createSong,
     updateSong,

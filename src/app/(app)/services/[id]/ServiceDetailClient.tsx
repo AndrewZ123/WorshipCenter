@@ -25,6 +25,7 @@ import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
 import ServiceTasks from '@/components/services/ServiceTasks';
 import ServiceMode from '@/components/services/ServiceMode';
+import RehearsalTab from '@/components/services/RehearsalTab';
 import { generateServicePDF } from '@/components/services/ServicePrintView';
 
 // Lucide icons
@@ -32,7 +33,7 @@ import {
   ArrowLeft, MoreVertical, Copy, Trash2, Edit, Plus,
   Music, AlignLeft, Send, CheckCircle, Calendar, Clock, 
   BookOpen, UserCheck, MessageSquare, Calendar as CalendarIcon,
-  ListMusic, Users, ListChecks, Monitor, Printer
+  ListMusic, Users, ListChecks, Monitor, Printer, CheckSquare
 } from 'lucide-react';
 
 // dnd-kit imports
@@ -724,6 +725,20 @@ export default function ServiceDetailClient() {
                     <span>Chat</span>
                   </HStack>
                 </Tab>
+                {user && (user.team_member_id || user.role !== 'team') && (
+                  <Tab 
+                    fontSize="sm" 
+                    fontWeight="600" 
+                    color={activeTab === 5 ? 'teal.600' : 'gray.500'}
+                    _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                    _hover={{ color: 'teal.500' }}
+                  >
+                    <HStack spacing="2">
+                      <CheckSquare size={16} />
+                      <span>Rehearsal</span>
+                    </HStack>
+                  </Tab>
+                )}
               </TabList>
 
               <TabPanels>
@@ -967,6 +982,21 @@ export default function ServiceDetailClient() {
                     />
                   )}
                 </TabPanel>
+
+                {/* Rehearsal Tab */}
+                {user && (user.team_member_id || user.role !== 'team') && (
+                  <TabPanel p="0">
+                    {church && (
+                      <RehearsalTab
+                        serviceId={serviceId}
+                        churchId={church.id}
+                        teamMemberId={user.team_member_id || null}
+                        items={items}
+                        isLeader={user.role !== 'team'}
+                      />
+                    )}
+                  </TabPanel>
+                )}
               </TabPanels>
             </Tabs>
           </Card>

@@ -1,4 +1,4 @@
-import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessagePopulated, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote } from '@/lib/types';
+import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessagePopulated, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote, RehearsalLog } from '@/lib/types';
 
 // Demo Church
 export const DEMO_CHURCH: Church = {
@@ -377,6 +377,28 @@ export const DEMO_SONG_USAGE: SongUsage[] = [
   { id: 'usage-3-4', church_id: DEMO_CHURCH.id, service_id: 'svc-3', song_id: 'song-10', date: getDate(0) },
 ];
 
+// Demo Rehearsal Logs (varied progress for this week's service)
+export const DEMO_REHEARSAL_LOGS: RehearsalLog[] = [
+  // Worship Leader (tm-1) - fully rehearsed for service 3
+  { id: 'rl-3-1-1', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-1', song_id: 'song-8', rehearsed: true, rehearsed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'rl-3-1-2', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-1', song_id: 'song-9', rehearsed: true, rehearsed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'rl-3-1-3', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-1', song_id: 'song-1', rehearsed: true, rehearsed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'rl-3-1-4', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-1', song_id: 'song-10', rehearsed: true, rehearsed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+
+  // Keys (tm-2) - partially rehearsed for service 3
+  { id: 'rl-3-2-1', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-2', song_id: 'song-8', rehearsed: true, rehearsed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'rl-3-2-2', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-2', song_id: 'song-9', rehearsed: true, rehearsed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+  // song-1 and song-10 NOT rehearsed by keys
+
+  // Bass (tm-4) - fully rehearsed for service 3
+  { id: 'rl-3-4-1', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-4', song_id: 'song-8', rehearsed: true, rehearsed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'rl-3-4-2', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-4', song_id: 'song-9', rehearsed: true, rehearsed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'rl-3-4-3', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-4', song_id: 'song-1', rehearsed: true, rehearsed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'rl-3-4-4', church_id: DEMO_CHURCH.id, service_id: 'svc-3', team_member_id: 'tm-4', song_id: 'song-10', rehearsed: true, rehearsed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+
+  // Drums (tm-5) - not rehearsed at all (no entries)
+];
+
 // Demo Templates
 export const DEMO_TEMPLATES: ServiceTemplate[] = [
   {
@@ -536,5 +558,6 @@ export function getInitialDemoData() {
     memberGroupMembers: [...DEMO_MEMBER_GROUP_MEMBERS],
     memberNotes: [...DEMO_MEMBER_NOTES],
     chatChannels: [...DEMO_CHAT_CHANNELS],
+    rehearsalLogs: [...DEMO_REHEARSAL_LOGS],
   };
 }

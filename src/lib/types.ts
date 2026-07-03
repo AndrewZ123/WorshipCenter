@@ -437,3 +437,25 @@ export interface ChatChannelMessage {
 export interface ChatChannelMessagePopulated extends ChatChannelMessage {
   user: ChatUserInfo;
 }
+
+// ─── Rehearsal Tracking ─────────────────────────────────────────────
+
+export interface RehearsalLog {
+  id: string;
+  church_id: string;
+  service_id: string;
+  team_member_id: string;
+  song_id: string;
+  rehearsed: boolean;
+  rehearsed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RehearsalStats {
+  team_member_id: string;
+  member_name: string;
+  member_role: string;
+  rehearsed_count: number;
+  total_songs: number;
+}

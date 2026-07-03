@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import {
   Box, Text, SimpleGrid, Card, CardBody, HStack, VStack,
   Button, Flex, Divider, Spinner, Center, useColorModeValue, useToast,
+  Tag, TagLabel, Collapse,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
-import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment, ServiceTask } from '@/lib/types';
+import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment, ServiceTask, RehearsalStats } from '@/lib/types';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatServiceDate, formatShortDate, getGreeting } from '@/lib/formatDate';
 import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
@@ -16,18 +17,21 @@ import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
 // Lucide icons
 import { 
   Calendar, Music, Users, Plus, Sparkles, BarChart2,
-  Clock, ChevronRight, CheckSquare
+  Clock, ChevronRight, CheckSquare, ChevronDown, ChevronRight as ChevronRightIcon
 } from 'lucide-react';
 
   // --- Helper Component to load async stats for each service ---
   function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
     const [stats, setStats] = useState({ songs: 0, duration: 0, assignments: 0 });
+    const [rehearsalStats, setRehearsalStats] = useState<RehearsalStats[]>([]);
+    const [showRehearsal, setShowRehearsal] = useState(false);
     const store = useStore();
-    const { church } = useAuth();
+    const { church, user } = useAuth();
     const cardBg = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.100', 'gray.700');
     const textColor = useColorModeValue('gray.800', 'white');
     const subtextColor = useColorModeValue('gray.500', 'gray.400');
+    const hoverBg = useColorModeValue('gray.50', 'gray.700');
 
   useEffect(() => {
     async function loadStats() {
@@ -46,6 +50,22 @@ import {
     }
     loadStats();
   }, [svc.id, church]);
+
+  // Load rehearsal stats for leaders
+  useEffect(() => {
+    async function loadRehearsalStats() {
+      if (!church || user?.role === 'team') return;
+      try {
+        const s = await store.rehearsals.getStatsByService(svc.id, church.id);
+        setRehearsalStats(s);
+      } catch (error) {
+        console.error('Error loading rehearsal stats:', error);
+      }
+    }
+    if (stats.songs > 0) {
+      loadRehearsalStats();
+    }
+  }, [svc.id, church, user, stats.songs]);
 
   return (
     <Card
@@ -81,6 +101,41 @@ import {
             <Text>{stats.assignments} assigned</Text>
           </HStack>
         </Flex>
+
+        {/* Rehearsal Progress Section - Leaders/Admin only */}
+        {rehearsalStats.length > 0 && (
+          <Box mt="3" pt="3" borderTop="1px solid" borderColor={borderColor}>
+            <HStack
+              spacing="2"
+              cursor="pointer"
+              onClick={(e) => { e.stopPropagation(); setShowRehearsal(!showRehearsal); }}
+              py="1"
+              role="button"
+              tabIndex={0}
+            >
+              {showRehearsal ? <ChevronDown size={14} /> : <ChevronRightIcon size={14} />}
+              <Text fontSize="xs" fontWeight="700" color={subtextColor} textTransform="uppercase" letterSpacing="wide">
+                Rehearsal Progress
+              </Text>
+            </HStack>
+            <Collapse in={showRehearsal} animateOpacity>
+              <VStack spacing="2" align="stretch" mt="2">
+                {rehearsalStats.map(stat => (
+                  <HStack key={stat.team_member_id} justify="space-between" fontSize="sm">
+                    <Text color={textColor} fontWeight="500">{stat.member_name}</Text>
+                    <Tag
+                      size="sm"
+                      colorScheme={stat.rehearsed_count === stat.total_songs ? 'green' : 'orange'}
+                      borderRadius="full"
+                    >
+                      <TagLabel>{stat.rehearsed_count}/{stat.total_songs}</TagLabel>
+                    </Tag>
+                  </HStack>
+                ))}
+              </VStack>
+            </Collapse>
+          </Box>
+        )}
       </CardBody>
     </Card>
   );
