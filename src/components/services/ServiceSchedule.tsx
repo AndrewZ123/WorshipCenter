@@ -551,7 +551,7 @@ export default function ServiceSchedule({
         onClose={() => setRemoveTarget(null)}
         onConfirm={handleRemoveAssignment}
         title={`Remove ${removeTargetName}?`}
-        message={`Are you sure you want to remove ${removeTargetName} from this service? No email will be sent.`}
+        message={`Are you sure you want to remove ${removeTargetName} from this service?`}
         confirmLabel="Remove"
         variant="destructive"
       />
