@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { assignmentDeclinedEmail } from '@/lib/email-templates';
 
@@ -35,39 +35,16 @@ export async function GET(
   { params }: { params: Promise<{ assignmentId: string }> }
 ) {
   const { assignmentId } = await params;
-  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return resultPage(
-      'Decline Attendance',
-      'You need to log in first',
-      'Please log in to decline this assignment.',
-      `${appUrl}/login?redirect=/api/assignments/${assignmentId}/decline`
-    );
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('church_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!userData) {
-    return resultPage('Error', 'Account not found', 'Could not find your account.');
-  }
-
-  const { data: assignment } = await supabaseAdmin
+  // Fetch via supabaseAdmin (no login needed)
+  const { data: assignment, error: fetchError } = await supabaseAdmin
     .from('service_assignments')
-    .select('*, team_members!inner(*)')
+    .select('*, team_members!inner(*), services!inner(id, title, date, time, church_id)')
     .eq('id', assignmentId)
     .single();
 
-  if (!assignment) {
-    return resultPage('Not Found', 'Assignment not found', 'This assignment may have been removed.');
-  }
-
-  if (assignment.team_members.user_id !== user.id) {
-    return resultPage('Access Denied', 'Not your assignment', 'This link belongs to a different team member.');
+  if (fetchError || !assignment) {
+    return resultPage('Not Found', 'Link invalid or expired', 'This link is no longer valid.');
   }
 
   const { error: updateError } = await supabaseAdmin
@@ -79,49 +56,46 @@ export async function GET(
     return resultPage('Error', 'Failed to decline', 'Something went wrong. Please try again.');
   }
 
-  const { data: service } = await supabaseAdmin
-    .from('services')
-    .select('id, title, date, time')
-    .eq('id', assignment.service_id)
+  const member = assignment.team_members;
+  const svc = assignment.services;
+  const churchId = svc.church_id;
+
+  // Notify leaders via email
+  const { data: church } = await supabaseAdmin
+    .from('churches')
+    .select('name')
+    .eq('id', churchId)
     .single();
 
-  if (service) {
-    const { data: church } = await supabaseAdmin
-      .from('churches')
-      .select('name')
-      .eq('id', userData.church_id)
-      .single();
+  if (church && (await isEmailConfigured())) {
+    const { data: leaders } = await supabaseAdmin
+      .from('team_members')
+      .select('email')
+      .eq('church_id', churchId)
+      .or('roles.cs.{admin},roles.cs.{leader}');
 
-    if (church && (await isEmailConfigured())) {
-      const { data: leaders } = await supabaseAdmin
-        .from('team_members')
-        .select('email')
-        .eq('church_id', userData.church_id)
-        .or('roles.cs.{admin},roles.cs.{leader}');
-
-      const { html, text } = assignmentDeclinedEmail({
-        churchName: church.name,
-        serviceTitle: service.title,
-        memberName: assignment.team_members.name,
-        role: assignment.role,
-      });
-      for (const leader of leaders || []) {
-        if (!leader.email) continue;
-        sendEmail({
-          to: leader.email,
-          subject: `${assignment.team_members.name} declined ${service.title}`,
-          html,
-          text,
-        }).catch(() => {});
-      }
+    const { html, text } = assignmentDeclinedEmail({
+      churchName: church.name,
+      serviceTitle: svc.title,
+      memberName: member.name,
+      role: assignment.role,
+    });
+    for (const leader of leaders || []) {
+      if (!leader.email) continue;
+      sendEmail({
+        to: leader.email,
+        subject: `${member.name} declined ${svc.title}`,
+        html,
+        text,
+      }).catch(() => {});
     }
   }
 
   return resultPage(
     'Declined',
     "You've Declined ❌",
-    `You've declined for ${service?.title || 'the service'}. We'll find someone to fill in.`,
-    `${appUrl}/services/${service?.id || ''}`
+    `You've declined for ${svc?.title || 'the service'}. We'll find someone to fill in.`,
+    `${appUrl}/services/${svc?.id || ''}`
   );
 }
 

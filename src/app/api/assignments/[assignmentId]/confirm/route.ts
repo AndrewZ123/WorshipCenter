@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { assignmentConfirmedEmail } from '@/lib/email-templates';
 import { sendConfirmationNotification } from '@/lib/notifications';
@@ -36,41 +36,19 @@ export async function GET(
   { params }: { params: Promise<{ assignmentId: string }> }
 ) {
   const { assignmentId } = await params;
-  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return resultPage(
-      'Confirm Attendance',
-      'You need to log in first',
-      'Please log in to confirm your attendance.',
-      `${appUrl}/login?redirect=/api/assignments/${assignmentId}/confirm`
-    );
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('church_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!userData) {
-    return resultPage('Error', 'Account not found', 'Could not find your account.');
-  }
-
-  const { data: assignment } = await supabaseAdmin
+  // Fetch assignment with team member + service via supabaseAdmin (bypasses RLS)
+  const { data: assignment, error: fetchError } = await supabaseAdmin
     .from('service_assignments')
-    .select('*, team_members!inner(*)')
+    .select('*, team_members!inner(*), services!inner(id, title, date, time, church_id)')
     .eq('id', assignmentId)
     .single();
 
-  if (!assignment) {
-    return resultPage('Not Found', 'Assignment not found', 'This assignment may have been removed.');
+  if (fetchError || !assignment) {
+    return resultPage('Not Found', 'Link invalid or expired', 'This assignment link is no longer valid.');
   }
 
-  if (assignment.team_members.user_id !== user.id) {
-    return resultPage('Access Denied', 'Not your assignment', 'This confirmation link belongs to a different team member.');
-  }
-
+  // Update to confirmed
   const { error: updateError } = await supabaseAdmin
     .from('service_assignments')
     .update({ status: 'confirmed' })
@@ -80,65 +58,62 @@ export async function GET(
     return resultPage('Error', 'Failed to confirm', 'Something went wrong. Please try again.');
   }
 
-  const { data: service } = await supabaseAdmin
-    .from('services')
-    .select('id, title, date, time')
-    .eq('id', assignment.service_id)
-    .single();
+  const member = assignment.team_members;
+  const svc = assignment.services;
+  const churchId = svc.church_id;
 
-  if (service) {
-    // Notify leaders
-    const { data: leaders } = await supabaseAdmin
-      .from('team_members')
-      .select('user_id')
-      .eq('church_id', userData.church_id)
-      .or('roles.cs.{admin},roles.cs.{leader}');
+  // Notify leaders (fire-and-forget)
+  const { data: leaders } = await supabaseAdmin
+    .from('team_members')
+    .select('user_id')
+    .eq('church_id', churchId)
+    .or('roles.cs.{admin},roles.cs.{leader}');
 
-    for (const leader of leaders || []) {
-      if (leader.user_id && leader.user_id !== user.id) {
-        sendConfirmationNotification({
-          leaderId: leader.user_id,
-          serviceId: service.id,
-          serviceName: service.title,
-          userName: assignment.team_members.name,
-          role: assignment.role,
-          serviceDate: service.date,
-          organizationId: userData.church_id,
-        }).catch(() => {});
-      }
+  for (const leader of leaders || []) {
+    if (leader.user_id && leader.user_id !== member.user_id) {
+      sendConfirmationNotification({
+        leaderId: leader.user_id,
+        serviceId: svc.id,
+        serviceName: svc.title,
+        userName: member.name,
+        role: assignment.role,
+        serviceDate: svc.date,
+        organizationId: churchId,
+      }).catch(() => {});
     }
+  }
 
-    // Send confirmation email
-    if (assignment.team_members.email && (await isEmailConfigured())) {
-      const { data: church } = await supabaseAdmin
-        .from('churches')
-        .select('name')
-        .eq('id', userData.church_id)
-        .single();
-      if (church) {
-        const { html, text } = assignmentConfirmedEmail({
-          memberName: assignment.team_members.name,
-          churchName: church.name,
-          serviceTitle: service.title,
-          serviceDate: service.date,
-          serviceTime: service.time || '',
-          role: assignment.role,
-        });
-        sendEmail({
-          to: assignment.team_members.email,
-          subject: `Confirmed: ${service.title}`,
-          html,
-          text,
-        }).catch(() => {});
-      }
+  // Send confirmation email
+  if (member.email && (await isEmailConfigured())) {
+    const { data: church } = await supabaseAdmin
+      .from('churches')
+      .select('name')
+      .eq('id', churchId)
+      .single();
+
+    if (church) {
+      const { html, text } = assignmentConfirmedEmail({
+        memberName: member.name,
+        churchName: church.name,
+        serviceTitle: svc.title,
+        serviceDate: svc.date,
+        serviceTime: svc.time || '',
+        role: assignment.role,
+      });
+      sendEmail({
+        to: member.email,
+        subject: `Confirmed: ${svc.title}`,
+        html,
+        text,
+      }).catch(() => {});
     }
   }
 
   return resultPage(
     'Confirmed!',
     "You're Confirmed! ✅",
-    `You've confirmed for ${service?.title || 'the service'}. Thanks for serving!`,
-    `${appUrl}/services/${service?.id || ''}`
+    `You've confirmed for ${svc?.title || 'the service'}. Thanks for serving!`,
+    `${appUrl}/services/${svc?.id || ''}`
   );
 }
 
