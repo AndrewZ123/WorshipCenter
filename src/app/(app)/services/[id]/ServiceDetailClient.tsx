@@ -20,6 +20,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 import { formatServiceDate } from '@/lib/formatDate';
 import { apiUrl } from '@/lib/api-base';
+import { supabase } from '@/lib/supabase';
 import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
 import ServiceTasks from '@/components/services/ServiceTasks';
@@ -252,6 +253,8 @@ export default function ServiceDetailClient() {
       let sentCount = 0;
       let emailCount = 0;
 
+      const session = (await supabase.auth.getSession()).data.session;
+
       for (const assignment of assignments) {
         const member = churchMembers.find((m) => m.id === assignment.team_member_id);
         if (!member) continue;
@@ -273,7 +276,10 @@ export default function ServiceDetailClient() {
           try {
             const res = await fetch(apiUrl('/api/notifications/send-invitation'), {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+              },
               body: JSON.stringify({
                 assignmentId: assignment.id,
                 churchId: church.id,

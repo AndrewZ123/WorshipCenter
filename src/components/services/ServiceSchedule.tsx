@@ -17,6 +17,7 @@ import { apiUrl } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
 import type { Service, ServiceAssignmentPopulated, TeamMember } from '@/lib/types';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import StatusBadge, { mapAssignmentStatus } from '@/components/ui/StatusBadge';
@@ -46,6 +47,8 @@ export default function ServiceSchedule({
   // Bulk assign state
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+  const [removeTargetName, setRemoveTargetName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [bulkRole, setBulkRole] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -135,15 +138,22 @@ export default function ServiceSchedule({
     }
   };
 
-  const handleRemoveAssignment = async (assignmentId: string) => {
+  const confirmRemove = (assignmentId: string, memberName: string) => {
+    setRemoveTarget(assignmentId);
+    setRemoveTargetName(memberName);
+  };
+
+  const handleRemoveAssignment = async () => {
+    if (!removeTarget) return;
     try {
-      setProcessing(assignmentId);
-      const response = await fetch(apiUrl(`/api/assignments/${assignmentId}`), {
+      setProcessing(removeTarget);
+      const response = await fetch(apiUrl(`/api/assignments/${removeTarget}`), {
         method: 'DELETE',
         headers: await getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Failed to remove');
       toast({ title: 'Removed', description: 'Member removed from schedule', status: 'info' });
+      setRemoveTarget(null);
       await loadAssignments();
     } catch (error) {
       console.error('[ServiceSchedule] Remove failed:', error);
@@ -524,7 +534,7 @@ export default function ServiceSchedule({
                     variant="ghost"
                     color="gray.400"
                     _hover={{ color: 'red.500' }}
-                    onClick={() => handleRemoveAssignment(assignment.id)}
+                    onClick={() => confirmRemove(assignment.id, assignment.team_member?.name || 'this member')}
                     isDisabled={processing === assignment.id}
                   />
                 </HStack>
@@ -534,6 +544,17 @@ export default function ServiceSchedule({
           })}
         </VStack>
       )}
+
+      {/* Remove Confirmation */}
+      <ConfirmDialog
+        isOpen={!!removeTarget}
+        onClose={() => setRemoveTarget(null)}
+        onConfirm={handleRemoveAssignment}
+        title={`Remove ${removeTargetName}?`}
+        message={`Are you sure you want to remove ${removeTargetName} from this service? No email will be sent.`}
+        confirmLabel="Remove"
+        variant="destructive"
+      />
     </Box>
   );
 }
