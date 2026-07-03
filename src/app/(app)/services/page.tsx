@@ -386,113 +386,6 @@ export default function ServicesPage() {
 
       <Divider mb="6" />
 
-      {/* Recent Debriefs Section */}
-      <Box mb="6">
-        <HStack
-          spacing="2"
-          cursor="pointer"
-          onClick={() => setShowDebriefs(!showDebriefs)}
-          py="2" px="1"
-          role="button"
-          tabIndex={0}
-          borderRadius="lg"
-          _hover={{ bg: hoverBg }}
-          transition="all 0.15s ease"
-        >
-          {showDebriefs ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <Star size={16} />
-          <Text fontWeight="600" fontSize="sm" color={subtextColor}>
-            Recent Debriefs {debriefs.length > 0 && `(${debriefs.length})`}
-          </Text>
-        </HStack>
-
-        <Collapse in={showDebriefs} animateOpacity>
-          <Box mt="2" bg={templatesBg} borderRadius="xl" p="4">
-            {debriefs.length === 0 ? (
-              <Card bg={cardBg} border="1px dashed" borderColor={borderColor} borderRadius="lg">
-                <CardBody textAlign="center" py="6">
-                  <Text fontSize="sm" color={emptyColor} mb="3">
-                    No debriefs yet — they appear after services are marked completed and team members submit them.
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    colorScheme="teal"
-                    onClick={() => router.push('/services/debriefs')}
-                    leftIcon={<ExternalLink size={14} />}
-                  >
-                    View Service Log
-                  </Button>
-                </CardBody>
-              </Card>
-            ) : (
-              <>
-                <VStack spacing="2" align="stretch">
-                  {debriefs.slice(0, 10).map((entry) => (
-                    <HStack
-                      key={entry.id}
-                      bg={cardBg}
-                      border="1px solid"
-                      borderColor={borderColor}
-                      borderRadius="lg"
-                      px="4"
-                      py="3"
-                      spacing="3"
-                      cursor="pointer"
-                      onClick={() => router.push(`/services/${entry.service_id}?tab=debrief`)}
-                      _hover={{ borderColor: 'teal.200' }}
-                      transition="all 0.15s ease"
-                    >
-                      <Avatar name={entry.user?.name || 'Unknown'} src={entry.user?.avatar_url} size="sm" />
-                      <Box flex="1" minW="0">
-                        <HStack spacing="2">
-                          <Text fontWeight="600" fontSize="sm" color={textColor} noOfLines={1}>
-                            {entry.service?.title || 'Service'}
-                          </Text>
-                          {entry.service?.date && (
-                            <Text fontSize="xs" color={subtextColor}>{entry.service.date}</Text>
-                          )}
-                        </HStack>
-                        <Text fontSize="xs" color={subtextColor}>
-                          {entry.user?.name || 'Unknown'}
-                        </Text>
-                      </Box>
-                      <HStack spacing="3">
-                        {[
-                          { label: 'E', value: entry.rating_engagement },
-                          { label: 'F', value: entry.rating_flow },
-                          { label: 'T', value: entry.rating_tech },
-                        ].map(r => (
-                          <Box key={r.label} textAlign="center">
-                            <Text fontSize="xs" fontWeight="bold" color={subtextColor}>{r.label}</Text>
-                            <Text fontSize="sm" fontWeight="700" color={textColor}>{r.value}</Text>
-                          </Box>
-                        ))}
-                      </HStack>
-                      {entry.what_broke && (
-                        <AlertTriangle size={14} color="var(--chakra-colors-orange-400)" />
-                      )}
-                    </HStack>
-                  ))}
-                </VStack>
-                {debriefs.length > 10 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    colorScheme="teal"
-                    mt="2"
-                    onClick={() => router.push('/services/debriefs')}
-                    leftIcon={<ExternalLink size={14} />}
-                  >
-                    View all {debriefs.length} debriefs
-                  </Button>
-                )}
-              </>
-            )}
-          </Box>
-        </Collapse>
-      </Box>
-
       {/* Services List */}
       {services.length === 0 ? (
         <EmptyState
@@ -622,6 +515,113 @@ export default function ServicesPage() {
           </VStack>
         </>
       )}
+
+      {/* Recent Debriefs Section */}
+      <Box mb="6">
+        <HStack
+          spacing="2"
+          cursor="pointer"
+          onClick={() => setShowDebriefs(!showDebriefs)}
+          py="2" px="1"
+          role="button"
+          tabIndex={0}
+          borderRadius="lg"
+          _hover={{ bg: hoverBg }}
+          transition="all 0.15s ease"
+        >
+          {showDebriefs ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          <Star size={16} />
+          <Text fontWeight="600" fontSize="sm" color={subtextColor}>
+            Recent Debriefs {debriefs.length > 0 && `(${debriefs.length})`}
+          </Text>
+        </HStack>
+
+        <Collapse in={showDebriefs} animateOpacity>
+          <Box mt="2" bg={templatesBg} borderRadius="xl" p="4">
+            {debriefs.length === 0 ? (
+              <Card bg={cardBg} border="1px dashed" borderColor={borderColor} borderRadius="lg">
+                <CardBody textAlign="center" py="6">
+                  <Text fontSize="sm" color={emptyColor} mb="3">
+                    No debriefs yet — they appear after services are marked completed and team members submit them.
+                  </Text>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    colorScheme="teal"
+                    onClick={() => router.push('/services/debriefs')}
+                    leftIcon={<ExternalLink size={14} />}
+                  >
+                    View Service Log
+                  </Button>
+                </CardBody>
+              </Card>
+            ) : (
+              <>
+                <VStack spacing="2" align="stretch">
+                  {debriefs.slice(0, 10).map((entry) => (
+                    <HStack
+                      key={entry.id}
+                      bg={cardBg}
+                      border="1px solid"
+                      borderColor={borderColor}
+                      borderRadius="lg"
+                      px="4"
+                      py="3"
+                      spacing="3"
+                      cursor="pointer"
+                      onClick={() => router.push(`/services/${entry.service_id}?tab=debrief`)}
+                      _hover={{ borderColor: 'teal.200' }}
+                      transition="all 0.15s ease"
+                    >
+                      <Avatar name={entry.user?.name || 'Unknown'} src={entry.user?.avatar_url} size="sm" />
+                      <Box flex="1" minW="0">
+                        <HStack spacing="2">
+                          <Text fontWeight="600" fontSize="sm" color={textColor} noOfLines={1}>
+                            {entry.service?.title || 'Service'}
+                          </Text>
+                          {entry.service?.date && (
+                            <Text fontSize="xs" color={subtextColor}>{entry.service.date}</Text>
+                          )}
+                        </HStack>
+                        <Text fontSize="xs" color={subtextColor}>
+                          {entry.user?.name || 'Unknown'}
+                        </Text>
+                      </Box>
+                      <HStack spacing="3">
+                        {[
+                          { label: 'E', value: entry.rating_engagement },
+                          { label: 'F', value: entry.rating_flow },
+                          { label: 'T', value: entry.rating_tech },
+                        ].map(r => (
+                          <Box key={r.label} textAlign="center">
+                            <Text fontSize="xs" fontWeight="bold" color={subtextColor}>{r.label}</Text>
+                            <Text fontSize="sm" fontWeight="700" color={textColor}>{r.value}</Text>
+                          </Box>
+                        ))}
+                      </HStack>
+                      {entry.what_broke && (
+                        <AlertTriangle size={14} color="var(--chakra-colors-orange-400)" />
+                      )}
+                    </HStack>
+                  ))}
+                </VStack>
+                {debriefs.length > 10 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    colorScheme="teal"
+                    mt="2"
+                    onClick={() => router.push('/services/debriefs')}
+                    leftIcon={<ExternalLink size={14} />}
+                  >
+                    View all {debriefs.length} debriefs
+                  </Button>
+                )}
+              </>
+            )}
+          </Box>
+        </Collapse>
+      </Box>
 
       {/* Modals */}
 
