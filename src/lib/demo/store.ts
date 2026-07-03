@@ -17,6 +17,9 @@ import type {
   ChatMessagePopulated,
   RehearsalLog,
   RehearsalStats,
+  ServiceDebrief,
+  TimingComparisonItem,
+  DebriefTrends,
 } from '@/lib/types';
 
 // Get the demo context type from the context file
@@ -741,6 +744,17 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
           };
         });
       },
+    },
+
+    // Service Debriefs — Demo stubs
+    debriefs: {
+      getByService: async (_serviceId: string, _churchId: string) => [] as any[],
+      getByChurch: async (_churchId: string, _options?: { limit?: number; months?: number }) => [] as any[],
+      getByUser: async (_churchId: string, _userId: string) => [] as any[],
+      getById: async (_id: string, _churchId: string) => null as any,
+      upsert: async (_d: any) => null as any,
+      delete: async (_id: string, _churchId: string) => true,
+      getTrends: async (_churchId: string, _months?: number) => [] as any[],
     },
   };
 }

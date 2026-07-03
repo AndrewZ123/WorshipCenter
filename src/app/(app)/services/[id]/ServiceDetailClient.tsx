@@ -13,7 +13,7 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
-import type { Service, ServiceItem, TeamMember, ServiceAssignment, ServiceStatus, Song } from '@/lib/types';
+import type { Service, ServiceItem, TeamMember, ServiceAssignment, ServiceStatus, Song, ServiceDebriefPopulated } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
@@ -26,6 +26,7 @@ import ServiceSchedule from '@/components/services/ServiceSchedule';
 import ServiceTasks from '@/components/services/ServiceTasks';
 import ServiceMode from '@/components/services/ServiceMode';
 import RehearsalTab from '@/components/services/RehearsalTab';
+import ServiceDebriefForm from '@/components/services/ServiceDebriefForm';
 import { generateServicePDF } from '@/components/services/ServicePrintView';
 
 // Lucide icons
@@ -33,7 +34,8 @@ import {
   ArrowLeft, MoreVertical, Copy, Trash2, Edit, Plus,
   Music, AlignLeft, Send, CheckCircle, Calendar, Clock, 
   BookOpen, UserCheck, MessageSquare, Calendar as CalendarIcon,
-  ListMusic, Users, ListChecks, Monitor, Printer, CheckSquare
+  ListMusic, Users, ListChecks, Monitor, Printer, CheckSquare,
+  Star
 } from 'lucide-react';
 
 // dnd-kit imports
@@ -111,6 +113,11 @@ export default function ServiceDetailClient() {
   const [addSegmentTitle, setAddSegmentTitle] = useState('');
   const [addSegmentNotes, setAddSegmentNotes] = useState('');
   const [addSegmentDuration, setAddSegmentDuration] = useState('');
+
+  // Debrief state
+  const [debriefEntries, setDebriefEntries] = useState<ServiceDebriefPopulated[]>([]);
+  const debriefModal = useDisclosure();
+  const [showDebriefForm, setShowDebriefForm] = useState(false);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -198,6 +205,20 @@ export default function ServiceDetailClient() {
     store.tasks.getTaskStats(serviceId, church.id).then(setTaskStats).catch(() => setTaskStats(null));
   }, [serviceId, church]);
 
+  // Load debrief entries
+  useEffect(() => {
+    if (!church || !serviceId) return;
+    store.debriefs.getByService(serviceId, church.id).then(setDebriefEntries).catch(() => {});
+  }, [serviceId, church]);
+
+  // Switch to Debrief tab if tab=debrief query param is present
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'debrief') {
+      setActiveTab(6);
+    }
+  }, [searchParams]);
+
   // Switch to Schedule tab if assignmentId is present
   useEffect(() => {
     if (highlightedAssignmentId) {
@@ -246,9 +267,41 @@ export default function ServiceDetailClient() {
     if (!church) return;
 
     try {
+      const prevStatus = service?.status;
       await store.services.update(serviceId, church.id, { title, date, time, status, notes });
       setEditing(false);
       await loadData();
+
+      // Auto-prompt debrief when service is marked completed
+      if (status === 'completed' && prevStatus !== 'completed') {
+        setShowDebriefForm(true);
+        // Notify assigned team members
+        if (user && church) {
+          try {
+            await Promise.all(
+              assignments
+                .filter(a => a.team_member_id !== user.team_member_id)
+                .map(a => {
+                  const member = teamMembers.find(m => m.id === a.team_member_id);
+                  if (!member?.user_id) return Promise.resolve();
+                  return store.notifications.create({
+                    church_id: church.id,
+                    user_id: member.user_id,
+                    type: 'debrief_request',
+                    title: `Debrief requested — ${title || service?.title || ''}`,
+                    message: `Please submit your debrief for ${title || service?.title || ''} on ${date || service?.date || ''}`,
+                    service_id: serviceId,
+                    read: false,
+                    link_url: `/services/${serviceId}?tab=debrief`,
+                  });
+                })
+            );
+          } catch (e) {
+            console.error('[Debrief] Failed to send notifications:', e);
+          }
+        }
+      }
+
       toast({ title: 'Service updated', status: 'success', duration: 2000 });
     } catch (error) {
       console.error('Error saving service:', error);
@@ -762,6 +815,18 @@ export default function ServiceDetailClient() {
                     </HStack>
                   </Tab>
                 )}
+                <Tab 
+                  fontSize="sm" 
+                  fontWeight="600" 
+                  color={activeTab === 6 ? 'teal.600' : 'gray.500'}
+                  _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                  _hover={{ color: 'teal.500' }}
+                >
+                  <HStack spacing="2">
+                    <Star size={16} />
+                    <span>Debrief ({debriefEntries.length})</span>
+                  </HStack>
+                </Tab>
               </TabList>
 
               <TabPanels>
@@ -1157,6 +1222,146 @@ export default function ServiceDetailClient() {
                     )}
                   </TabPanel>
                 )}
+
+                {/* Debrief Tab */}
+                <TabPanel p="6">
+                  {church && (
+                    <Box>
+                      {/* Current user's debrief status */}
+                      {user && (() => {
+                        const myEntry = debriefEntries.find(e => e.user_id === user.id);
+                        return (
+                          <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" mb="6">
+                            <CardBody>
+                              <HStack justify="space-between" align="center" flexWrap="wrap" gap="3">
+                                <Box>
+                                  <Text fontSize="md" fontWeight="600" color={headingColor}>
+                                    {myEntry ? 'Your Debrief' : 'Post-Service Debrief'}
+                                  </Text>
+                                  <Text fontSize="sm" color={subtextColor}>
+                                    {myEntry
+                                      ? `Submitted ${new Date(myEntry.created_at).toLocaleDateString()}`
+                                      : 'Reflect on today\'s service — what worked, what didn\'t, and where you saw God.'}
+                                  </Text>
+                                </Box>
+                                <Button
+                                  size="sm"
+                                  colorScheme="teal"
+                                  onClick={() => setShowDebriefForm(true)}
+                                  leftIcon={myEntry ? <Edit size={14} /> : <Star size={14} />}
+                                  fontWeight="600"
+                                >
+                                  {myEntry ? 'Edit Debrief' : 'Submit Debrief'}
+                                </Button>
+                              </HStack>
+
+                              {/* Show my entry summary if it exists */}
+                              {myEntry && (
+                                <VStack spacing="3" align="stretch" mt="4" pt="4" borderTop="1px solid" borderColor={borderColor}>
+                                  <HStack spacing="4">
+                                    {[
+                                      { label: 'Engagement', value: myEntry.rating_engagement },
+                                      { label: 'Flow', value: myEntry.rating_flow },
+                                      { label: 'Tech', value: myEntry.rating_tech },
+                                    ].map(r => (
+                                      <Box key={r.label} textAlign="center">
+                                        <Text fontSize="xs" color={subtextColor} fontWeight="600">{r.label}</Text>
+                                        <HStack spacing="0.5" mt="1" justify="center">
+                                          {Array.from({ length: r.value }).map((_, i) => (
+                                            <Star key={i} size={14} fill="var(--chakra-colors-yellow-400)" color="var(--chakra-colors-yellow-400)" />
+                                          ))}
+                                        </HStack>
+                                      </Box>
+                                    ))}
+                                  </HStack>
+                                  {myEntry.what_went_well && (
+                                    <Box>
+                                      <Text fontSize="xs" fontWeight="600" color="green.500">What went well</Text>
+                                      <Text fontSize="sm" color={textColor} noOfLines={3}>{myEntry.what_went_well}</Text>
+                                    </Box>
+                                  )}
+                                </VStack>
+                              )}
+                            </CardBody>
+                          </Card>
+                        );
+                      })()}
+
+                      {/* All team entries (anyone can see) */}
+                      {debriefEntries.length > 0 && (
+                        <Box>
+                          <Text fontSize="sm" fontWeight="600" color={headingColor} mb="3">
+                            Team Debriefs ({debriefEntries.length})
+                          </Text>
+                          <VStack spacing="3" align="stretch">
+                            {debriefEntries.map((entry) => (
+                              <Card key={entry.id} bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                                <CardBody px="4" py="3">
+                                  <HStack spacing="3" mb="2">
+                                    <Avatar name={entry.user?.name || 'Unknown'} src={entry.user?.avatar_url} size="sm" />
+                                    <Box flex="1">
+                                      <Text fontSize="sm" fontWeight="600" color={headingColor}>
+                                        {entry.user?.name || 'Unknown'}
+                                      </Text>
+                                      <Text fontSize="xs" color={subtextColor}>
+                                        {new Date(entry.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                      </Text>
+                                    </Box>
+                                    <HStack spacing="3">
+                                      {[
+                                        { label: 'E', value: entry.rating_engagement },
+                                        { label: 'F', value: entry.rating_flow },
+                                        { label: 'T', value: entry.rating_tech },
+                                      ].map(r => (
+                                        <Box key={r.label} textAlign="center">
+                                          <Text fontSize="xs" fontWeight="bold" color={subtextColor}>{r.label}</Text>
+                                          <Text fontSize="sm" fontWeight="700" color={headingColor}>{r.value}</Text>
+                                        </Box>
+                                      ))}
+                                    </HStack>
+                                  </HStack>
+                                  <VStack spacing="2" align="stretch" ml="44px">
+                                    {entry.what_went_well && (
+                                      <Text fontSize="sm" color={textColor} noOfLines={2}>
+                                        <Text as="span" fontWeight="600" color="green.500">✓ </Text>{entry.what_went_well}
+                                      </Text>
+                                    )}
+                                    {entry.what_broke && (
+                                      <Text fontSize="sm" color={textColor} noOfLines={2}>
+                                        <Text as="span" fontWeight="600" color="orange.500">⚠ </Text>{entry.what_broke}
+                                      </Text>
+                                    )}
+                                    {entry.what_to_change && (
+                                      <Text fontSize="sm" color={textColor} noOfLines={2}>
+                                        <Text as="span" fontWeight="600" color="blue.500">↻ </Text>{entry.what_to_change}
+                                      </Text>
+                                    )}
+                                    {entry.saw_god_working && (
+                                      <Text fontSize="sm" color={textColor} noOfLines={2}>
+                                        <Text as="span" fontWeight="600" color="purple.500">♥ </Text>{entry.saw_god_working}
+                                      </Text>
+                                    )}
+                                  </VStack>
+                                </CardBody>
+                              </Card>
+                            ))}
+                          </VStack>
+                        </Box>
+                      )}
+
+                      {/* Empty state if no debriefs */}
+                      {debriefEntries.length === 0 && (
+                        <Box textAlign="center" py="10">
+                          <Star size={40} style={{ margin: '0 auto', opacity: 0.3 }} />
+                          <Text mt="3" fontSize="md" color={subtextColor}>No debriefs submitted yet</Text>
+                          <Text fontSize="sm" color={subtextColor} mt="1">
+                            Team members will be prompted to submit after the service is marked completed.
+                          </Text>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+                </TabPanel>
               </TabPanels>
             </Tabs>
           </Card>
@@ -1190,12 +1395,41 @@ export default function ServiceDetailClient() {
       )}
 
       {/* Service Mode (Live Dashboard) */}
-      {service && (
+      {service && church && (
         <ServiceMode
           service={service}
           items={items}
           isOpen={serviceModeOpen}
-          onClose={() => setServiceModeOpen(false)}
+          onClose={async (timingData?: Array<{ itemId: string; actualSeconds: number }>) => {
+            setServiceModeOpen(false);
+            // Persist timing data if provided
+            if (timingData && timingData.length > 0 && church) {
+              try {
+                await Promise.all(
+                  timingData.map(td =>
+                    store.serviceItems.update(td.itemId, church.id, { actual_duration_seconds: td.actualSeconds })
+                  )
+                );
+              } catch (e) {
+                console.error('[Timing] Failed to save timing data:', e);
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* Debrief Form Modal */}
+      {service && church && user && (
+        <ServiceDebriefForm
+          service={service}
+          items={items}
+          existingEntry={debriefEntries.find(e => e.user_id === user.id) ?? null}
+          isOpen={showDebriefForm}
+          onClose={() => setShowDebriefForm(false)}
+          onSubmitted={async () => {
+            const entries = await store.debriefs.getByService(serviceId, church.id);
+            setDebriefEntries(entries);
+          }}
         />
       )}
 

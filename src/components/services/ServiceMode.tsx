@@ -17,11 +17,16 @@ import {
   FastForward, Eye, EyeOff, Zap, Timer,
 } from 'lucide-react';
 
+interface TimingSnapshot {
+  itemId: string;
+  actualSeconds: number;
+}
+
 interface ServiceModeProps {
   service: Service;
   items: ServiceItem[];
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (timingData?: TimingSnapshot[]) => void;
 }
 
 interface RunningItemState {
@@ -41,6 +46,7 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [warningThreshold, setWarningThreshold] = useState(2); // minutes before end to show warning
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timingSnapshotRef = useRef<Record<string, number>>({}); // itemId -> actual seconds
 
   // Colors
   const bgColor = useColorModeValue('gray.900', 'gray.900');
@@ -171,8 +177,16 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
     setIsPaused(!isPaused);
   }, [isPaused, runningState, currentItem]);
 
+  const saveCurrentTiming = useCallback(() => {
+    const currentItem = items[currentIndex];
+    if (currentItem && elapsed > 0) {
+      timingSnapshotRef.current[currentItem.id] = Math.round(elapsed / 1000);
+    }
+  }, [currentIndex, items, elapsed]);
+
   const handleNext = useCallback(() => {
     if (currentIndex < items.length - 1) {
+      saveCurrentTiming();
       setCurrentIndex(currentIndex + 1);
       setElapsed(0);
       setRunningState({
@@ -182,10 +196,11 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         isPaused: false,
       });
     }
-  }, [currentIndex, items.length]);
+  }, [currentIndex, items.length, saveCurrentTiming]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
+      saveCurrentTiming();
       setCurrentIndex(currentIndex - 1);
       setElapsed(0);
       setRunningState({
@@ -195,9 +210,10 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         isPaused: false,
       });
     }
-  }, [currentIndex]);
+  }, [currentIndex, saveCurrentTiming]);
 
   const handleItemClick = (index: number) => {
+    saveCurrentTiming();
     setCurrentIndex(index);
     setElapsed(0);
     setRunningState({
@@ -292,7 +308,13 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
               variant="ghost"
               color="whiteAlpha.700"
               _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
-              onClick={onClose}
+              onClick={() => {
+                saveCurrentTiming();
+                const timingArray = Object.entries(timingSnapshotRef.current)
+                  .filter(([, seconds]) => seconds > 0)
+                  .map(([itemId, actualSeconds]) => ({ itemId, actualSeconds }));
+                onClose(timingArray.length > 0 ? timingArray : undefined);
+              }}
             />
           </HStack>
         </Flex>

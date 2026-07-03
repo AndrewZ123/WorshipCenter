@@ -114,6 +114,7 @@ export interface ServiceItem {
   duration_minutes: number | null;
   key: string | null;   // For songs — can override default_key
   assigned_to?: string | null;  // Optional - who is doing this segment (informational only, no notifications)
+  actual_duration_seconds?: number | null;  // Captured during Service Mode
 }
 
 export interface Song {
@@ -187,7 +188,7 @@ export interface Notification {
   id: string;
   church_id: string;
   user_id: string;
-  type: 'invitation' | 'status_change' | 'service_reminder' | 'general' | 'assignment_created' | 'assignment_reminder' | 'assignment_changed' | 'assignment_declined' | 'initial_reminder' | 'pre_rehearsal_reminder' | 'pre_service_reminder' | 'escalation';
+  type: 'invitation' | 'status_change' | 'service_reminder' | 'general' | 'assignment_created' | 'assignment_reminder' | 'assignment_changed' | 'assignment_declined' | 'initial_reminder' | 'pre_rehearsal_reminder' | 'pre_service_reminder' | 'escalation' | 'debrief_request';
   title: string;
   message: string;
   read: boolean;
@@ -458,4 +459,43 @@ export interface RehearsalStats {
   member_role: string;
   rehearsed_count: number;
   total_songs: number;
+}
+
+// ─── Service Debrief / Retrospective ───────────────────────────────
+
+export interface ServiceDebrief {
+  id: string;
+  service_id: string;
+  user_id: string;
+  church_id: string;
+  rating_engagement: number; // 1-5
+  rating_flow: number;       // 1-5
+  rating_tech: number;       // 1-5
+  what_went_well: string;
+  what_broke: string;
+  what_to_change: string;
+  saw_god_working: string;
+  timing_data: TimingComparisonItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceDebriefPopulated extends ServiceDebrief {
+  user: ChatUserInfo;
+}
+
+export interface TimingComparisonItem {
+  item_id: string;
+  title: string;
+  type: ServiceItemType;
+  planned_seconds: number | null;
+  actual_seconds: number | null;
+}
+
+export interface DebriefTrends {
+  avg_engagement: number;
+  avg_flow: number;
+  avg_tech: number;
+  total_debriefs: number;
+  period: string; // e.g., "2026-06" for monthly grouping
 }

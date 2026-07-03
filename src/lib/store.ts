@@ -24,6 +24,10 @@ import type {
   SongHistory,
   RehearsalLog,
   RehearsalStats,
+  ServiceDebrief,
+  ServiceDebriefPopulated,
+  TimingComparisonItem,
+  DebriefTrends,
 } from './types';
 
 // Helper to sanitize string fields in objects before database operations
@@ -78,6 +82,13 @@ const sanitizeInput = {
   chatMessage: (m: Partial<ChatMessage>): Partial<ChatMessage> => ({
     ...m,
     content: m.content ? sanitizeHtml(m.content) : m.content,
+  }),
+  debrief: (d: Partial<ServiceDebrief>): Partial<ServiceDebrief> => ({
+    ...d,
+    what_went_well: d.what_went_well ? sanitizeHtml(d.what_went_well) : d.what_went_well,
+    what_broke: d.what_broke ? sanitizeHtml(d.what_broke) : d.what_broke,
+    what_to_change: d.what_to_change ? sanitizeHtml(d.what_to_change) : d.what_to_change,
+    saw_god_working: d.saw_god_working ? sanitizeHtml(d.saw_god_working) : d.saw_god_working,
   }),
 };
 
@@ -2029,6 +2040,162 @@ export const db = {
         rehearsed_count: rehearsalCounts[a.team_member_id]?.size || 0,
         total_songs: totalSongs,
       })) as RehearsalStats[];
+    },
+  },
+
+  // ─── Service Debriefs ─────────────────────────────────────────────
+  debriefs: {
+    getByService: async (serviceId: string, churchId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      if (!service || service.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('service_debriefs')
+        .select('*, users(id, name, avatar_url, email)')
+        .eq('service_id', serviceId)
+        .order('created_at', { ascending: false });
+      return (data || []).map((d: any) => ({
+        ...d,
+        user: d.users ? {
+          id: d.users.id,
+          name: d.users.name,
+          avatar_url: d.users.avatar_url,
+          email: d.users.email,
+        } : { id: d.user_id, name: 'Unknown' },
+        timing_data: typeof d.timing_data === 'string' ? JSON.parse(d.timing_data) : (d.timing_data || []),
+      })) as ServiceDebriefPopulated[];
+    },
+
+    getByChurch: async (churchId: string, options?: { limit?: number; months?: number }) => {
+      let query = supabase
+        .from('service_debriefs')
+        .select('*, services(title, date), users(id, name, avatar_url)')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false });
+
+      if (options?.months) {
+        const since = new Date();
+        since.setMonth(since.getMonth() - options.months);
+        query = query.gte('created_at', since.toISOString());
+      }
+
+      const limit = options?.limit || 100;
+      query = query.limit(limit);
+
+      const { data } = await query;
+      return (data || []).map((d: any) => ({
+        ...d,
+        user: d.users ? { id: d.users.id, name: d.users.name, avatar_url: d.users.avatar_url } : { id: d.user_id, name: 'Unknown' },
+        service: d.services ? { title: d.services.title, date: d.services.date } : undefined,
+        timing_data: typeof d.timing_data === 'string' ? JSON.parse(d.timing_data) : (d.timing_data || []),
+      })) as (ServiceDebriefPopulated & { service?: { title: string; date: string } })[];
+    },
+
+    getByUser: async (churchId: string, userId: string) => {
+      const { data } = await supabase
+        .from('service_debriefs')
+        .select('*, services(title, date), users(id, name, avatar_url)')
+        .eq('church_id', churchId)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      return (data || []).map((d: any) => ({
+        ...d,
+        user: d.users ? { id: d.users.id, name: d.users.name, avatar_url: d.users.avatar_url } : { id: d.user_id, name: 'Unknown' },
+        service: d.services ? { title: d.services.title, date: d.services.date } : undefined,
+        timing_data: typeof d.timing_data === 'string' ? JSON.parse(d.timing_data) : (d.timing_data || []),
+      })) as (ServiceDebriefPopulated & { service?: { title: string; date: string } })[];
+    },
+
+    getById: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('service_debriefs')
+        .select('*, users(id, name, avatar_url)')
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .single();
+      if (!data) return null;
+      return {
+        ...data,
+        user: data.users ? { id: data.users.id, name: data.users.name, avatar_url: data.users.avatar_url } : { id: data.user_id, name: 'Unknown' },
+        timing_data: typeof data.timing_data === 'string' ? JSON.parse(data.timing_data) : (data.timing_data || []),
+      } as ServiceDebriefPopulated;
+    },
+
+    upsert: async (d: {
+      service_id: string;
+      user_id: string;
+      church_id: string;
+      rating_engagement: number;
+      rating_flow: number;
+      rating_tech: number;
+      what_went_well: string;
+      what_broke: string;
+      what_to_change: string;
+      saw_god_working: string;
+      timing_data?: TimingComparisonItem[];
+    }) => {
+      const sanitized = sanitizeInput.debrief(d);
+      const payload = {
+        ...sanitized,
+        timing_data: sanitized.timing_data || [],
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('service_debriefs')
+        .upsert(payload, { onConflict: 'service_id,user_id' })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Debriefs] Upsert failed:', error);
+        throw error;
+      }
+      return data as ServiceDebrief;
+    },
+
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('service_debriefs')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
+      return !error;
+    },
+
+    getTrends: async (churchId: string, months = 6) => {
+      const since = new Date();
+      since.setMonth(since.getMonth() - months);
+
+      const { data } = await supabase
+        .from('service_debriefs')
+        .select('rating_engagement, rating_flow, rating_tech, created_at')
+        .eq('church_id', churchId)
+        .gte('created_at', since.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (!data || data.length === 0) return [];
+
+      const monthly: Record<string, { engagement: number[]; flow: number[]; tech: number[] }> = {};
+      for (const d of data) {
+        const period = (d.created_at as string).substring(0, 7); // "YYYY-MM"
+        if (!monthly[period]) monthly[period] = { engagement: [], flow: [], tech: [] };
+        monthly[period].engagement.push(d.rating_engagement);
+        monthly[period].flow.push(d.rating_flow);
+        monthly[period].tech.push(d.rating_tech);
+      }
+
+      return Object.entries(monthly).map(([period, ratings]) => ({
+        period,
+        avg_engagement: Math.round((ratings.engagement.reduce((a, b) => a + b, 0) / ratings.engagement.length) * 10) / 10,
+        avg_flow: Math.round((ratings.flow.reduce((a, b) => a + b, 0) / ratings.flow.length) * 10) / 10,
+        avg_tech: Math.round((ratings.tech.reduce((a, b) => a + b, 0) / ratings.tech.length) * 10) / 10,
+        total_debriefs: ratings.engagement.length,
+      })) as DebriefTrends[];
     },
   },
 };
