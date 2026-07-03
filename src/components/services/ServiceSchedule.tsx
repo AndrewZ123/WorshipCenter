@@ -486,7 +486,7 @@ export default function ServiceSchedule({
                   <VStack align="start" spacing="0" flex="1" minW="0">
                     <HStack spacing="2" wrap="wrap">
                       <Text fontWeight="600" color={headingColor} fontSize="sm" isTruncated>
-                        {assignment.team_member?.name || 'Unknown'}
+                        {isOwn ? 'You' : (assignment.team_member?.name || 'Unknown')}
                       </Text>
                       <StatusBadge
                         status={mapAssignmentStatus(assignment.status)}
@@ -534,7 +534,7 @@ export default function ServiceSchedule({
                     variant="ghost"
                     color="gray.400"
                     _hover={{ color: 'red.500' }}
-                    onClick={() => confirmRemove(assignment.id, assignment.team_member?.name || 'this member')}
+                    onClick={() => confirmRemove(assignment.id, isOwn ? 'You' : (assignment.team_member?.name || 'this member'))}
                     isDisabled={processing === assignment.id}
                   />
                 </HStack>

@@ -138,6 +138,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!userData) {
         return 'not_found';
       }
+
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('id')
+        .eq('user_id', authUserId)
+        .maybeSingle();
+
+      if (teamMember) {
+        (userData as any).team_member_id = teamMember.id;
+      }
       
       setUser(prev => isSameData(prev, userData) ? prev : userData as User);
 
