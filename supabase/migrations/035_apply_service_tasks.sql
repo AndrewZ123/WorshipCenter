@@ -294,9 +294,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Log task completion trigger
+-- Log task completion trigger (SECURITY DEFINER to bypass RLS on task_completion_log)
 CREATE OR REPLACE FUNCTION log_task_completion()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+AS $$
 BEGIN
   IF NEW.status = 'done' AND OLD.status != 'done' THEN
     INSERT INTO task_completion_log (task_id, service_id, completed_by, completed_at, duration_seconds, notes, church_id)

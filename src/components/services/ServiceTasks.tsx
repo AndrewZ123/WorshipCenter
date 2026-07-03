@@ -58,11 +58,11 @@ interface ServiceTasksProps {
   isReadOnly?: boolean;
 }
 
-const PRIORITY_CONFIG: Record<TaskPriority, { color: string; bg: string; label: string }> = {
-  urgent: { color: 'red.600', bg: 'red.50', label: 'Urgent' },
-  high: { color: 'orange.600', bg: 'orange.50', label: 'High' },
-  medium: { color: 'blue.600', bg: 'blue.50', label: 'Medium' },
-  low: { color: 'gray.500', bg: 'gray.50', label: 'Low' },
+const PRIORITY_CONFIG: Record<TaskPriority, { color: string; bg: string; label: string; borderColor: string }> = {
+  urgent: { color: 'red.600', bg: 'red.50', label: 'Urgent', borderColor: 'red.400' },
+  high: { color: 'orange.600', bg: 'orange.50', label: 'High', borderColor: 'orange.400' },
+  medium: { color: 'blue.600', bg: 'blue.50', label: 'Medium', borderColor: 'blue.300' },
+  low: { color: 'gray.500', bg: 'gray.50', label: 'Low', borderColor: 'gray.300' },
 };
 
 export default function ServiceTasks({
@@ -408,6 +408,8 @@ export default function ServiceTasks({
                 borderRadius="lg"
                 border="1px solid"
                 borderColor={isDone ? doneBorder : overdue ? overdueBorder : taskBorderColor}
+                borderLeft="4px solid"
+                borderLeftColor={isDone ? 'transparent' : prConfig.borderColor}
                 bg={isDone ? doneTaskBg : overdue ? overdueTaskBg : defaultTaskBg}
                 transition="all 0.15s ease"
                 _hover={!isReadOnly ? { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' } : {}}
@@ -439,9 +441,9 @@ export default function ServiceTasks({
                         {task.title}
                       </Text>
                       {/* Priority Badge */}
-                      {task.priority && task.priority !== 'medium' && (
+                      {task.priority && (
                         <Badge
-                          colorScheme={task.priority === 'urgent' ? 'red' : task.priority === 'high' ? 'orange' : 'gray'}
+                          colorScheme={task.priority === 'urgent' ? 'red' : task.priority === 'high' ? 'orange' : task.priority === 'low' ? 'gray' : 'blue'}
                           variant="subtle"
                           fontSize="xs"
                           textTransform="capitalize"

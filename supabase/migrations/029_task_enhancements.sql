@@ -200,7 +200,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- TRIGGER FOR TASK COMPLETION LOGGING
 -- ============================================
 CREATE OR REPLACE FUNCTION log_task_completion()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+AS $$
 BEGIN
   IF NEW.status = 'done' AND OLD.status != 'done' THEN
     -- Log task completion
