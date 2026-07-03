@@ -68,6 +68,8 @@ export default function ServicesPage() {
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
   const emptyColor = useColorModeValue('gray.400', 'gray.500');
+  const templatesBg = useColorModeValue('gray.50', 'gray.900');
+  const theadBg = useColorModeValue('gray.50', 'gray.900');
   
   // Team members have read-only access
   const isReadOnly = user?.role === 'team';
@@ -281,7 +283,7 @@ export default function ServicesPage() {
         </HStack>
 
         <Collapse in={showTemplates} animateOpacity>
-          <Box mt="2" bg="gray.50" borderRadius="xl" p="4">
+          <Box mt="2" bg={templatesBg} borderRadius="xl" p="4">
             {templates.length === 0 ? (
               <Card bg={cardBg} border="1px dashed" borderColor={borderColor} borderRadius="lg">
                 <CardBody textAlign="center" py="6">
@@ -391,7 +393,7 @@ export default function ServicesPage() {
           {/* Desktop table */}
           <Box display={{ base: 'none', md: 'block' }} bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} overflow="hidden" boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
             <Table variant="simple">
-              <Thead bg="gray.50">
+              <Thead bg={theadBg}>
                 <Tr>
                   <Th color="gray.500" fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Date</Th>
                   <Th color="gray.500" fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Title</Th>

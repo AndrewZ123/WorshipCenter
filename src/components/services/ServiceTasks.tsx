@@ -32,6 +32,7 @@ import {
   SkeletonText,
   Select,
   Tooltip,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import {
   CheckSquare,
@@ -71,6 +72,25 @@ export default function ServiceTasks({
   isReadOnly = false,
 }: ServiceTasksProps) {
   const toast = useToast();
+  const taskBorderColor = useColorModeValue('gray.200', 'gray.700');
+  const doneTaskBg = useColorModeValue('teal.50', 'rgba(13,148,136,0.1)');
+  const overdueTaskBg = useColorModeValue('red.50', 'rgba(220,38,38,0.1)');
+  const defaultTaskBg = useColorModeValue('white', 'gray.800');
+  const progressBg = useColorModeValue('gray.100', 'gray.700');
+  const iconBoxBg = useColorModeValue('teal.100', 'rgba(13,148,136,0.2)');
+  const emptyBg = useColorModeValue('gray.50', 'gray.800');
+  const emptyBorder = useColorModeValue('gray.200', 'gray.700');
+  const skeletonBorder = useColorModeValue('gray.200', 'gray.700');
+  const skeletonBg = useColorModeValue('white', 'gray.800');
+  const textColor = useColorModeValue('gray.800', 'gray.100');
+  const doneTextColor = useColorModeValue('gray.400', 'gray.500');
+  const mutedText = useColorModeValue('gray.500', 'gray.400');
+  const mutedIcon = useColorModeValue('gray.400', 'gray.500');
+  const actionColor = useColorModeValue('gray.400', 'gray.500');
+  const actionHoverBg = useColorModeValue('gray.100', 'gray.600');
+  const actionHoverColor = useColorModeValue('gray.600', 'gray.300');
+  const doneBorder = useColorModeValue('teal.200', 'rgba(13,148,136,0.3)');
+  const overdueBorder = useColorModeValue('red.200', 'rgba(220,38,38,0.3)');
   const [tasks, setTasks] = useState<ServiceTask[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -290,12 +310,12 @@ export default function ServiceTasks({
             w="36px"
             h="36px"
             borderRadius="lg"
-            bg="teal.100"
+            bg={iconBoxBg}
             display="flex"
             alignItems="center"
             justifyContent="center"
           >
-            <ListChecks size={20} className="text-teal-600" />
+            <ListChecks size={20} color={iconBoxBg === 'teal.100' ? '#0D9488' : '#5EEAD4'} />
           </Box>
           <Box>
             <Text fontSize="lg" fontWeight="700">
@@ -330,7 +350,7 @@ export default function ServiceTasks({
             size="sm"
             colorScheme="teal"
             borderRadius="full"
-            bg="gray.100"
+            bg={progressBg}
           />
         </Box>
       )}
@@ -344,8 +364,8 @@ export default function ServiceTasks({
               p="4"
               borderRadius="lg"
               border="1px solid"
-              borderColor="gray.200"
-              bg="white"
+              borderColor={skeletonBorder}
+              bg={skeletonBg}
             >
               <Skeleton h="20px" w="60%" mb="2" />
               <SkeletonText noOfLines={1} spacing="2" skeletonHeight="2" />
@@ -357,15 +377,15 @@ export default function ServiceTasks({
           p="8"
           borderRadius="xl"
           border="2px dashed"
-          borderColor="gray.200"
-          bg="gray.50"
+          borderColor={emptyBorder}
+          bg={emptyBg}
           textAlign="center"
         >
-          <Sparkles size={32} className="mx-auto text-gray-300 mb-2" />
-          <Text fontWeight="600" color="gray.600" mb="1">
+          <Sparkles size={32} color={mutedIcon} style={{ margin: '0 auto 8px' }} />
+          <Text fontWeight="600" color={textColor} mb="1">
             No tasks yet
           </Text>
-          <Text fontSize="sm" color="gray.500">
+          <Text fontSize="sm" color={mutedText}>
             {isReadOnly
               ? 'Tasks will appear here once they are added.'
               : 'Add tasks to track preparations, checklists, and to-dos for this service.'}
@@ -387,8 +407,8 @@ export default function ServiceTasks({
                 p="4"
                 borderRadius="lg"
                 border="1px solid"
-                borderColor={isDone ? 'teal.200' : overdue ? 'red.200' : 'gray.200'}
-                bg={isDone ? 'teal.50' : overdue ? 'red.50' : 'white'}
+                borderColor={isDone ? doneBorder : overdue ? overdueBorder : taskBorderColor}
+                bg={isDone ? doneTaskBg : overdue ? overdueTaskBg : defaultTaskBg}
                 transition="all 0.15s ease"
                 _hover={!isReadOnly ? { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' } : {}}
               >
@@ -413,7 +433,7 @@ export default function ServiceTasks({
                     <HStack spacing="2" flexWrap="wrap">
                       <Text
                         fontWeight="600"
-                        color={isDone ? 'gray.400' : 'gray.800'}
+                        color={isDone ? doneTextColor : textColor}
                         textDecoration={isDone ? 'line-through' : 'none'}
                       >
                         {task.title}
@@ -434,7 +454,7 @@ export default function ServiceTasks({
                       )}
                     </HStack>
                     {task.notes && (
-                      <Text fontSize="sm" color="gray.500">
+                      <Text fontSize="sm" color={mutedText}>
                         {task.notes}
                       </Text>
                     )}
@@ -442,7 +462,7 @@ export default function ServiceTasks({
                       {assigneeName && (
                         <HStack spacing="1">
                           <User size={12} className="text-gray-400" />
-                          <Text fontSize="xs" color="gray.500">{assigneeName}</Text>
+                          <Text fontSize="xs" color={mutedText}>{assigneeName}</Text>
                         </HStack>
                       )}
                       {task.due_date && (
@@ -493,8 +513,8 @@ export default function ServiceTasks({
                         icon={<MoreVertical size={16} />}
                         size="sm"
                         variant="ghost"
-                        color="gray.400"
-                        _hover={{ color: 'gray.600', bg: 'gray.100' }}
+                        color={actionColor}
+                        _hover={{ color: actionHoverColor, bg: actionHoverBg }}
                       />
                       <Portal>
                         <MenuList borderRadius="xl" zIndex={50}>

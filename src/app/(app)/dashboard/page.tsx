@@ -365,7 +365,7 @@ export default function DashboardPage() {
           >
             <VStack spacing="1">
               <Calendar size={24} className="text-teal-600" />
-              <Text fontSize="sm" color="gray.700">New Service</Text>
+              <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>New Service</Text>
             </VStack>
           </Button>
           <Button 
@@ -379,7 +379,7 @@ export default function DashboardPage() {
           >
             <VStack spacing="1">
               <Music size={24} className="text-teal-600" />
-              <Text fontSize="sm" color="gray.700">Add Song</Text>
+              <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>Add Song</Text>
             </VStack>
           </Button>
           <Button 
@@ -393,7 +393,7 @@ export default function DashboardPage() {
           >
             <VStack spacing="1">
               <Users size={24} className="text-teal-600" />
-              <Text fontSize="sm" color="gray.700">Add Member</Text>
+              <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>Add Member</Text>
             </VStack>
           </Button>
           <Button 
@@ -407,7 +407,7 @@ export default function DashboardPage() {
           >
             <VStack spacing="1">
               <BarChart2 size={24} className="text-teal-600" />
-              <Text fontSize="sm" color="gray.700">Song Usage</Text>
+              <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>Song Usage</Text>
             </VStack>
           </Button>
         </SimpleGrid>
