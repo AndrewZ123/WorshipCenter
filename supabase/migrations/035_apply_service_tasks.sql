@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS service_tasks (
   due_date TIMESTAMP WITH TIME ZONE,
   estimated_duration_minutes INTEGER,
   is_blocking BOOLEAN DEFAULT FALSE,
-  parent_task_id UUID REFERENCES service_tasks(id) ON DELETE SET NULL
+  parent_task_id UUID REFERENCES service_tasks(id) ON DELETE SET NULL,
+  depends_on_task_id UUID REFERENCES service_tasks(id) ON DELETE SET NULL
 );
 
 -- Priority constraint
@@ -57,6 +58,9 @@ ALTER TABLE service_tasks DROP CONSTRAINT IF EXISTS service_tasks_priority_check
 ALTER TABLE service_tasks
   ADD CONSTRAINT service_tasks_priority_check
   CHECK (priority IN ('low', 'medium', 'high', 'urgent'));
+
+-- depends_on_task_id column (used by client for simple single-dependency tracking)
+ALTER TABLE service_tasks ADD COLUMN IF NOT EXISTS depends_on_task_id UUID REFERENCES service_tasks(id) ON DELETE SET NULL;
 
 -- ============================================
 -- 4. Task dependencies
@@ -182,6 +186,7 @@ CREATE INDEX IF NOT EXISTS idx_service_tasks_status ON service_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_service_tasks_priority ON service_tasks(priority);
 CREATE INDEX IF NOT EXISTS idx_service_tasks_due_date ON service_tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_service_tasks_parent ON service_tasks(parent_task_id);
+CREATE INDEX IF NOT EXISTS idx_service_tasks_depends ON service_tasks(depends_on_task_id);
 CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id);
 CREATE INDEX IF NOT EXISTS idx_task_dependencies_church_id ON task_dependencies(church_id);
