@@ -18,7 +18,7 @@ import BottomNav from './BottomNav';
 import Avatar from '@/components/ui/Avatar';
 import TourOverlay from '@/components/onboarding/TourOverlay';
 import { useTour } from '@/lib/tour/TourContext';
-import { TOUR_STEPS } from '@/lib/tour/steps';
+import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 
 // Lucide icons
 import { 
@@ -55,6 +55,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const { start } = useTour();
+  const [isMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 62em)').matches;
+  })
 
   // Color mode values at top level
   const sidebarBg = useColorModeValue('white', 'gray.800');
@@ -293,7 +297,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               </MenuItem>
               <MenuItem
                 icon={<Sparkles size={16} />}
-                onClick={() => { start(TOUR_STEPS); onClose?.(); }}
+                onClick={() => { start(isMobile ? MOBILE_TOUR_STEPS : TOUR_STEPS); onClose?.(); }}
                 fontSize="sm"
               >
                 Take the Tour
@@ -317,11 +321,30 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { setDrawerControls, start } = useTour();
   const mainBg = useColorModeValue('gray.50', 'gray.900');
   const headerBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const logoColor = useColorModeValue('gray.800', 'gray.100');
   const logoAccent = useColorModeValue('teal.600', 'teal.300');
+
+  // Register drawer controls so TourOverlay can open/close it
+  useEffect(() => {
+    setDrawerControls(onOpen, onClose);
+    return () => setDrawerControls(() => {}, () => {});
+  }, [onOpen, onClose, setDrawerControls]);
+
+  // Determine if mobile — use matchMedia to avoid SSR flash
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 62em)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+
 
   return (
     <>

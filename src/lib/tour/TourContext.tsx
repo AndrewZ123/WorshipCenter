@@ -11,6 +11,11 @@ interface TourContextValue {
   next: () => void;
   prev: () => void;
   end: () => void;
+  goTo: (index: number) => void;
+  /** Programmatic drawer open (mobile), registered by AppShell/DemoShell */
+  openDrawer: (() => void) | null;
+  closeDrawer: (() => void) | null;
+  setDrawerControls: (open: () => void, close: () => void) => void;
 }
 
 const TourContext = createContext<TourContextValue | null>(null);
@@ -19,6 +24,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [steps, setSteps] = useState<TourStep[]>([]);
+  const [openDrawerFn, setOpenDrawerFn] = useState<(() => void) | null>(null);
+  const [closeDrawerFn, setCloseDrawerFn] = useState<(() => void) | null>(null);
 
   const start = useCallback((newSteps: TourStep[]) => {
     setSteps(newSteps);
@@ -40,8 +47,24 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     setCurrentStep(0);
   }, []);
 
+  const goTo = useCallback((index: number) => {
+    setCurrentStep(index);
+  }, []);
+
+  const setDrawerControls = useCallback((open: () => void, close: () => void) => {
+    setOpenDrawerFn(() => open);
+    setCloseDrawerFn(() => close);
+  }, []);
+
   return (
-    <TourContext.Provider value={{ isActive, currentStep, steps, start, next, prev, end }}>
+    <TourContext.Provider
+      value={{
+        isActive, currentStep, steps, start, next, prev, end, goTo,
+        openDrawer: openDrawerFn,
+        closeDrawer: closeDrawerFn,
+        setDrawerControls,
+      }}
+    >
       {children}
     </TourContext.Provider>
   );

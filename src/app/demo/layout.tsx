@@ -17,7 +17,7 @@ import NextLink from 'next/link';
 import Avatar from '@/components/ui/Avatar';
 import TourOverlay from '@/components/onboarding/TourOverlay';
 import { TourProvider, useTour } from '@/lib/tour/TourContext';
-import { TOUR_STEPS } from '@/lib/tour/steps';
+import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 
 // Lucide icons
 import { 
@@ -250,7 +250,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <MenuList borderRadius="xl" zIndex={50}>
               <MenuItem
                 icon={<Sparkles size={16} />}
-                onClick={() => { start(TOUR_STEPS); onClose?.(); }}
+                onClick={() => { 
+                  const isMobile = window.matchMedia('(max-width: 62em)').matches;
+                  start(isMobile ? MOBILE_TOUR_STEPS : TOUR_STEPS); onClose?.(); 
+                }}
                 fontSize="sm"
                 borderRadius="lg"
               >
@@ -283,10 +286,17 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 // Demo Shell - Navigation and Layout (matches AppShell)
 function DemoShell({ children }: { children: React.ReactNode }) {
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { setDrawerControls } = useTour();
   const mainBg = useColorModeValue('gray.50', 'gray.900');
   const headerBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const headingColor = useColorModeValue('gray.900', 'white');
+
+  // Register drawer controls so TourOverlay can open/close it
+  React.useEffect(() => {
+    setDrawerControls(onOpen, onClose);
+    return () => setDrawerControls(() => {}, () => {});
+  }, [onOpen, onClose, setDrawerControls]);
 
   return (
     <Flex h="100dvh" overflow="hidden" direction="column">

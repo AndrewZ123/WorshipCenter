@@ -27,7 +27,7 @@ import { FiCamera, FiUser, FiHome, FiHelpCircle } from 'react-icons/fi';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useTour } from '@/lib/tour/TourContext';
-import { TOUR_STEPS } from '@/lib/tour/steps';
+import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 import { Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -380,7 +380,8 @@ export default function SettingsPage() {
                   alignSelf="flex-start"
                   leftIcon={<Sparkles size={16} />}
                   onClick={() => {
-                    start(TOUR_STEPS);
+                    const isMobile = window.matchMedia('(max-width: 62em)').matches;
+                    start(isMobile ? MOBILE_TOUR_STEPS : TOUR_STEPS);
                     router.push('/dashboard');
                   }}
                   borderRadius="lg"

@@ -18,18 +18,27 @@ interface TargetRect {
 }
 
 const SPOTLIGHT_PADDING = 6;
+const DRAWER_ANIM_MS = 350;
 
+/**
+ * Finds the FIRST VISIBLE element matching the selector.
+ * On mobile the sidebar items are display:none so they get skipped,
+ * and the bottom-nav / drawer items are found instead.
+ */
 function measureTarget(selector: string): TargetRect | null {
-  const el = document.querySelector(selector);
-  if (!el) return null;
-  const rect = el.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return null;
-  return {
-    top: rect.top - SPOTLIGHT_PADDING,
-    left: rect.left - SPOTLIGHT_PADDING,
-    width: rect.width + SPOTLIGHT_PADDING * 2,
-    height: rect.height + SPOTLIGHT_PADDING * 2,
-  };
+  const elements = document.querySelectorAll(selector);
+  for (const el of elements) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      return {
+        top: rect.top - SPOTLIGHT_PADDING,
+        left: rect.left - SPOTLIGHT_PADDING,
+        width: rect.width + SPOTLIGHT_PADDING * 2,
+        height: rect.height + SPOTLIGHT_PADDING * 2,
+      };
+    }
+  }
+  return null;
 }
 
 function IconBox({ icon: Icon }: { icon: React.ComponentType<{ size?: number }> }) {
@@ -43,7 +52,7 @@ function IconBox({ icon: Icon }: { icon: React.ComponentType<{ size?: number }> 
 }
 
 export default function TourOverlay() {
-  const { isActive, currentStep, steps, next, prev, end } = useTour();
+  const { isActive, currentStep, steps, next, prev, end, openDrawer, closeDrawer } = useTour();
   const step = steps[currentStep];
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -58,6 +67,17 @@ export default function TourOverlay() {
     setMounted(true);
   }, []);
 
+  // ── Open / close the mobile drawer ──
+  useEffect(() => {
+    if (!isActive || !step) return;
+    if (step.closeDrawer) {
+      closeDrawer?.();
+    } else if (step.openDrawer) {
+      openDrawer?.();
+    }
+  }, [isActive, step, openDrawer, closeDrawer]);
+
+  // ── Measure target ──
   useEffect(() => {
     if (!isActive || !step?.targetSelector) {
       setTargetRect(null);
@@ -67,7 +87,8 @@ export default function TourOverlay() {
     const measure = () => setTargetRect(measureTarget(step.targetSelector!));
     measure();
 
-    const timeout = setTimeout(measure, 400);
+    // Re-measure after drawer animation completes
+    const timeout = setTimeout(measure, DRAWER_ANIM_MS);
 
     window.addEventListener('scroll', measure, { passive: true });
     window.addEventListener('resize', measure, { passive: true });
@@ -78,6 +99,7 @@ export default function TourOverlay() {
     };
   }, [isActive, step]);
 
+  // ── Scroll target into view ──
   useEffect(() => {
     if (isActive && step?.targetSelector) {
       const el = document.querySelector(step.targetSelector);
@@ -85,6 +107,7 @@ export default function TourOverlay() {
     }
   }, [isActive, step]);
 
+  // ── Keyboard ──
   useEffect(() => {
     if (!isActive) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -102,11 +125,12 @@ export default function TourOverlay() {
   const isLast = currentStep === steps.length - 1;
   const noTarget = !step.targetSelector;
 
+  // ── Card position ──
   let cardStyle: React.CSSProperties;
 
   if (isMobile) {
     cardStyle = {
-      bottom: '24px',
+      bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
       left: '50%',
       transform: 'translateX(-50%)',
     };
@@ -132,6 +156,7 @@ export default function TourOverlay() {
 
   return createPortal(
     <Box position="fixed" inset="0" zIndex={9999}>
+      {/* Backdrop */}
       <Box
         position="absolute"
         inset="0"
@@ -139,6 +164,7 @@ export default function TourOverlay() {
         onClick={end}
       />
 
+      {/* Spotlight cutout */}
       {targetRect && (
         <Box
           position="absolute"
@@ -154,6 +180,7 @@ export default function TourOverlay() {
         />
       )}
 
+      {/* Tooltip card */}
       <AnimatePresence mode="wait">
         <motion.div
           key={step.id}
@@ -174,6 +201,8 @@ export default function TourOverlay() {
             boxShadow="0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.1)"
             maxW={noTarget ? '420px' : '360px'}
             w={isMobile ? 'calc(100vw - 32px)' : 'auto'}
+            maxH={isMobile ? 'calc(100dvh - 140px)' : undefined}
+            overflowY="auto"
             p="5"
             onClick={(e) => e.stopPropagation()}
           >

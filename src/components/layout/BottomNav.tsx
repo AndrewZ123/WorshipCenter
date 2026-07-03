@@ -44,12 +44,12 @@ export default function BottomNav({ onOpenDrawer }: { onOpenDrawer?: () => void 
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
-          const tourAttr = item.href ? `nav-${item.href.replace(/^\//, '')}` : undefined;
+          const tourAttr = item.isMore ? 'nav-more' : `nav-${item.href.replace(/^\//, '')}`;
 
           return (
             <Flex
               key={item.label}
-              {...(tourAttr ? { 'data-tour': tourAttr } : {})}
+              data-tour={tourAttr}
               direction="column"
               align="center"
               justify="center"
