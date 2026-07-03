@@ -395,10 +395,10 @@ export default function ServicesPage() {
             <Table variant="simple">
               <Thead bg={theadBg}>
                 <Tr>
-                  <Th color="gray.500" fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Date</Th>
-                  <Th color="gray.500" fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Title</Th>
-                  <Th color="gray.500" fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Time</Th>
-                  <Th color="gray.500" fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Status</Th>
+                  <Th fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Date</Th>
+                  <Th fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Title</Th>
+                  <Th fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Time</Th>
+                  <Th fontWeight="600" fontSize="xs" textTransform="uppercase" letterSpacing="wide">Status</Th>
                   <Th w="60px"></Th>
                 </Tr>
               </Thead>
