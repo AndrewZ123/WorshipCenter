@@ -64,6 +64,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const hoverBg = useColorModeValue('gray.50', 'gray.700');
   const textColor = useColorModeValue('gray.600', 'gray.300');
   const notificationBg = useColorModeValue('teal.50', 'teal.900');
+  const logoColor = useColorModeValue('gray.800', 'gray.100');
+  const logoAccent = useColorModeValue('teal.600', 'teal.300');
+  const churchBg = useColorModeValue('gray.50', 'gray.700');
+  const iconColor = useColorModeValue('gray.500', 'gray.400');
+  const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const actionHoverBg = useColorModeValue('gray.100', 'gray.600');
+  const activeNavBg = useColorModeValue('teal.50', 'rgba(13,148,136,0.15)');
+  const activeNavColor = useColorModeValue('teal.700', 'teal.300');
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -95,9 +103,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       }
     }
     loadNotifications();
-    // Depend on user.id only, not the whole user object — otherwise
-    // spurious user state updates (e.g. from auth events) would re-fetch
-    // notifications on every navigation.
   }, [user?.id]);
 
   const handleNav = (href: string) => {
@@ -118,10 +123,10 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Logo Header */}
       <Box px="6" py="5">
         <HStack spacing={0}>
-          <Text fontSize="xl" fontWeight="800" color="gray.800" letterSpacing="-0.5px">
+          <Text fontSize="xl" fontWeight="800" color={logoColor} letterSpacing="-0.5px">
             Worship
           </Text>
-          <Text fontSize="xl" fontWeight="800" color="teal.600" letterSpacing="-0.5px">
+          <Text fontSize="xl" fontWeight="800" color={logoAccent} letterSpacing="-0.5px">
             Center
           </Text>
         </HStack>
@@ -132,12 +137,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             mt="3"
             px="3"
             py="2"
-            bg="gray.50"
+            bg={churchBg}
             borderRadius="lg"
             spacing="2"
           >
-            <Church size={16} className="text-gray-500" />
-            <Text fontSize="sm" fontWeight="500" color="gray.700" noOfLines={1}>
+            <Church size={16} color={iconColor} />
+            <Text fontSize="sm" fontWeight="500" color={textColor} noOfLines={1}>
               {church.name}
             </Text>
           </HStack>
@@ -149,7 +154,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Primary Nav */}
       <VStack spacing="1" px="3" py="4" align="stretch" flex="1">
         {NAV_ITEMS.map((item) => {
-          // Team members: hide Team management and Song Usage pages
           if (user?.role === 'team' && TEAM_HIDDEN_ITEMS.includes(item.href)) return null;
 
           const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -162,14 +166,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               py="2.5"
               borderRadius="lg"
               cursor="pointer"
-              bg={isActive ? 'teal.50' : 'transparent'}
-              color={isActive ? 'teal.700' : textColor}
+              bg={isActive ? activeNavBg : 'transparent'}
+              color={isActive ? activeNavColor : textColor}
               fontWeight={isActive ? '600' : '500'}
               borderLeft={isActive ? '3px solid' : '3px solid transparent'}
-              borderColor={isActive ? 'teal.600' : 'transparent'}
+              borderColor={isActive ? logoAccent : 'transparent'}
               marginLeft={isActive ? '-3px' : '0'}
               paddingLeft={isActive ? 'calc(1rem + 3px)' : '1rem'}
-              _hover={{ bg: isActive ? 'teal.50' : hoverBg, color: isActive ? 'teal.700' : 'gray.800' }}
+              _hover={{ bg: isActive ? activeNavBg : hoverBg, color: isActive ? activeNavColor : logoColor }}
               transition="all 0.15s ease"
               onClick={() => handleNav(item.href)}
               role="button"
@@ -205,14 +209,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         <Box
           mx="3" mb="2" px="3" py="2"
           borderRadius="lg"
-          bg="teal.50"
+          bg={activeNavBg}
           border="1px solid"
-          borderColor="teal.100"
+          borderColor={useColorModeValue('teal.100', 'teal.800')}
         >
           <HStack justify="space-between">
             <HStack spacing="2">
               <Smartphone size={14} className="text-teal-600" />
-              <Text fontSize="xs" color="teal.700" fontWeight="500">
+              <Text fontSize="xs" color={activeNavColor} fontWeight="500">
                 Install App
               </Text>
             </HStack>
@@ -221,11 +225,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                 <Box
                   as="button"
                   fontSize="xs"
-                  color="teal.600"
+                  color={logoAccent}
                   fontWeight="600"
                   onClick={handleInstall}
                   cursor="pointer"
-                  _hover={{ color: 'teal.700' }}
+                  _hover={{ color: 'teal.400' }}
                 >
                   Install
                 </Box>
@@ -233,8 +237,8 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               <Box
                 as="button"
                 p="1"
-                color="teal.400"
-                _hover={{ color: 'teal.600' }}
+                color={iconColor}
+                _hover={{ color: textColor }}
                 onClick={() => setInstallDismissed(true)}
                 cursor="pointer"
               >
@@ -282,7 +286,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                   <Text>Notifications</Text>
                   {unreadCount > 0 && (
                     <Text
-                      fontSize="xs" color="teal.500" cursor="pointer"
+                      fontSize="xs" color={logoAccent} cursor="pointer"
                       _hover={{ textDecoration: 'underline' }}
                       onClick={handleMarkAllRead}
                     >
@@ -293,7 +297,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               </PopoverHeader>
               <PopoverBody p="0" maxH="300px" overflowY="auto">
                 {notifications.length === 0 ? (
-                  <Text p="4" fontSize="sm" color="gray.400" textAlign="center">No notifications</Text>
+                  <Text p="4" fontSize="sm" color={iconColor} textAlign="center">No notifications</Text>
                 ) : (
                   notifications.map((n) => (
                     <Box
@@ -310,7 +314,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                       }}
                     >
                       <Text fontSize="sm" fontWeight={n.read ? '400' : '600'}>{n.title}</Text>
-                      <Text fontSize="xs" color="gray.500" mt="0.5">{n.message}</Text>
+                      <Text fontSize="xs" color={subtextColor} mt="0.5">{n.message}</Text>
                     </Box>
                   ))
                 )}
@@ -324,7 +328,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                 <Avatar size="sm" name={user.name} src={user.avatar_url} />
                 <Box flex="1" textAlign="left">
                   <Text fontSize="sm" fontWeight="600" noOfLines={1}>{user.name}</Text>
-                  <Text fontSize="xs" color="gray.500" noOfLines={1}>{user.email}</Text>
+                  <Text fontSize="xs" color={subtextColor} noOfLines={1}>{user.email}</Text>
                 </Box>
               </HStack>
             </MenuButton>
@@ -375,6 +379,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const mainBg = useColorModeValue('gray.50', 'gray.900');
   const headerBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const logoColor = useColorModeValue('gray.800', 'gray.100');
+  const logoAccent = useColorModeValue('teal.600', 'teal.300');
 
   return (
     <Flex h="100vh" overflow="hidden">
@@ -416,10 +422,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             minW="44px"
           />
           <HStack spacing={0}>
-            <Text fontSize="lg" fontWeight="800" color="gray.800" letterSpacing="-0.5px">
+            <Text fontSize="lg" fontWeight="800" color={logoColor} letterSpacing="-0.5px">
               Worship
             </Text>
-            <Text fontSize="lg" fontWeight="800" color="teal.600" letterSpacing="-0.5px">
+            <Text fontSize="lg" fontWeight="800" color={logoAccent} letterSpacing="-0.5px">
               Center
             </Text>
           </HStack>

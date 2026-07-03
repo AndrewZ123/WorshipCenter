@@ -110,7 +110,7 @@ function StatBox({ icon: Icon, label, value }: { icon: React.ComponentType<{ siz
           <Box 
             p="2" 
             borderRadius="lg" 
-            bg="teal.50"
+            bg={useColorModeValue('teal.50', 'rgba(13,148,136,0.15)')}
           >
             <Icon size={24} />
           </Box>
@@ -220,10 +220,10 @@ export default function DashboardPage() {
     <Box p={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       {/* Greeting Header */}
       <Box mb="8">
-        <Text fontSize="2xl" fontWeight="bold" color="gray.900" letterSpacing="tight">
+        <Text fontSize="2xl" fontWeight="bold" letterSpacing="tight">
           {greeting}, {firstName} 👋
         </Text>
-        <Text color="gray.500" mt="1" fontSize="sm">
+        <Text mt="1" fontSize="sm" color={subtextColor}>
           {church?.name} — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         </Text>
       </Box>
@@ -245,7 +245,7 @@ export default function DashboardPage() {
       {myTasks.length > 0 && (
         <Box mb="8">
           <Flex justify="space-between" align="center" mb="4">
-            <Text fontSize="lg" fontWeight="600" color="gray.800">My Tasks</Text>
+            <Text fontSize="lg" fontWeight="600" color={textColor}>My Tasks</Text>
             <Button
               variant="ghost"
               size="sm"
@@ -291,7 +291,7 @@ export default function DashboardPage() {
       {upcomingServices.length > 0 && (
         <Box mb="8">
           <Flex justify="space-between" align="center" mb="4">
-            <Text fontSize="lg" fontWeight="600" color="gray.800">Upcoming Services</Text>
+            <Text fontSize="lg" fontWeight="600" color={textColor}>Upcoming Services</Text>
             <Button
               variant="ghost"
               size="sm"
@@ -313,7 +313,7 @@ export default function DashboardPage() {
       {/* This Week - only if no upcoming but has this week services */}
       {upcomingServices.length === 0 && thisWeekServices.length > 0 && (
         <Box mb="8">
-          <Text fontSize="lg" fontWeight="600" color="gray.800" mb="4">This Week</Text>
+          <Text fontSize="lg" fontWeight="600" color={textColor} mb="4">This Week</Text>
           <VStack spacing="3" align="stretch">
             {thisWeekServices.map((svc) => (
               <ServiceCard key={svc.id} svc={svc} onClick={() => router.push(`/services/${svc.id}`)} />
@@ -416,7 +416,7 @@ export default function DashboardPage() {
       {/* Recent Completed */}
       {recentServices.length > 0 && (
         <Box>
-          <Text fontSize="lg" fontWeight="600" color="gray.800" mb="4">Recently Completed</Text>
+          <Text fontSize="lg" fontWeight="600" color={textColor} mb="4">Recently Completed</Text>
           <Box 
             bg={cardBg} 
             borderRadius="xl" 

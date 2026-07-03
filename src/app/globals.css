@@ -531,3 +531,25 @@ textarea,
 .chakra-ui-dark hr {
   border-color: #374151 !important;
 }
+
+/* Fix Lucide icon brightness in dark mode */
+.chakra-ui-dark .lucide {
+  color: #9CA3AF;
+}
+
+.chakra-ui-dark .lucide.text-teal-600,
+.chakra-ui-dark [class*="text-teal-600"] {
+  color: #5EEAD4 !important;
+}
+
+.chakra-ui-dark [class*="text-gray-400"] {
+  color: #6B7280 !important;
+}
+
+.chakra-ui-dark [class*="text-gray-500"]:not(chakra) {
+  color: #9CA3AF !important;
+}
+
+.chakra-ui-dark [style*="color: var(--chakra-colors-gray-200)"] {
+  color: #4B5563 !important;
+}

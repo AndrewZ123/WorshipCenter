@@ -203,8 +203,8 @@ export default function ServicesPage() {
       {/* Page Header */}
       <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} mb="6" flexWrap="wrap" gap="4" direction={{ base: 'column', md: 'row' }}>
         <Box>
-          <Text fontSize="2xl" fontWeight="bold" color="gray.900" letterSpacing="tight">Services</Text>
-          <Text color="gray.500" mt="1" fontSize="sm">Plan and manage your worship services</Text>
+          <Text fontSize="2xl" fontWeight="bold" letterSpacing="tight">Services</Text>
+          <Text mt="1" fontSize="sm" color={subtextColor}>Plan and manage your worship services</Text>
         </Box>
         {!isReadOnly && (
           <Box w={{ base: 'full', md: 'auto' }}>
@@ -330,7 +330,7 @@ export default function ServicesPage() {
                         <Clock size={14} />
                         <Text fontSize="sm">{tpl.time}</Text>
                       </HStack>
-                      <Text fontSize="xs" color="gray.400" flexShrink={0}>{tpl.items.length} items</Text>
+                      <Text fontSize="xs" color={subtextColor} flexShrink={0}>{tpl.items.length} items</Text>
                     </HStack>
                     <HStack spacing="2" flexShrink={0} onClick={(e) => e.stopPropagation()}>
                       <Button 
@@ -430,8 +430,8 @@ export default function ServicesPage() {
                             variant="ghost" 
                             size="sm" 
                             aria-label="Actions"
-                            color="gray.400"
-                            _hover={{ color: 'gray.600', bg: 'gray.100' }}
+                        color={subtextColor}
+                        _hover={{ color: textColor, bg: hoverBg }}
                           />
                           <MenuList borderRadius="xl" zIndex={50}>
                             <MenuItem onClick={() => { setDupSourceId(service.id); setDupTitle(service.title); setDupDate(''); dupDisclosure.onOpen(); }} icon={<Copy size={16} />}>Duplicate</MenuItem>
