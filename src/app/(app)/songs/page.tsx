@@ -59,6 +59,17 @@ export default function SongsPage() {
   const hoverBg = useColorModeValue('gray.50', 'gray.700');
   const tabInactiveBg = useColorModeValue('gray.100', 'gray.700');
   const theadBg = useColorModeValue('gray.50', 'gray.700');
+  const iconBoxBg = useColorModeValue('teal.100', 'rgba(13,148,136,0.2)');
+  const iconColor = useColorModeValue('gray.400', 'gray.500');
+  const actionHoverBg = useColorModeValue('gray.100', 'gray.600');
+  const actionColor = useColorModeValue('gray.400', 'gray.500');
+  const actionHoverColor = useColorModeValue('gray.600', 'gray.300');
+  const importMetaBg = useColorModeValue('teal.50', 'gray.700');
+  const importMetaColor = useColorModeValue('teal.700', 'teal.300');
+  const importLabelColor = useColorModeValue('gray.500', 'gray.400');
+  const theadTextColor = useColorModeValue('gray.500', 'gray.300');
+  const mutedText = useColorModeValue('gray.400', 'gray.500');
+  const iconTeal = useColorModeValue('#0D9488', '#5EEAD4');
   
   // Team members have read-only access
   const isReadOnly = user?.role === 'team';
@@ -195,7 +206,7 @@ export default function SongsPage() {
       {/* Search and Filter */}
       <Flex mb="5" gap="3" flexWrap="wrap" align="stretch" direction={{ base: 'column', md: 'row' }}>
         <Box position="relative" flex="1" minW="200px">
-          <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color="gray.400">
+          <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color={iconColor}>
             <Search size={16} />
           </Box>
           <Input 
@@ -270,11 +281,11 @@ export default function SongsPage() {
             <Table variant="simple">
               <Thead bg={theadBg}>
                 <Tr>
-                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Title</Th>
-                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Artist</Th>
-                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Key</Th>
-                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Last Used</Th>
-                  <Th isNumeric fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Used</Th>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color={theadTextColor}>Title</Th>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color={theadTextColor}>Artist</Th>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color={theadTextColor}>Key</Th>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color={theadTextColor}>Last Used</Th>
+                  <Th isNumeric fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color={theadTextColor}>Used</Th>
                   <Th w="50px"></Th>
                 </Tr>
               </Thead>
@@ -303,12 +314,12 @@ export default function SongsPage() {
                             minW="32px" 
                             h="32px" 
                             borderRadius="lg" 
-                            bg="teal.100"
+                            bg={iconBoxBg}
                             display="flex" 
                             alignItems="center" 
                             justifyContent="center"
                           >
-                            <Music size={16} className="text-teal-600" />
+                            <Music size={16} color={iconTeal} />
                           </Box>
                           <Box>
                             <Text fontWeight="600" color={headingColor}>{song.title}</Text>
@@ -336,7 +347,7 @@ export default function SongsPage() {
                         {timesUsed > 0 ? (
                           <Badge colorScheme="teal" variant="subtle" fontSize="xs" px="2.5" py="0.5" borderRadius="full">{timesUsed}</Badge>
                         ) : (
-                          <Text color="gray.400" fontSize="sm">0</Text>
+                          <Text color={mutedText} fontSize="sm">0</Text>
                         )}
                       </Td>
                       <Td onClick={(e) => e.stopPropagation()}>
@@ -348,8 +359,8 @@ export default function SongsPage() {
                               variant="ghost" 
                               size="sm" 
                               aria-label="Actions"
-                              color="gray.400"
-                              _hover={{ color: 'gray.600', bg: 'gray.100' }}
+                              color={actionColor}
+                              _hover={{ color: actionHoverColor, bg: actionHoverBg }}
                             />
                             <MenuList borderRadius="xl" zIndex={50}>
                               <MenuItem onClick={() => router.push(`/songs/${song.id}`)}>View Details</MenuItem>
@@ -364,8 +375,8 @@ export default function SongsPage() {
                             variant="ghost"
                             size="sm"
                             aria-label="View details"
-                            color="gray.400"
-                            _hover={{ color: 'gray.600', bg: 'gray.100' }}
+                            color={actionColor}
+                            _hover={{ color: actionHoverColor, bg: actionHoverBg }}
                           />
                         )}
                       </Td>
@@ -407,24 +418,24 @@ export default function SongsPage() {
                           minW="36px" 
                           h="36px" 
                           borderRadius="lg" 
-                          bg="teal.100"
+                          bg={iconBoxBg}
                           display="flex" 
                           alignItems="center" 
                           justifyContent="center"
                         >
-                          <Music size={18} className="text-teal-600" />
+                          <Music size={18} color={iconTeal} />
                         </Box>
                         <Box>
                           <Text fontWeight="600" color={headingColor}>{song.title}</Text>
                           <HStack spacing="2" mt="1">
                             <Mic2 size={12} className="text-gray-400" />
                             <Text fontSize="sm" color={subtextColor}>{song.artist || 'Unknown'}</Text>
-                            <Text color="gray.300">·</Text>
+                            <Text color={mutedText}>·</Text>
                             <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md">{song.default_key}</Badge>
                           </HStack>
                           <HStack spacing="2" mt="1">
                             <Box w="2" h="2" borderRadius="full" bg={health.color} />
-                            <Text fontSize="xs" color="gray.400">{timesUsed > 0 ? `Used ${timesUsed} time${timesUsed !== 1 ? 's' : ''}` : 'Not used'}</Text>
+                            <Text fontSize="xs" color={mutedText}>{timesUsed > 0 ? `Used ${timesUsed} time${timesUsed !== 1 ? 's' : ''}` : 'Not used'}</Text>
                           </HStack>
                         </Box>
                       </HStack>
@@ -437,8 +448,8 @@ export default function SongsPage() {
                               variant="ghost" 
                               size="sm" 
                               aria-label="Actions"
-                              color="gray.400"
-                              _hover={{ color: 'gray.600', bg: 'gray.100' }}
+                              color={actionColor}
+                              _hover={{ color: actionHoverColor, bg: actionHoverBg }}
                             />
                             <MenuList borderRadius="xl" zIndex={50}>
                               <MenuItem onClick={() => router.push(`/songs/${song.id}`)}>View Details</MenuItem>
@@ -453,8 +464,8 @@ export default function SongsPage() {
                             variant="ghost"
                             size="sm"
                             aria-label="View details"
-                            color="gray.400"
-                            _hover={{ color: 'gray.600', bg: 'gray.100' }}
+                            color={actionColor}
+                            _hover={{ color: actionHoverColor, bg: actionHoverBg }}
                           />
                         )}
                       </Box>
@@ -556,7 +567,7 @@ export default function SongsPage() {
                   display="flex"
                   flexDirection="column"
                   gap="2"
-                  _hover={{ borderColor: 'teal.400', bg: 'gray.50' }}
+                  _hover={{ borderColor: 'teal.400', bg: hoverBg }}
                 >
                   <Upload size={24} className={importParsed ? 'text-teal-500' : 'text-gray-400'} />
                   <Text fontSize="sm" color={importParsed ? 'teal.600' : subtextColor}>
@@ -583,25 +594,25 @@ export default function SongsPage() {
               </FormControl>
 
               {importParsed && (
-                <Box w="full" p="4" bg={useColorModeValue('teal.50', 'gray.700')} borderRadius="lg">
-                  <Text fontWeight="600" fontSize="sm" mb="3" color="teal.700">Parsed Metadata</Text>
+                <Box w="full" p="4" bg={importMetaBg} borderRadius="lg">
+                  <Text fontWeight="600" fontSize="sm" mb="3" color={importMetaColor}>Parsed Metadata</Text>
                   <VStack spacing="2" align="stretch" fontSize="sm">
                     {importParsed.meta.title && (
-                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">Title:</Text><Text>{importParsed.meta.title}</Text></HStack>
+                      <HStack><Text fontWeight="500" color={importLabelColor} minW="60px">Title:</Text><Text>{importParsed.meta.title}</Text></HStack>
                     )}
                     {importParsed.meta.artist && (
-                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">Artist:</Text><Text>{importParsed.meta.artist}</Text></HStack>
+                      <HStack><Text fontWeight="500" color={importLabelColor} minW="60px">Artist:</Text><Text>{importParsed.meta.artist}</Text></HStack>
                     )}
                     {importParsed.meta.key && (
-                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">Key:</Text><Text>{importParsed.meta.key}</Text></HStack>
+                      <HStack><Text fontWeight="500" color={importLabelColor} minW="60px">Key:</Text><Text>{importParsed.meta.key}</Text></HStack>
                     )}
                     {importParsed.meta.ccli && (
-                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">CCLI:</Text><Text>{importParsed.meta.ccli}</Text></HStack>
+                      <HStack><Text fontWeight="500" color={importLabelColor} minW="60px">CCLI:</Text><Text>{importParsed.meta.ccli}</Text></HStack>
                     )}
                     {importParsed.meta.tags.length > 0 && (
-                      <HStack><Text fontWeight="500" color="gray.500" minW="60px">Tags:</Text><Text>{importParsed.meta.tags.join(', ')}</Text></HStack>
+                      <HStack><Text fontWeight="500" color={importLabelColor} minW="60px">Tags:</Text><Text>{importParsed.meta.tags.join(', ')}</Text></HStack>
                     )}
-                    <Text fontSize="xs" color="gray.400" mt="1">{importParsed.lines.length} lyric lines parsed</Text>
+                    <Text fontSize="xs" color={mutedText} mt="1">{importParsed.lines.length} lyric lines parsed</Text>
                   </VStack>
                 </Box>
               )}
