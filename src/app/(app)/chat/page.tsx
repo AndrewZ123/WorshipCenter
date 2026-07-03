@@ -361,14 +361,15 @@ export default function ChatPage() {
   const messageGroups = groupMessagesByDate(messages);
 
   return (
-    <Box 
-      p={{ base: '0', md: '4' }} 
-      maxW="900px" 
-      mx="auto" 
-      minH={{ base: '100%', md: 'auto' }}
-      display="flex"
-      flexDirection="column"
-    >
+      <Box 
+        p={{ base: '0', md: '4' }} 
+        maxW="900px" 
+        mx="auto" 
+        h={{ base: '100%', md: 'auto' }}
+        display="flex"
+        flexDirection="column"
+        flex="1"
+      >
       {/* Header */}
       <Box 
         bg={headerBg} 
@@ -451,8 +452,8 @@ export default function ChatPage() {
         display="flex" 
         flexDirection="column" 
         flex="1"
-        minH={{ base: 'auto', md: 'calc(100dvh - 280px)' }}
-        maxH={{ base: 'calc(100dvh - 180px)', md: 'calc(100dvh - 280px)' }}
+        minH={{ base: '0', md: 'calc(100dvh - 280px)' }}
+        maxH={{ base: '100%', md: 'calc(100dvh - 280px)' }}
       >
         {/* Messages Area */}
         <Box 

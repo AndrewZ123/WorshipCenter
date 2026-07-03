@@ -384,15 +384,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const logoAccent = useColorModeValue('teal.600', 'teal.300');
 
   return (
-    <Flex h="100dvh" overflow="hidden">
-      <Box
-        as="a"
-        href="#main-content"
-        className="skip-link"
-        _focus={{ top: 0 }}
-      >
-        Skip to main content
-      </Box>
+      <Flex h="100dvh" overflow="hidden">
       {/* Desktop sidebar */}
       <Box
         display={{ base: 'none', lg: 'block' }}
@@ -456,8 +448,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <Box 
-        id="main-content"
-        role="main"
         flex="1" 
         overflowY={isOpen ? 'hidden' : 'auto'}
         overflowX="hidden"
