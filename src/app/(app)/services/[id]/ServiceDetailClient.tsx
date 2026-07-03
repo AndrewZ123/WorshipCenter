@@ -9,7 +9,7 @@ import {
   ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter,
   Select, Textarea, useDisclosure, Menu, MenuButton, MenuList, MenuItem,
   Divider, Badge, Portal, Tabs, TabList, TabPanels, Tab, TabPanel,
-  Skeleton,
+  Skeleton, SimpleGrid, Progress,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
@@ -71,6 +71,7 @@ export default function ServiceDetailClient() {
   const [assignments, setAssignments] = useState<ServiceAssignment[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
+  const [taskStats, setTaskStats] = useState<{ total: number; done: number } | null>(null);
   const [editing, setEditing] = useState(false);
 
   const [title, setTitle] = useState('');
@@ -126,6 +127,22 @@ export default function ServiceDetailClient() {
 
   const roleLabel = (r: string) => r.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
+  const getCountdownText = (dateStr: string) => {
+    if (!dateStr) return '';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(dateStr + 'T00:00:00');
+    target.setHours(0, 0, 0, 0);
+    const diffMs = target.getTime() - today.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays > 0) return `in ${diffDays} days`;
+    const pastDays = Math.abs(diffDays);
+    if (pastDays === 1) return 'Yesterday';
+    return `${pastDays} days ago`;
+  };
+
   // Configure drag-and-drop sensors with mobile-optimized settings
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -174,6 +191,12 @@ export default function ServiceDetailClient() {
   useEffect(() => {
     loadData();
   }, [serviceId]);
+
+  // Load task stats for the overview dashboard
+  useEffect(() => {
+    if (!church || !serviceId) return;
+    store.tasks.getTaskStats(serviceId, church.id).then(setTaskStats).catch(() => setTaskStats(null));
+  }, [serviceId, church]);
 
   // Switch to Schedule tab if assignmentId is present
   useEffect(() => {
@@ -778,21 +801,158 @@ export default function ServiceDetailClient() {
                       </HStack>
                     </VStack>
                   ) : (
-                    <VStack spacing="4" align="stretch">
-                      <HStack justify="space-between" align="center">
-                        <HStack spacing="4">
+                    <VStack spacing="6" align="stretch">
+                      {/* Status + Countdown */}
+                      <Flex justify="space-between" align="center" wrap="wrap" gap="2">
+                        <HStack spacing="3">
                           <StatusBadge status={service.status} size="md" />
-                          {notes && (
-                            <HStack spacing="2" color={subtextColor}>
-                              <BookOpen size={16} />
-                              <Text fontSize="sm">{notes}</Text>
-                            </HStack>
-                          )}
+                          <Text fontSize="sm" color={subtextColor} fontWeight="500">
+                            {getCountdownText(service.date)}
+                          </Text>
                         </HStack>
-                      </HStack>
-                      {!notes && (
-                        <Text color={emptyColor} fontSize="sm" fontStyle="italic">No notes added</Text>
+                      </Flex>
+
+                      {/* Quick Stats Cards */}
+                      <SimpleGrid columns={{ base: 2, md: 4 }} spacing="4">
+                        <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                          <CardBody py="3" px="4">
+                            <Text fontSize="xs" color={subtextColor} fontWeight="600" textTransform="uppercase" letterSpacing="wide">Plan</Text>
+                            <Text fontSize="2xl" fontWeight="bold" color={headingColor} mt="1">{items.length}</Text>
+                            <Text fontSize="xs" color={subtextColor}>{items.length === 1 ? 'item' : 'items'}</Text>
+                          </CardBody>
+                        </Card>
+                        <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                          <CardBody py="3" px="4">
+                            <Text fontSize="xs" color={subtextColor} fontWeight="600" textTransform="uppercase" letterSpacing="wide">Songs</Text>
+                            <Text fontSize="2xl" fontWeight="bold" color={headingColor} mt="1">{items.filter(i => i.type === 'song').length}</Text>
+                            <Text fontSize="xs" color={subtextColor}>of {items.length} {items.length === 1 ? 'item' : 'items'}</Text>
+                          </CardBody>
+                        </Card>
+                        <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                          <CardBody py="3" px="4">
+                            <Text fontSize="xs" color={subtextColor} fontWeight="600" textTransform="uppercase" letterSpacing="wide">Team</Text>
+                            <Text fontSize="2xl" fontWeight="bold" color={headingColor} mt="1">{assignments.filter(a => a.status === 'confirmed').length}</Text>
+                            <Text fontSize="xs" color={subtextColor}>of {assignments.length} confirmed</Text>
+                          </CardBody>
+                        </Card>
+                        <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                          <CardBody py="3" px="4">
+                            <Text fontSize="xs" color={subtextColor} fontWeight="600" textTransform="uppercase" letterSpacing="wide">Duration</Text>
+                            <Text fontSize="2xl" fontWeight="bold" color={headingColor} mt="1">{items.reduce((sum, i) => sum + (i.duration_minutes || 0), 0) || '—'}</Text>
+                            <Text fontSize="xs" color={subtextColor}>{items.some(i => i.duration_minutes) ? 'minutes' : 'not set'}</Text>
+                          </CardBody>
+                        </Card>
+                      </SimpleGrid>
+
+                      {/* Schedule Snapshot */}
+                      {assignments.length > 0 && (
+                        <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                          <CardBody px="5" py="4">
+                            <HStack mb="4" spacing="2">
+                              <Users size={16} />
+                              <Text fontSize="sm" fontWeight="600" color={headingColor}>Schedule ({assignments.length})</Text>
+                              <Text fontSize="xs" color={subtextColor}>·</Text>
+                              <Text fontSize="xs" color={subtextColor}>
+                                {assignments.filter(a => a.status === 'confirmed').length} confirmed
+                                {assignments.some(a => a.status === 'pending') && (
+                                  <>, {assignments.filter(a => a.status === 'pending').length} pending</>
+                                )}
+                                {assignments.some(a => a.status === 'declined') && (
+                                  <>, {assignments.filter(a => a.status === 'declined').length} declined</>
+                                )}
+                              </Text>
+                            </HStack>
+                            <VStack spacing="2" align="stretch">
+                              {assignments.map((a: any) => (
+                                <HStack key={a.id} spacing="3" py="1">
+                                  <Avatar name={a.team_member?.name || 'Unknown'} src={a.team_member?.avatar_url} size="sm" />
+                                  <Box flex="1" minW="0">
+                                    <Text fontSize="sm" fontWeight="500" color={headingColor} noOfLines={1}>
+                                      {a.team_member?.name || 'Unknown'}
+                                    </Text>
+                                    <Text fontSize="xs" color={subtextColor}>{a.role}</Text>
+                                  </Box>
+                                  <StatusBadge status={a.status} size="sm" />
+                                </HStack>
+                              ))}
+                            </VStack>
+                          </CardBody>
+                        </Card>
                       )}
+
+                      {/* Plan Snapshot */}
+                      {items.length > 0 && (
+                        <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                          <CardBody px="5" py="4">
+                            <HStack mb="3" spacing="2">
+                              <ListMusic size={16} />
+                              <Text fontSize="sm" fontWeight="600" color={headingColor}>Service Order ({items.length})</Text>
+                            </HStack>
+                            <VStack spacing="1" align="stretch">
+                              {items.map((item, i) => (
+                                <HStack key={item.id} spacing="3" py="1.5" px="2" borderRadius="md" _hover={{ bg: hoverBg }}>
+                                  <Text fontSize="xs" fontWeight="600" color="gray.400" w="20px" textAlign="right">{i + 1}.</Text>
+                                  <Box
+                                    minW="24px" h="24px" borderRadius="md"
+                                    bg={item.type === 'song' ? 'teal.100' : 'gray.100'}
+                                    display="flex" alignItems="center" justifyContent="center"
+                                  >
+                                    {item.type === 'song' ? <Music size={12} /> : <AlignLeft size={12} />}
+                                  </Box>
+                                  <Text fontSize="sm" fontWeight="500" color={itemTitleColor} flex="1" noOfLines={1}>{item.title}</Text>
+                                  {item.type === 'song' && item.key && (
+                                    <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0}>Key: {item.key}</Badge>
+                                  )}
+                                  {item.duration_minutes && (
+                                    <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
+                                  )}
+                                </HStack>
+                              ))}
+                            </VStack>
+                          </CardBody>
+                        </Card>
+                      )}
+
+                      {/* Tasks Progress */}
+                      {taskStats !== null && (
+                        <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                          <CardBody px="5" py="4">
+                            <HStack mb="3" spacing="2">
+                              <CheckSquare size={16} />
+                              <Text fontSize="sm" fontWeight="600" color={headingColor}>Tasks</Text>
+                            </HStack>
+                            {taskStats.total > 0 ? (
+                              <>
+                                <Progress
+                                  value={taskStats.total > 0 ? (taskStats.done / taskStats.total) * 100 : 0}
+                                  size="sm"
+                                  colorScheme="teal"
+                                  borderRadius="full"
+                                  bg={borderColor}
+                                />
+                                <Text fontSize="xs" color={subtextColor} mt="2">{taskStats.done} of {taskStats.total} tasks complete</Text>
+                              </>
+                            ) : (
+                              <Text fontSize="sm" color={subtextColor}>No tasks created</Text>
+                            )}
+                          </CardBody>
+                        </Card>
+                      )}
+
+                      {/* Notes */}
+                      <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                        <CardBody px="5" py="4">
+                          <HStack mb="2" spacing="2">
+                            <BookOpen size={16} />
+                            <Text fontSize="sm" fontWeight="600" color={headingColor}>Notes</Text>
+                          </HStack>
+                          {notes ? (
+                            <Text fontSize="sm" color={textColor} whiteSpace="pre-wrap">{notes}</Text>
+                          ) : (
+                            <Text fontSize="sm" color={emptyColor} fontStyle="italic">No notes added</Text>
+                          )}
+                        </CardBody>
+                      </Card>
                     </VStack>
                   )}
                 </TabPanel>

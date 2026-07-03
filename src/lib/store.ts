@@ -1585,6 +1585,25 @@ export const db = {
         )
       );
     },
+    getTaskStats: async (serviceId: string, churchId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+      if (!service || service.church_id !== churchId) {
+        return { total: 0, done: 0 };
+      }
+      const { data } = await supabase
+        .from('service_tasks')
+        .select('status')
+        .eq('service_id', serviceId);
+      const tasks = data || [];
+      return {
+        total: tasks.length,
+        done: tasks.filter((t) => t.status === 'done').length,
+      };
+    },
     generateFromTemplate: async (serviceId: string, churchId: string, templateId: string) => {
       const template = await db.taskTemplates.getById(templateId, churchId);
       if (!template || !template.items?.length) return [];

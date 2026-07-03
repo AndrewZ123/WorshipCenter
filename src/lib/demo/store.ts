@@ -569,6 +569,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       toggleDone: async (_id: string, _churchId: string, _userId: string): Promise<any> => null,
       delete: async (_id: string, _churchId: string): Promise<boolean> => false,
       reorder: async (_serviceId: string, _orderedIds: string[]): Promise<void> => {},
+      getTaskStats: async (_serviceId: string, _churchId: string): Promise<{ total: number; done: number }> => ({ total: 0, done: 0 }),
       generateFromTemplate: async (_serviceId: string, _churchId: string, _templateId: string): Promise<any[]> => [],
     },
 
