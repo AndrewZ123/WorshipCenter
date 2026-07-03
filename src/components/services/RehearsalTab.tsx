@@ -62,7 +62,21 @@ export default function RehearsalTab({
     }
   }, [serviceId, churchId, teamMemberId, isLeader]);
 
+  const rehearsedCount = songItems.filter(item => logs.get(item.song_id!)?.rehearsed).length;
+  const canToggle = !!teamMemberId;
+  const allRehearsed = songItems.length > 0 && rehearsedCount === songItems.length;
+
+  const updateStatsFromLogs = useCallback(() => {
+    if (!isLeader || !teamMemberId) return;
+    setStats(prev => prev.map(s => {
+      if (s.team_member_id !== teamMemberId) return s;
+      return { ...s, rehearsed_count: rehearsedCount };
+    }));
+  }, [isLeader, teamMemberId, rehearsedCount]);
+
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => { updateStatsFromLogs(); }, [updateStatsFromLogs]);
 
   const handleToggle = async (songId: string, currentlyRehearsed: boolean) => {
     if (!teamMemberId || toggling) return;
@@ -92,6 +106,7 @@ export default function RehearsalTab({
 
     try {
       await db.rehearsals.upsert(serviceId, teamMemberId, songId, newValue, churchId);
+      updateStatsFromLogs();
     } catch (error) {
       // Revert on failure
       setLogs(prev => {
@@ -134,6 +149,7 @@ export default function RehearsalTab({
 
     try {
       await db.rehearsals.markAll(serviceId, teamMemberId, churchId);
+      updateStatsFromLogs();
       toast({ title: 'All songs marked as rehearsed!', status: 'success', duration: 2000 });
     } catch (error) {
       await loadData();
@@ -143,10 +159,6 @@ export default function RehearsalTab({
       setToggling(false);
     }
   };
-
-  const rehearsedCount = songItems.filter(item => logs.get(item.song_id!)?.rehearsed).length;
-  const canToggle = !!teamMemberId;
-  const allRehearsed = songItems.length > 0 && rehearsedCount === songItems.length;
 
   if (loading) {
     return (
