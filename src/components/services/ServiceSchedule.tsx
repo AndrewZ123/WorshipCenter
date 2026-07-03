@@ -516,19 +516,17 @@ export default function ServiceSchedule({
                       </Button>
                     </>
                   )}
-                  {/* Only admins/leaders see remove — no email sent */}
-                  {!isOwnAssignment(assignment) && (
-                    <IconButton
-                      aria-label="Remove member"
-                      icon={<X size={16} />}
-                      size="sm"
-                      variant="ghost"
-                      color="gray.400"
-                      _hover={{ color: 'red.500' }}
-                      onClick={() => handleRemoveAssignment(assignment.id)}
-                      isDisabled={processing === assignment.id}
-                    />
-                  )}
+                  {/* Remove button — on every row including declined */}
+                  <IconButton
+                    aria-label="Remove member"
+                    icon={<X size={16} />}
+                    size="sm"
+                    variant="ghost"
+                    color="gray.400"
+                    _hover={{ color: 'red.500' }}
+                    onClick={() => handleRemoveAssignment(assignment.id)}
+                    isDisabled={processing === assignment.id}
+                  />
                 </HStack>
               </HStack>
               </Box>
