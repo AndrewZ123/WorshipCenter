@@ -841,110 +841,134 @@ export default function ServiceDetailClient() {
                 {/* Secondary tab bar — Plan */}
                 {primaryTab === 1 && (
                   <Flex mt={1} gap={1} role="tablist" borderBottom="1px solid" borderColor={borderColor} px={1}>
-                    <Tab
+                    <Box
+                      as="button"
                       flexShrink={0}
                       fontSize="sm"
-                      fontWeight="500"
+                      fontWeight={activeTab === 1 ? '600' : '500'}
                       pb={3}
                       pt={2}
                       px={3}
                       color={activeTab === 1 ? 'teal.600' : subtextColor}
-                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      borderBottom="2px solid"
+                      borderBottomColor={activeTab === 1 ? 'teal.600' : 'transparent'}
+                      onClick={() => setActiveTab(1)}
                       _hover={{ color: 'teal.500' }}
+                      transition="all 0.15s"
                     >
                       <HStack spacing={1.5}>
                         <ListMusic size={14} />
                         <span>Items</span>
                       </HStack>
-                    </Tab>
-                    <Tab
+                    </Box>
+                    <Box
+                      as="button"
                       flexShrink={0}
                       fontSize="sm"
-                      fontWeight="500"
+                      fontWeight={activeTab === 3 ? '600' : '500'}
                       pb={3}
                       pt={2}
                       px={3}
                       color={activeTab === 3 ? 'teal.600' : subtextColor}
-                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      borderBottom="2px solid"
+                      borderBottomColor={activeTab === 3 ? 'teal.600' : 'transparent'}
+                      onClick={() => setActiveTab(3)}
                       _hover={{ color: 'teal.500' }}
+                      transition="all 0.15s"
                     >
                       <HStack spacing={1.5}>
                         <ListChecks size={14} />
                         <span>Tasks</span>
                       </HStack>
-                    </Tab>
+                    </Box>
                   </Flex>
                 )}
 
                 {/* Secondary tab bar — Team */}
                 {primaryTab === 2 && (
                   <Flex mt={1} gap={1} role="tablist" borderBottom="1px solid" borderColor={borderColor} px={1} overflowX="auto" sx={{ '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}>
-                    <Tab
+                    <Box
+                      as="button"
                       flexShrink={0}
                       fontSize="sm"
-                      fontWeight="500"
+                      fontWeight={activeTab === 2 ? '600' : '500'}
                       pb={3}
                       pt={2}
                       px={3}
                       color={activeTab === 2 ? 'teal.600' : subtextColor}
-                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      borderBottom="2px solid"
+                      borderBottomColor={activeTab === 2 ? 'teal.600' : 'transparent'}
+                      onClick={() => setActiveTab(2)}
                       _hover={{ color: 'teal.500' }}
+                      transition="all 0.15s"
                     >
                       <HStack spacing={1.5}>
                         <Users size={14} />
                         <span>Schedule ({assignedCount})</span>
                       </HStack>
-                    </Tab>
-                    <Tab
+                    </Box>
+                    <Box
+                      as="button"
                       flexShrink={0}
                       fontSize="sm"
-                      fontWeight="500"
+                      fontWeight={activeTab === 4 ? '600' : '500'}
                       pb={3}
                       pt={2}
                       px={3}
                       color={activeTab === 4 ? 'teal.600' : subtextColor}
-                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      borderBottom="2px solid"
+                      borderBottomColor={activeTab === 4 ? 'teal.600' : 'transparent'}
+                      onClick={() => setActiveTab(4)}
                       _hover={{ color: 'teal.500' }}
+                      transition="all 0.15s"
                     >
                       <HStack spacing={1.5}>
                         <MessageSquare size={14} />
                         <span>Chat</span>
                       </HStack>
-                    </Tab>
+                    </Box>
                     {user && (user.team_member_id || user.role !== 'team') && (
-                      <Tab
+                      <Box
+                        as="button"
                         flexShrink={0}
                         fontSize="sm"
-                        fontWeight="500"
+                        fontWeight={activeTab === 5 ? '600' : '500'}
                         pb={3}
                         pt={2}
                         px={3}
                         color={activeTab === 5 ? 'teal.600' : subtextColor}
-                        _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                        borderBottom="2px solid"
+                        borderBottomColor={activeTab === 5 ? 'teal.600' : 'transparent'}
+                        onClick={() => setActiveTab(5)}
                         _hover={{ color: 'teal.500' }}
+                        transition="all 0.15s"
                       >
                         <HStack spacing={1.5}>
                           <CheckSquare size={14} />
                           <span>Rehearsal</span>
                         </HStack>
-                      </Tab>
+                      </Box>
                     )}
-                    <Tab
+                    <Box
+                      as="button"
                       flexShrink={0}
                       fontSize="sm"
-                      fontWeight="500"
+                      fontWeight={activeTab === 6 ? '600' : '500'}
                       pb={3}
                       pt={2}
                       px={3}
                       color={activeTab === 6 ? 'teal.600' : subtextColor}
-                      _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+                      borderBottom="2px solid"
+                      borderBottomColor={activeTab === 6 ? 'teal.600' : 'transparent'}
+                      onClick={() => setActiveTab(6)}
                       _hover={{ color: 'teal.500' }}
+                      transition="all 0.15s"
                     >
                       <HStack spacing={1.5}>
                         <Star size={14} />
                         <span>Debrief ({debriefEntries.length})</span>
                       </HStack>
-                    </Tab>
+                    </Box>
                   </Flex>
                 )}
 

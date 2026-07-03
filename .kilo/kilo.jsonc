@@ -1,3 +1,7 @@
 {
-  "$schema": "https://app.kilo.ai/config.json"
+  "$schema": "https://app.kilo.ai/config.json",
+  "indexing": {
+    "provider": "openai-compatible",
+    "model": "glm-4.7"
+  }
 }
