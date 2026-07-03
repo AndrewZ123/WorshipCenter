@@ -385,7 +385,9 @@ export default function ServiceSchedule({
                   borderRadius="md"
                   p="2"
                 >
-                  {teamMembers.map((member) => (
+                  {teamMembers.map((member) => {
+                    const isOwn = member.user_id === currentUserId;
+                    return (
                     <HStack
                       key={member.id}
                       spacing="3"
@@ -402,13 +404,14 @@ export default function ServiceSchedule({
                       />
                       <Avatar name={member.name} src={member.avatar_url} size="sm" />
                       <Text fontSize="sm" fontWeight="500" color={headingColor}>
-                        {member.name}
+                        {isOwn ? 'You' : member.name}
                       </Text>
                       <Text fontSize="xs" color={subTextColor} ml="auto">
                         {member.roles.join(', ')}
                       </Text>
                     </HStack>
-                  ))}
+                    );
+                  })}
                 </Box>
               )}
             </Box>
@@ -550,8 +553,8 @@ export default function ServiceSchedule({
         isOpen={!!removeTarget}
         onClose={() => setRemoveTarget(null)}
         onConfirm={handleRemoveAssignment}
-        title={`Remove ${removeTargetName}?`}
-        message={`Are you sure you want to remove ${removeTargetName} from this service?`}
+        title={`Remove ${removeTargetName === 'You' ? 'yourself' : removeTargetName}?`}
+        message={`Are you sure you want to remove ${removeTargetName === 'You' ? 'yourself' : removeTargetName} from this service?`}
         confirmLabel="Remove"
         variant="destructive"
       />
