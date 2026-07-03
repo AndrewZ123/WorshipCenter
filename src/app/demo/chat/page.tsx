@@ -300,7 +300,7 @@ export default function DemoChatPage() {
       p={{ base: '0', md: '4' }} 
       maxW="900px" 
       mx="auto" 
-      h={{ base: 'calc(100dvh - 56px)', md: 'auto' }}
+      h={{ base: 'calc(100dvh - 56px - env(safe-area-inset-top) - 56px - env(safe-area-inset-bottom))', md: 'auto' }}
       display="flex"
       flexDirection="column"
     >
@@ -373,7 +373,7 @@ export default function DemoChatPage() {
         flexDirection="column" 
         flex="1"
         minH={{ base: 'auto', md: 'calc(100dvh - 280px)' }}
-        maxH={{ base: 'calc(100dvh - 180px)', md: 'calc(100dvh - 280px)' }}
+        maxH={{ base: 'none', md: 'calc(100dvh - 280px)' }}
       >
         {/* Messages Area */}
         <Box 

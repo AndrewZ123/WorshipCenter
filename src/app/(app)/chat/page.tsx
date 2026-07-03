@@ -365,10 +365,10 @@ export default function ChatPage() {
         p={{ base: '0', md: '4' }} 
         maxW="900px" 
         mx="auto" 
-        h={{ base: '100%', md: 'auto' }}
+        h={{ base: 'calc(100dvh - 56px - env(safe-area-inset-top) - 56px - env(safe-area-inset-bottom))', md: 'auto' }}
+        minH={{ base: 'calc(100dvh - 56px - env(safe-area-inset-top) - 56px - env(safe-area-inset-bottom))', md: '0' }}
         display="flex"
         flexDirection="column"
-        flex="1"
       >
       {/* Header */}
       <Box 
@@ -453,7 +453,7 @@ export default function ChatPage() {
         flexDirection="column" 
         flex="1"
         minH={{ base: '0', md: 'calc(100dvh - 280px)' }}
-        maxH={{ base: '100%', md: 'calc(100dvh - 280px)' }}
+        maxH={{ base: 'none', md: 'calc(100dvh - 280px)' }}
       >
         {/* Messages Area */}
         <Box 
