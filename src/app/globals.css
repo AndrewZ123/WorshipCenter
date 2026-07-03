@@ -22,7 +22,7 @@ html, body {
     padding-top: calc(56px + env(safe-area-inset-top));
     padding-bottom: env(safe-area-inset-bottom);
   }
-  
+
   @media (min-width: 1024px) {
     .main-content {
       padding-top: 0;
@@ -36,7 +36,7 @@ html, body {
   .main-content {
     padding-top: 56px;
   }
-  
+
   @media (min-width: 1024px) {
     .main-content {
       padding-top: 0;
@@ -49,7 +49,7 @@ html, body {
   .chakra-modal__content {
     padding-top: env(safe-area-inset-top);
   }
-  
+
   /* Add extra padding to sidebar logo in drawer */
   .sidebar-logo {
     padding-top: calc(20px + env(safe-area-inset-top)) !important;
@@ -67,7 +67,7 @@ html, body {
     -webkit-touch-callout: none !important;
     -webkit-user-drag: none !important;
   }
-  
+
   /* Grip handle should be touch-friendly */
   .drag-handle,
   [data-dndkit-drag-handle] {
@@ -79,7 +79,7 @@ html, body {
     justify-content: center;
     cursor: grab !important;
   }
-  
+
   [data-dndkit-drag-handle]:active {
     cursor: grabbing !important;
   }
@@ -102,33 +102,33 @@ html, body {
   html, body {
     overflow-x: hidden;
   }
-  
+
   .main-content {
     overflow-x: hidden;
   }
-  
+
   /* Ensure modals are mobile-friendly */
   .chakra-modal__content {
     max-width: calc(100vw - 32px) !important;
     max-height: calc(100vh - 32px) !important;
     margin: 16px;
   }
-  
+
   /* Better touch targets for buttons */
   button, .chakra-button {
     min-height: 44px;
   }
-  
+
   /* Ensure inputs are touch-friendly */
   input, .chakra-input {
     font-size: 16px !important; /* Prevents iOS zoom on focus */
   }
-  
+
   /* Tables should scroll horizontally if needed */
   .chakra-table-container {
     -webkit-overflow-scrolling: touch;
   }
-  
+
   /* Ensure select dropdowns are accessible */
   select, .chakra-select__field {
     font-size: 16px !important;
@@ -169,12 +169,12 @@ textarea:focus-visible,
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  
+
   /* Keep essential feedback animations but make them subtle */
   .chakra-modal__content {
     animation: none !important;
   }
-  
+
   .chakra-collapse {
     transition: none !important;
   }
@@ -189,13 +189,13 @@ textarea:focus-visible,
     padding-left: 16px;
     padding-right: 16px;
   }
-  
+
   /* Section spacing */
   .mobile-section-gap {
     margin-top: 24px;
     margin-bottom: 16px;
   }
-  
+
   /* Card gap */
   .mobile-card-gap {
     gap: 12px;
@@ -219,27 +219,6 @@ textarea:focus-visible,
 }
 
 /* ============================================
-   IMPROVED CONTRAST FOR WCAG AA
-   ============================================ */
-/* Fix gray-400 on white - doesn't meet 4.5:1 */
-.text-improved-contrast {
-  color: #4a5568 !important; /* gray.600 instead of gray.400 */
-}
-
-.chakra-ui-dark .text-improved-contrast {
-  color: #cbd5e0 !important; /* gray.300 instead of gray.500 */
-}
-
-/* Secondary text that's still readable */
-.text-secondary-readable {
-  color: #718096; /* gray.500 - meets 4.5:1 on white */
-}
-
-.chakra-ui-dark .text-secondary-readable {
-  color: #a0aec0; /* gray.400 - meets 4.5:1 on dark */
-}
-
-/* ============================================
    TOUCH-FRIENDLY FORM CONTROLS
    ============================================ */
 @media (max-width: 1023px) {
@@ -249,19 +228,19 @@ textarea:focus-visible,
     font-weight: 600;
     margin-bottom: 8px;
   }
-  
+
   /* Better spacing between form fields */
   .chakra-form-control + .chakra-form-control {
     margin-top: 16px;
   }
-  
+
   /* Touch-friendly checkbox/radio */
   .chakra-checkbox__control,
   .chakra-radio__control {
     min-width: 24px;
     min-height: 24px;
   }
-  
+
   .chakra-checkbox__label,
   .chakra-radio__label {
     font-size: 16px;
@@ -316,18 +295,18 @@ textarea:focus-visible,
     min-width: var(--min-touch-target);
     min-height: var(--min-touch-target);
   }
-  
+
   /* Small icon buttons should have padding */
   .chakra-iconbutton.size-sm {
     padding: 10px;
   }
-  
+
   /* Menu items need larger tap targets */
   .chakra-menu__menuitem {
     min-height: var(--min-touch-target);
     padding: 12px 16px;
   }
-  
+
   /* Tab buttons need larger touch area */
   .chakra-tabs__tab {
     min-height: var(--min-touch-target);
@@ -385,18 +364,18 @@ textarea:focus-visible,
     margin-left: 0;
     margin-right: 0;
   }
-  
+
   /* Better card padding on mobile */
   .chakra-card__body {
     padding: 16px;
   }
-  
+
   /* Stack card actions on mobile */
   .mobile-stack-actions {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .mobile-stack-actions > * {
     width: 100%;
   }
@@ -421,7 +400,7 @@ body.dragging-active {
     min-height: 44px !important;
     min-height: var(--min-touch-target) !important;
   }
-  
+
   /* Prevent text selection during drag */
   .sortable-item,
   [data-dnd-kit-draggable="true"] {
@@ -430,7 +409,7 @@ body.dragging-active {
     -ms-user-select: none !important;
     user-select: none !important;
   }
-  
+
   /* Prevent context menu on long press */
   .drag-handle,
   [data-dnd-kit-drag-handle="true"] {
@@ -475,4 +454,80 @@ textarea,
   -moz-user-select: text !important;
   -ms-user-select: text !important;
   user-select: text !important;
+}
+
+/* ============================================
+   DARK MODE SPECIFIC FIXES
+   ============================================ */
+
+/* Fix teal.50 backgrounds in dark mode */
+.chakra-ui-dark [class*="bg-teal-50"],
+.chakra-ui-dark [style*="background: var(--chakra-colors-teal-50)"] {
+  background: rgba(13, 148, 136, 0.15) !important;
+}
+
+/* Fix teal.100 backgrounds in dark mode */
+.chakra-ui-dark [class*="bg-teal-100"],
+.chakra-ui-dark [style*="background: var(--chakra-colors-teal-100)"] {
+  background: rgba(13, 148, 136, 0.2) !important;
+}
+
+/* Fix text-gray-500 on dark backgrounds - make it readable */
+.chakra-ui-dark [class*="text-gray-500"] {
+  color: #9CA3AF !important;
+}
+
+/* Fix gray.200 borders on dark backgrounds */
+.chakra-ui-dark [style*="border-color: var(--chakra-colors-gray-200)"] {
+  border-color: #374151 !important;
+}
+
+/* Improve teal hover state visibility in dark mode */
+.chakra-ui-dark [data-group]:hover,
+.chakra-ui-dark [role="button"]:hover {
+  /* Keep hover states subtle in dark mode */
+}
+
+/* Ensure badge text is readable in dark mode */
+.chakra-ui-dark .chakra-badge {
+  color: inherit !important;
+}
+
+/* Fix table row hover in dark mode */
+.chakra-ui-dark .chakra-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Fix input/select backgrounds in dark mode */
+.chakra-ui-dark .chakra-input,
+.chakra-ui-dark .chakra-select__field,
+.chakra-ui-dark .chakra-textarea {
+  background: #1F2937 !important;
+  border-color: #374151 !important;
+  color: #E5E7EB !important;
+}
+
+/* Fix alert backgrounds in dark mode */
+.chakra-ui-dark .chakra-alert {
+  --alert-bg: #1F2937;
+}
+
+/* Fix stat/heading colors used directly in pages */
+.chakra-ui-dark h1,
+.chakra-ui-dark h2,
+.chakra-ui-dark h3,
+.chakra-ui-dark h4,
+.chakra-ui-dark h5,
+.chakra-ui-dark h6 {
+  color: #F3F4F6;
+}
+
+/* Fix paragraphs directly in dark mode pages */
+.chakra-ui-dark p:not([class*="chakra"]) {
+  color: #D1D5DB;
+}
+
+/* Fix division lines */
+.chakra-ui-dark hr {
+  border-color: #374151 !important;
 }

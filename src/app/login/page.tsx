@@ -38,11 +38,11 @@ export default function LoginPage() {
   };
 
   return (
-    <Flex minH="100vh" align="center" justify="center" bg="gray.50" px={{ base: '4', md: '4' }} py={{ base: '6', md: '0' }}>
+    <Flex minH="100vh" align="center" justify="center" px={{ base: '4', md: '4' }} py={{ base: '6', md: '0' }}>
       <Box w="full" maxW="440px">
         <VStack spacing={{ base: '4', md: '6' }} mb={{ base: '6', md: '8' }} textAlign="center">
           <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="800" color="brand.500">♫ WorshipCenter</Text>
-          <Heading size={{ base: 'md', md: 'lg' }} fontWeight="700" color="gray.800">Welcome back</Heading>
+          <Heading size={{ base: 'md', md: 'lg' }} fontWeight="700">Welcome back</Heading>
           <Text color="gray.500" fontSize={{ base: 'sm', md: 'md' }}>Sign in to manage your services and team</Text>
         </VStack>
 
@@ -92,7 +92,7 @@ export default function LoginPage() {
           </CardBody>
         </Card>
 
-        <Text mt="6" textAlign="center" color="gray.500" fontSize="sm">
+        <Text mt="6" textAlign="center" fontSize="sm" color="gray.500">
           Don&apos;t have an account?{' '}
           <ChakraLink color="brand.500" fontWeight="600" href="/signup">
             Create your church
