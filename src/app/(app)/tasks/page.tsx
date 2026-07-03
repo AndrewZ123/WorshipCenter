@@ -35,6 +35,11 @@ export default function MyTasksPage() {
   const headingColor = useColorModeValue('gray.900', 'white');
   const textColor = useColorModeValue('gray.600', 'gray.300');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const iconColor = useColorModeValue('gray.400', 'gray.500');
+  const tabActiveColor = useColorModeValue('teal.600', 'teal.300');
+  const tabInactiveColor = useColorModeValue('gray.500', 'gray.400');
+  const arrowHoverBg = useColorModeValue('teal.50', 'rgba(13,148,136,0.15)');
+  const arrowHoverColor = useColorModeValue('teal.600', 'teal.300');
 
   const loadTasks = useCallback(async () => {
     if (!church || !user || !user.team_member_id) {
@@ -112,7 +117,7 @@ export default function MyTasksPage() {
       {/* Search */}
       <InputGroup mb="6">
         <InputLeftElement pointerEvents="none">
-          <Search size={16} className="text-gray-400" />
+          <Search size={16} color={iconColor} />
         </InputLeftElement>
         <Input
           placeholder="Search tasks..."
@@ -129,16 +134,16 @@ export default function MyTasksPage() {
           <Tab
             fontSize="sm"
             fontWeight="600"
-            color={activeTab === 0 ? 'teal.600' : 'gray.500'}
-            _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+            color={activeTab === 0 ? tabActiveColor : tabInactiveColor}
+            _selected={{ color: tabActiveColor, borderBottom: '2px solid', borderBottomColor: tabActiveColor }}
           >
             To Do ({myPending.length})
           </Tab>
           <Tab
             fontSize="sm"
             fontWeight="600"
-            color={activeTab === 1 ? 'teal.600' : 'gray.500'}
-            _selected={{ color: 'teal.600', borderBottom: '2px solid', borderBottomColor: 'teal.600' }}
+            color={activeTab === 1 ? tabActiveColor : tabInactiveColor}
+            _selected={{ color: tabActiveColor, borderBottom: '2px solid', borderBottomColor: tabActiveColor }}
           >
             Completed ({myCompleted.length})
           </Tab>
@@ -193,7 +198,7 @@ export default function MyTasksPage() {
                             <HStack spacing="3" mt="2" flexWrap="wrap">
                               {task.service && (
                                 <HStack spacing="1">
-                                  <Calendar size={12} className="text-gray-400" />
+                                  <Calendar size={12} color={iconColor} />
                                   <Text fontSize="xs" color={subtextColor}>
                                     {formatServiceDate(task.service.date)} · {task.service.title}
                                   </Text>
@@ -211,8 +216,8 @@ export default function MyTasksPage() {
                             icon={<ArrowRight size={16} />}
                             size="sm"
                             variant="ghost"
-                            color="gray.400"
-                            _hover={{ color: 'teal.600', bg: 'teal.50' }}
+                            color={iconColor}
+                            _hover={{ color: arrowHoverColor, bg: arrowHoverBg }}
                           />
                         </HStack>
                       </CardBody>
@@ -261,7 +266,7 @@ export default function MyTasksPage() {
                           </Text>
                           {task.service && (
                             <HStack spacing="1" mt="1">
-                              <Calendar size={12} className="text-gray-400" />
+                                  <Calendar size={12} color={iconColor} />
                               <Text fontSize="xs" color={subtextColor}>
                                 {formatServiceDate(task.service.date)} · {task.service.title}
                               </Text>
