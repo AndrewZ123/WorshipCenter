@@ -20,7 +20,7 @@ import Avatar from '@/components/ui/Avatar';
 
 // Lucide icons
 import { 
-  Calendar, Home, Music, Users, BarChart2, CreditCard, Menu as MenuIcon,
+  Calendar, Home, Music, Users, BarChart2, CreditCard,
   LogOut, Settings, Bell, Moon, Sun, Repeat, Church, Smartphone, X, MessageCircle, HelpCircle,
   CheckSquare, FileBarChart
 } from 'lucide-react';
@@ -420,16 +420,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           paddingTop: 'env(safe-area-inset-top)',
         }}
       >
-        <Flex h="56px" align="center" px="4">
-          <IconButton
-            aria-label="Open menu"
-            icon={<MenuIcon size={24} />}
-            variant="ghost"
-            size="lg"
-            onClick={onOpen}
-            mr="3"
-            minW="44px"
-          />
+        <Flex h="56px" align="center" justify="center" px="4">
           <HStack spacing={0}>
             <Text fontSize="lg" fontWeight="800" color={logoColor} letterSpacing="-0.5px">
               Worship
