@@ -171,7 +171,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               tabIndex={0}
             >
               <Box flexShrink={0}>
-                <IconComponent size={20} color={isActive ? 'var(--chakra-colors-teal-600)' : 'currentColor'} />
+                <IconComponent size={20} />
               </Box>
               <Text fontSize="sm">{item.label}</Text>
             </HStack>
