@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Box, Flex, Text, HStack, VStack, Button, IconButton,
-  useColorModeValue, useBreakpointValue,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -19,6 +19,7 @@ interface TargetRect {
 
 const SPOTLIGHT_PADDING = 6;
 const DRAWER_ANIM_MS = 350;
+const MOBILE_BREAKPOINT = 992; // 62em in px
 
 /**
  * Finds the FIRST VISIBLE element matching the selector.
@@ -56,7 +57,7 @@ export default function TourOverlay() {
   const step = steps[currentStep];
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const [mounted, setMounted] = useState(false);
-  const isMobile = useBreakpointValue({ base: true, lg: false });
+  const [isMobile, setIsMobile] = useState(true); // default to safe mobile layout
 
   const overlayBg = useColorModeValue('rgba(0,0,0,0.55)', 'rgba(0,0,0,0.7)');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -65,6 +66,15 @@ export default function TourOverlay() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // ── Reliable mobile detection via matchMedia ──
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
   }, []);
 
   // ── Open / close the mobile drawer ──
@@ -126,11 +136,17 @@ export default function TourOverlay() {
   const noTarget = !step.targetSelector;
 
   // ── Card position ──
+  // On mobile the card is always bottom-centered regardless of the target.
+  // On desktop it sits beside the spotlight or is fully centred for
+  // welcome/done steps.
+  // Using a viewport-width check as an extra safety net.
+  const isViewportMobile = mounted && window.innerWidth <= MOBILE_BREAKPOINT;
+
   let cardStyle: React.CSSProperties;
 
-  if (isMobile) {
+  if (isMobile || isViewportMobile) {
     cardStyle = {
-      bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
+      bottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
       left: '50%',
       transform: 'translateX(-50%)',
     };
@@ -141,8 +157,14 @@ export default function TourOverlay() {
       transform: 'translate(-50%, -50%)',
     };
   } else if (targetRect) {
+    // Position right of spotlight, clamped so the card stays on-screen
+    const gap = 16;
+    const left = Math.min(
+      targetRect.left + targetRect.width + gap,
+      window.innerWidth - 380
+    );
     cardStyle = {
-      left: `${Math.min(targetRect.left + targetRect.width + 16, window.innerWidth - 380)}px`,
+      left: `${Math.max(gap, left)}px`,
       top: `${targetRect.top + targetRect.height / 2}px`,
       transform: 'translateY(-50%)',
     };
@@ -153,6 +175,19 @@ export default function TourOverlay() {
       transform: 'translate(-50%, -50%)',
     };
   }
+
+  // On mobile we cap width to viewport minus safe margin
+  const cardWidth = isMobile || isViewportMobile
+    ? `min(${Math.min(360, window.innerWidth - 32)}px, calc(100vw - 32px))`
+    : 'auto';
+
+  const cardMaxW = (isMobile || isViewportMobile)
+    ? `${Math.min(360, window.innerWidth - 32)}px`
+    : (noTarget ? '420px' : '360px');
+
+  const cardMaxH = (isMobile || isViewportMobile)
+    ? 'calc(100dvh - 140px)'
+    : undefined;
 
   return createPortal(
     <Box position="fixed" inset="0" zIndex={9999}>
@@ -199,9 +234,9 @@ export default function TourOverlay() {
             bg={cardBg}
             borderRadius="xl"
             boxShadow="0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.1)"
-            maxW={noTarget ? '420px' : '360px'}
-            w={isMobile ? 'calc(100vw - 32px)' : 'auto'}
-            maxH={isMobile ? 'calc(100dvh - 140px)' : undefined}
+            maxW={cardMaxW}
+            w={cardWidth}
+            maxH={cardMaxH}
             overflowY="auto"
             p="5"
             onClick={(e) => e.stopPropagation()}
