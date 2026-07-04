@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessage, ChatMessagePopulated, RehearsalLog, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote, ServiceDebrief, TimingComparisonItem } from '@/lib/types';
+import type { Church, User, Song, TeamMember, TeamMemberPreference, TeamMemberBlockoutDate, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessage, ChatMessagePopulated, RehearsalLog, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote, ServiceDebrief, TimingComparisonItem } from '@/lib/types';
 import { getInitialDemoData } from './data';
 
   // Demo context types
@@ -27,6 +27,8 @@ interface DemoContextType {
   memberNotes: TeamMemberNote[];
   chatChannels: any[];
   debriefs: ServiceDebrief[];
+  preferences: TeamMemberPreference[];
+  blockoutDates: TeamMemberBlockoutDate[];
   
   // Demo actions
   resetDemo: () => void;
@@ -101,6 +103,13 @@ interface DemoContextType {
   markRehearsed: (serviceId: string, teamMemberId: string, songId: string, rehearsed: boolean) => RehearsalLog;
   markAllRehearsed: (serviceId: string, teamMemberId: string) => void;
   getRehearsalStats: (serviceId: string) => { team_member_id: string; member_name: string; member_role: string; rehearsed_count: number; total_songs: number }[];
+
+  // Preferences
+  upsertPreference: (teamMemberId: string, prefs: { max_weekly_frequency?: number | null; availability_notes?: string }) => TeamMemberPreference;
+
+  // Blockout Dates
+  createBlockoutDate: (bd: { team_member_id: string; church_id: string; start_date: string; end_date: string; reason?: string }) => TeamMemberBlockoutDate;
+  deleteBlockoutDate: (id: string) => boolean;
 }
 
 const DemoContext = createContext<DemoContextType | null>(null);
@@ -132,6 +141,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [memberNotes, setMemberNotes] = useState<TeamMemberNote[]>(initialData.memberNotes || []);
   const [chatChannels, setChatChannels] = useState<any[]>(initialData.chatChannels || []);
   const [debriefs, setDebriefs] = useState<ServiceDebrief[]>(initialData.debriefs || []);
+  const [preferences, setPreferences] = useState<TeamMemberPreference[]>(initialData.preferences || []);
+  const [blockoutDates, setBlockoutDates] = useState<TeamMemberBlockoutDate[]>(initialData.blockoutDates || []);
   
   // Reset demo
   const resetDemo = useCallback(() => {
@@ -151,6 +162,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     setMemberNotes(fresh.memberNotes || []);
     setChatChannels(fresh.chatChannels || []);
     setDebriefs(fresh.debriefs || []);
+    setPreferences(fresh.preferences || []);
+    setBlockoutDates(fresh.blockoutDates || []);
   }, []);
   
   // Song CRUD
@@ -583,6 +596,52 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     return newNote;
   }, []);
 
+  // Preferences
+  const upsertPreference = useCallback((teamMemberId: string, prefs: { max_weekly_frequency?: number | null; availability_notes?: string }): TeamMemberPreference => {
+    const existing = preferences.findIndex(p => p.team_member_id === teamMemberId);
+    const now = new Date().toISOString();
+    if (existing >= 0) {
+      const updated: TeamMemberPreference = {
+        ...preferences[existing],
+        ...prefs,
+        updated_at: now,
+      };
+      setPreferences(prev => prev.map((p, i) => i === existing ? updated : p));
+      return updated;
+    }
+    const newPref: TeamMemberPreference = {
+      id: generateId(),
+      team_member_id: teamMemberId,
+      church_id: church?.id || '',
+      max_weekly_frequency: prefs.max_weekly_frequency ?? null,
+      availability_notes: prefs.availability_notes || '',
+      created_at: now,
+      updated_at: now,
+    };
+    setPreferences(prev => [...prev, newPref]);
+    return newPref;
+  }, [preferences, church]);
+
+  // Blockout Dates
+  const createBlockoutDate = useCallback((bd: { team_member_id: string; church_id: string; start_date: string; end_date: string; reason?: string }): TeamMemberBlockoutDate => {
+    const newBd: TeamMemberBlockoutDate = {
+      id: generateId(),
+      team_member_id: bd.team_member_id,
+      church_id: bd.church_id,
+      start_date: bd.start_date,
+      end_date: bd.end_date,
+      reason: bd.reason || '',
+      created_at: new Date().toISOString(),
+    };
+    setBlockoutDates(prev => [...prev, newBd]);
+    return newBd;
+  }, []);
+
+  const deleteBlockoutDate = useCallback((id: string): boolean => {
+    setBlockoutDates(prev => prev.filter(b => b.id !== id));
+    return true;
+  }, []);
+
   const deleteMemberNote = useCallback((id: string): boolean => {
     setMemberNotes(prev => prev.filter(n => n.id !== id));
     return true;
@@ -698,6 +757,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     memberNotes,
     chatChannels,
     debriefs,
+    preferences,
+    blockoutDates,
     resetDemo,
     createSong,
     updateSong,
@@ -742,6 +803,9 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     markRehearsed,
     markAllRehearsed,
     getRehearsalStats,
+    upsertPreference,
+    createBlockoutDate,
+    deleteBlockoutDate,
   };
   
   return (

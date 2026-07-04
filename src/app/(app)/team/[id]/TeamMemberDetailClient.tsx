@@ -11,7 +11,7 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
-import type { TeamMember, Service, TeamMemberNote } from '@/lib/types';
+import type { TeamMember, TeamMemberPreference, TeamMemberBlockoutDate, Service, TeamMemberNote } from '@/lib/types';
 // Note type alias for clarity (author population handled at runtime)
 type NoteWithAuthor = TeamMemberNote & { authorName?: string };
 import EmptyState from '@/components/ui/EmptyState';
@@ -21,7 +21,7 @@ import { formatShortDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  ArrowLeft, MoreVertical, Edit, Trash2, Mail, Phone, Briefcase, Calendar, UserMinus,
+  ArrowLeft, MoreVertical, Edit, Trash2, Mail, Phone, Briefcase, Calendar, CalendarPlus, UserMinus,
   StickyNote, Send,
 } from 'lucide-react';
 
@@ -42,6 +42,17 @@ export default function TeamMemberDetailClient({ memberId: propMemberId, onBack 
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const cancelRef = useRef<HTMLButtonElement>(null);
+
+  // Preferences & Blockout state
+  const [preference, setPreference] = useState<TeamMemberPreference | null>(null);
+  const [blockoutDates, setBlockoutDates] = useState<TeamMemberBlockoutDate[]>([]);
+  const [prefFrequency, setPrefFrequency] = useState<number | null>(null);
+  const [prefNotes, setPrefNotes] = useState('');
+  const [savingPref, setSavingPref] = useState(false);
+  const [newBlockoutStart, setNewBlockoutStart] = useState('');
+  const [newBlockoutEnd, setNewBlockoutEnd] = useState('');
+  const [newBlockoutReason, setNewBlockoutReason] = useState('');
+  const [addingBlockout, setAddingBlockout] = useState(false);
 
   // Notes state
   const [notes, setNotes] = useState<NoteWithAuthor[]>([]);
@@ -76,6 +87,13 @@ export default function TeamMemberDetailClient({ memberId: propMemberId, onBack 
       // Load private notes for this team member
       const memberNotes = await store.memberNotes.getByMember(memberId);
       setNotes(memberNotes as NoteWithAuthor[]);
+      // Load preferences and blockout dates
+      const pref = await store.preferences.getByTeamMember(memberId, church.id);
+      setPreference(pref);
+      setPrefFrequency(pref?.max_weekly_frequency ?? null);
+      setPrefNotes(pref?.availability_notes || '');
+      const blockouts = await store.blockoutDates.getByTeamMember(memberId, church.id);
+      setBlockoutDates(blockouts);
     } catch (error) {
       console.error('Error loading member:', error);
       toast({ title: 'Error loading data', description: 'Please refresh the page.', status: 'error', duration: 3000 });
@@ -104,6 +122,71 @@ export default function TeamMemberDetailClient({ memberId: propMemberId, onBack 
     }
     if (services.length > 0 && church) loadAssignments();
   }, [services, memberId, church]);
+
+  const handleSavePreference = async () => {
+    if (!church) return;
+    try {
+      setSavingPref(true);
+      const updated = await store.preferences.upsert(memberId, church.id, {
+        max_weekly_frequency: prefFrequency,
+        availability_notes: prefNotes,
+      });
+      if (updated) setPreference(updated);
+      toast({ title: 'Preferences saved', status: 'success', duration: 2000 });
+    } catch (error) {
+      console.error('Error saving preference:', error);
+      toast({ title: 'Error saving preferences', status: 'error', duration: 3000 });
+    } finally {
+      setSavingPref(false);
+    }
+  };
+
+  const handleAddBlockout = async () => {
+    if (!church || !newBlockoutStart || !newBlockoutEnd) return;
+    try {
+      setAddingBlockout(true);
+      const created = await store.blockoutDates.create({
+        team_member_id: memberId,
+        church_id: church.id,
+        start_date: newBlockoutStart,
+        end_date: newBlockoutEnd,
+        reason: newBlockoutReason,
+      });
+      if (created) {
+        setBlockoutDates(prev => [...prev, created]);
+        setNewBlockoutStart('');
+        setNewBlockoutEnd('');
+        setNewBlockoutReason('');
+      }
+      toast({ title: 'Blockout date added', status: 'success', duration: 2000 });
+    } catch (error) {
+      console.error('Error adding blockout:', error);
+      toast({ title: 'Error adding blockout date', status: 'error', duration: 3000 });
+    } finally {
+      setAddingBlockout(false);
+    }
+  };
+
+  const handleDeleteBlockout = async (id: string) => {
+    if (!church) return;
+    try {
+      const ok = await store.blockoutDates.delete(id, church.id);
+      if (ok) {
+        setBlockoutDates(prev => prev.filter(b => b.id !== id));
+        toast({ title: 'Blockout date removed', status: 'info', duration: 2000 });
+      }
+    } catch (error) {
+      console.error('Error deleting blockout:', error);
+      toast({ title: 'Error removing blockout date', status: 'error', duration: 3000 });
+    }
+  };
+
+  const formatDateRange = (start: string, end: string) => {
+    const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+    const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts);
+    const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts);
+    return start === end ? s : `${s} – ${e}`;
+  };
 
   if (loading) {
     return (
@@ -288,6 +371,184 @@ export default function TeamMemberDetailClient({ memberId: propMemberId, onBack 
               </HStack>
             </VStack>
           )}
+        </CardBody>
+      </Card>
+
+      {/* Preferences & Availability */}
+      <Text fontSize="lg" fontWeight="semibold" color={headingColor} mb="4">
+        <HStack spacing="2">
+          <Calendar size={20} />
+          <Text>Preferences & Availability</Text>
+        </HStack>
+      </Text>
+      <Card mb="6" bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
+        <CardBody>
+          <VStack spacing="4" align="stretch">
+            {/* Max Weekly Frequency */}
+            <FormControl>
+              <FormLabel fontWeight="600" fontSize="sm">Max Services Per Week</FormLabel>
+              <HStack spacing="3">
+                <Input
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={prefFrequency ?? ''}
+                  onChange={(e) => setPrefFrequency(e.target.value ? parseInt(e.target.value) : null)}
+                  placeholder="No limit"
+                  borderRadius="lg"
+                  w="120px"
+                  isDisabled={user?.role === 'team'}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPrefFrequency(null)}
+                  isDisabled={prefFrequency === null || user?.role === 'team'}
+                  borderRadius="lg"
+                >
+                  No Limit
+                </Button>
+              </HStack>
+              <Text fontSize="xs" color={subtextColor} mt="1">Leave blank or set to "No Limit" if they can serve any number of times per week.</Text>
+            </FormControl>
+
+            {/* Availability Notes */}
+            <FormControl>
+              <FormLabel fontWeight="600" fontSize="sm">Availability Notes</FormLabel>
+              <Textarea
+                value={prefNotes}
+                onChange={(e) => setPrefNotes(e.target.value)}
+                placeholder="e.g., prefers evening services, available only on weekends..."
+                borderRadius="lg"
+                rows={2}
+                isDisabled={user?.role === 'team'}
+              />
+            </FormControl>
+
+            {user?.role !== 'team' && (
+              <Button
+                colorScheme="teal"
+                size="sm"
+                alignSelf="flex-start"
+                onClick={handleSavePreference}
+                isLoading={savingPref}
+                fontWeight="600"
+                borderRadius="lg"
+              >
+                Save Preferences
+              </Button>
+            )}
+          </VStack>
+        </CardBody>
+      </Card>
+
+      {/* Blockout Dates */}
+      <Card mb="6" bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
+        <CardBody>
+          <VStack spacing="4" align="stretch">
+            <HStack spacing="2">
+              <Text fontWeight="600" fontSize="md" color={headingColor}>Blockout Dates</Text>
+              {blockoutDates.length > 0 && (
+                <Badge variant="subtle" colorScheme="orange" fontSize="xs" borderRadius="full" px="2">{blockoutDates.length}</Badge>
+              )}
+            </HStack>
+            <Text fontSize="sm" color={subtextColor}>Dates when this member is unavailable for service.</Text>
+
+            {blockoutDates.length > 0 ? (
+              <VStack spacing="2" align="stretch">
+                {blockoutDates.map((bd) => (
+                  <Flex
+                    key={bd.id}
+                    justify="space-between"
+                    align="center"
+                    p="3"
+                    borderRadius="lg"
+                    border="1px solid"
+                    borderColor={borderColor}
+                    bg={cardBg}
+                  >
+                    <HStack spacing="3">
+                      <Calendar size={16} color="var(--chakra-colors-orange-400)" />
+                      <Box>
+                        <Text fontSize="sm" fontWeight="500" color={headingColor}>
+                          {formatDateRange(bd.start_date, bd.end_date)}
+                        </Text>
+                        {bd.reason && (
+                          <Text fontSize="xs" color={subtextColor}>{bd.reason}</Text>
+                        )}
+                      </Box>
+                    </HStack>
+                    {user?.role !== 'team' && (
+                      <IconButton
+                        aria-label="Remove blockout date"
+                        icon={<Trash2 size={14} />}
+                        variant="ghost"
+                        size="xs"
+                        color="gray.400"
+                        _hover={{ color: 'red.500', bg: 'red.50' }}
+                        onClick={() => handleDeleteBlockout(bd.id)}
+                      />
+                    )}
+                  </Flex>
+                ))}
+              </VStack>
+            ) : (
+              <Text fontSize="sm" color="gray.400" fontStyle="italic">No blockout dates set.</Text>
+            )}
+
+            {user?.role !== 'team' && (
+              <Box p="3" borderRadius="lg" border="1px dashed" borderColor={borderColor}>
+                <Text fontSize="sm" fontWeight="500" color={headingColor} mb="2">Add Blockout Date</Text>
+                <VStack spacing="3" align="stretch">
+                  <HStack spacing="3">
+                    <FormControl>
+                      <FormLabel fontWeight="600" fontSize="xs">Start Date</FormLabel>
+                      <Input
+                        type="date"
+                        size="sm"
+                        value={newBlockoutStart}
+                        onChange={(e) => setNewBlockoutStart(e.target.value)}
+                        borderRadius="lg"
+                      />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel fontWeight="600" fontSize="xs">End Date</FormLabel>
+                      <Input
+                        type="date"
+                        size="sm"
+                        value={newBlockoutEnd}
+                        onChange={(e) => setNewBlockoutEnd(e.target.value)}
+                        borderRadius="lg"
+                      />
+                    </FormControl>
+                  </HStack>
+                  <FormControl>
+                    <FormLabel fontWeight="600" fontSize="xs">Reason (optional)</FormLabel>
+                    <Input
+                      size="sm"
+                      value={newBlockoutReason}
+                      onChange={(e) => setNewBlockoutReason(e.target.value)}
+                      placeholder="e.g., Vacation, Medical, Personal"
+                      borderRadius="lg"
+                    />
+                  </FormControl>
+                  <Button
+                    colorScheme="orange"
+                    size="sm"
+                    alignSelf="flex-start"
+                    onClick={handleAddBlockout}
+                    isLoading={addingBlockout}
+                    isDisabled={!newBlockoutStart || !newBlockoutEnd}
+                    fontWeight="600"
+                    borderRadius="lg"
+                    leftIcon={<CalendarPlus size={16} />}
+                  >
+                    Add Blockout
+                  </Button>
+                </VStack>
+              </Box>
+            )}
+          </VStack>
         </CardBody>
       </Card>
 

@@ -8,6 +8,8 @@ import type {
   Song,
   SongFile,
   TeamMember,
+  TeamMemberPreference,
+  TeamMemberBlockoutDate,
   ServiceAssignment,
   ServiceAssignmentPopulated,
   SongUsage,
@@ -2214,6 +2216,164 @@ export const db = {
         avg_tech: Math.round((ratings.tech.reduce((a, b) => a + b, 0) / ratings.tech.length) * 10) / 10,
         total_debriefs: ratings.engagement.length,
       })) as DebriefTrends[];
+    },
+  },
+
+  // ─── Volunteer Preferences ─────────────────────────────────────────
+  preferences: {
+    getByTeamMember: async (teamMemberId: string, churchId: string) => {
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('church_id')
+        .eq('id', teamMemberId)
+        .single();
+      if (!member || member.church_id !== churchId) return null;
+
+      const { data } = await supabase
+        .from('team_member_preferences')
+        .select('*')
+        .eq('team_member_id', teamMemberId)
+        .maybeSingle();
+      return data as TeamMemberPreference | null;
+    },
+
+    upsert: async (
+      teamMemberId: string,
+      churchId: string,
+      prefs: { max_weekly_frequency?: number | null; availability_notes?: string }
+    ) => {
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('church_id')
+        .eq('id', teamMemberId)
+        .single();
+      if (!member || member.church_id !== churchId) {
+        console.error('[Preferences] Upsert failed: team member not found or access denied', { teamMemberId, churchId });
+        return null;
+      }
+
+      const payload: any = {
+        team_member_id: teamMemberId,
+        church_id: churchId,
+      };
+      if (prefs.max_weekly_frequency !== undefined) {
+        payload.max_weekly_frequency = prefs.max_weekly_frequency;
+      }
+      if (prefs.availability_notes !== undefined) {
+        payload.availability_notes = sanitizeString(prefs.availability_notes);
+      }
+
+      const { data, error } = await supabase
+        .from('team_member_preferences')
+        .upsert(payload, { onConflict: 'team_member_id' })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Preferences] Upsert failed:', error);
+        return null;
+      }
+      return data as TeamMemberPreference;
+    },
+  },
+
+  // ─── Blockout Dates ─────────────────────────────────────────────────
+  blockoutDates: {
+    getByTeamMember: async (teamMemberId: string, churchId: string) => {
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('church_id')
+        .eq('id', teamMemberId)
+        .single();
+      if (!member || member.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('team_member_blockout_dates')
+        .select('*')
+        .eq('team_member_id', teamMemberId)
+        .order('start_date', { ascending: true });
+      return (data || []) as TeamMemberBlockoutDate[];
+    },
+
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('team_member_blockout_dates')
+        .select('*')
+        .eq('church_id', churchId)
+        .order('start_date', { ascending: true });
+      return (data || []) as TeamMemberBlockoutDate[];
+    },
+
+    getByTeamMembers: async (teamMemberIds: string[], churchId: string) => {
+      if (!teamMemberIds.length) return [];
+      const { data } = await supabase
+        .from('team_member_blockout_dates')
+        .select('*')
+        .eq('church_id', churchId)
+        .in('team_member_id', teamMemberIds)
+        .order('start_date', { ascending: true });
+      return (data || []) as TeamMemberBlockoutDate[];
+    },
+
+    create: async (bd: {
+      team_member_id: string;
+      church_id: string;
+      start_date: string;
+      end_date: string;
+      reason?: string;
+    }) => {
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('church_id')
+        .eq('id', bd.team_member_id)
+        .single();
+      if (!member || member.church_id !== bd.church_id) {
+        console.error('[BlockoutDates] Create failed: team member not found or access denied', { teamMemberId: bd.team_member_id, churchId: bd.church_id });
+        return null;
+      }
+
+      const payload = {
+        team_member_id: bd.team_member_id,
+        church_id: bd.church_id,
+        start_date: bd.start_date,
+        end_date: bd.end_date,
+        reason: bd.reason ? sanitizeString(bd.reason) : '',
+      };
+
+      const { data, error } = await supabase
+        .from('team_member_blockout_dates')
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[BlockoutDates] Create failed:', error);
+        return null;
+      }
+      return data as TeamMemberBlockoutDate;
+    },
+
+    update: async (id: string, churchId: string, updates: Partial<TeamMemberBlockoutDate>) => {
+      const { data, error } = await supabase
+        .from('team_member_blockout_dates')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[BlockoutDates] Update failed:', error);
+        return null;
+      }
+      return data as TeamMemberBlockoutDate;
+    },
+
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('team_member_blockout_dates')
+        .delete()
+        .eq('id', id);
+      return !error;
     },
   },
 };

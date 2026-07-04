@@ -164,6 +164,26 @@ export interface TeamMember {
   created_at: string;
 }
 
+export interface TeamMemberPreference {
+  id: string;
+  team_member_id: string;
+  church_id: string;
+  max_weekly_frequency: number | null;
+  availability_notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMemberBlockoutDate {
+  id: string;
+  team_member_id: string;
+  church_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  created_at: string;
+}
+
 export interface ServiceAssignment {
   id: string;
   service_id: string;
@@ -200,6 +220,7 @@ export interface Notification {
     in_app: boolean;
     email: boolean;
     sms: boolean;
+    push: boolean;
   };
   created_at: string;
 }
@@ -317,11 +338,12 @@ export interface ReminderSettings {
 }
 
 // Notification Channel Types
-export type NotificationChannel = 'in_app' | 'email' | 'sms';
+export type NotificationChannel = 'in_app' | 'email' | 'sms' | 'push';
 export type NotificationChannels = {
   in_app: boolean;
   email: boolean;
   sms: boolean;
+  push: boolean;
 };
 
 // ─── Tasks & Checklists ──────────────────────────────────────────────

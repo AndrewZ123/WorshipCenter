@@ -8,6 +8,8 @@ import type {
   Song,
   SongFile,
   TeamMember,
+  TeamMemberPreference,
+  TeamMemberBlockoutDate,
   ServiceAssignment,
   SongUsage,
   ServiceTemplate,
@@ -45,6 +47,8 @@ type DemoContextType = {
   chatChannels: any[];
   chatMessages: any[];
   debriefs: ServiceDebrief[];
+  preferences: TeamMemberPreference[];
+  blockoutDates: TeamMemberBlockoutDate[];
   createSong: (song: Omit<Song, 'id' | 'created_at'>) => Song;
   updateSong: (id: string, updates: Partial<Song>) => Song;
   deleteSong: (id: string) => boolean;
@@ -86,6 +90,9 @@ type DemoContextType = {
   markRehearsed: (serviceId: string, teamMemberId: string, songId: string, rehearsed: boolean) => RehearsalLog;
   markAllRehearsed: (serviceId: string, teamMemberId: string) => void;
   getRehearsalStats: (serviceId: string) => { team_member_id: string; member_name: string; member_role: string; rehearsed_count: number; total_songs: number }[];
+  upsertPreference: (teamMemberId: string, prefs: { max_weekly_frequency?: number | null; availability_notes?: string }) => TeamMemberPreference;
+  createBlockoutDate: (bd: { team_member_id: string; church_id: string; start_date: string; end_date: string; reason?: string }) => TeamMemberBlockoutDate;
+  deleteBlockoutDate: (id: string) => boolean;
 };
 
 // In-memory persistence for demo service chat messages (keyed by serviceId)
@@ -850,6 +857,54 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
             total_songs: totalSongs,
           };
         });
+      },
+    },
+
+    // ─── Volunteer Preferences (demo) ────────────────────────────────
+    preferences: {
+      getByTeamMember: async (teamMemberId: string, _churchId: string): Promise<TeamMemberPreference | null> => {
+        const demo = getDemoContext();
+        return demo.preferences.find(p => p.team_member_id === teamMemberId) || null;
+      },
+      upsert: async (teamMemberId: string, _churchId: string, prefs: { max_weekly_frequency?: number | null; availability_notes?: string }): Promise<TeamMemberPreference | null> => {
+        const demo = getDemoContext();
+        return demo.upsertPreference(teamMemberId, prefs);
+      },
+    },
+
+    // ─── Blockout Dates (demo) ─────────────────────────────────────────
+    blockoutDates: {
+      getByTeamMember: async (teamMemberId: string, _churchId: string): Promise<TeamMemberBlockoutDate[]> => {
+        const demo = getDemoContext();
+        return demo.blockoutDates.filter(b => b.team_member_id === teamMemberId);
+      },
+      getByChurch: async (churchId: string): Promise<TeamMemberBlockoutDate[]> => {
+        const demo = getDemoContext();
+        return demo.blockoutDates.filter(b => b.church_id === churchId);
+      },
+      getByTeamMembers: async (teamMemberIds: string[], churchId: string): Promise<TeamMemberBlockoutDate[]> => {
+        const demo = getDemoContext();
+        return demo.blockoutDates.filter(b => b.church_id === churchId && teamMemberIds.includes(b.team_member_id));
+      },
+      create: async (bd: { team_member_id: string; church_id: string; start_date: string; end_date: string; reason?: string }): Promise<TeamMemberBlockoutDate | null> => {
+        const demo = getDemoContext();
+        return demo.createBlockoutDate(bd);
+      },
+      update: async (id: string, _churchId: string, updates: Partial<TeamMemberBlockoutDate>): Promise<TeamMemberBlockoutDate | null> => {
+        const demo = getDemoContext();
+        const existing = demo.blockoutDates.find(b => b.id === id);
+        if (!existing) return null;
+        const updated = { ...existing, ...updates };
+        // Use a workaround: directly manipulate the array
+        const idx = demo.blockoutDates.findIndex(b => b.id === id);
+        if (idx >= 0) {
+          demo.blockoutDates[idx] = updated;
+        }
+        return updated;
+      },
+      delete: async (id: string, _churchId: string): Promise<boolean> => {
+        const demo = getDemoContext();
+        return demo.deleteBlockoutDate(id);
       },
     },
 

@@ -11,12 +11,14 @@ import {
   IconButton,
   useToast,
   useColorModeValue,
+  Tooltip,
+  Badge,
 } from '@chakra-ui/react';
-import { X, UserPlus, Users } from 'lucide-react';
+import { X, UserPlus, Users, Calendar } from 'lucide-react';
 import { apiUrl } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
-import type { Service, ServiceAssignmentPopulated, TeamMember } from '@/lib/types';
+import type { Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
@@ -52,6 +54,25 @@ export default function ServiceSchedule({
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [bulkRole, setBulkRole] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
+
+  // Blockout date conflict checking
+  const [blockoutDates, setBlockoutDates] = useState<TeamMemberBlockoutDate[]>([]);
+
+  // Fetch blockout dates for the church
+  useEffect(() => {
+    if (!churchId) return;
+    db.blockoutDates.getByChurch(churchId).then(setBlockoutDates).catch(console.error);
+  }, [churchId]);
+
+  const isBlockedOut = (memberId: string): TeamMemberBlockoutDate | undefined => {
+    if (!service.date) return undefined;
+    const svcDate = new Date(service.date + 'T00:00:00');
+    return blockoutDates.find(b =>
+      b.team_member_id === memberId &&
+      new Date(b.start_date + 'T00:00:00') <= svcDate &&
+      new Date(b.end_date + 'T00:00:00') >= svcDate
+    );
+  };
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const subtleBg = useColorModeValue('gray.50', 'gray.700');
@@ -385,8 +406,9 @@ export default function ServiceSchedule({
                   borderRadius="md"
                   p="2"
                 >
-                  {teamMembers.map((member) => {
+                    {teamMembers.map((member) => {
                     const isOwn = member.user_id === currentUserId;
+                    const blockout = isBlockedOut(member.id);
                     return (
                     <HStack
                       key={member.id}
@@ -403,12 +425,22 @@ export default function ServiceSchedule({
                         size="sm"
                       />
                       <Avatar name={member.name} src={member.avatar_url} size="sm" />
-                      <Text fontSize="sm" fontWeight="500" color={headingColor}>
-                        {isOwn ? 'You' : member.name}
-                      </Text>
-                      <Text fontSize="xs" color={subTextColor} ml="auto">
-                        {member.roles.join(', ')}
-                      </Text>
+                      <Box flex="1" minW="0">
+                        <HStack spacing="2">
+                          <Text fontSize="sm" fontWeight="500" color={headingColor} noOfLines={1}>
+                            {isOwn ? 'You' : member.name}
+                          </Text>
+                          {blockout && (
+                            <Tooltip label={`Blocked out ${new Date(blockout.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(blockout.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${blockout.reason ? ` (${blockout.reason})` : ''}`}>
+                              <Badge variant="subtle" colorScheme="orange" fontSize="xs" borderRadius="full" px="1.5" whiteSpace="nowrap">
+                                <Calendar size={10} style={{ display: 'inline', marginRight: 2 }} />
+                                Blocked
+                              </Badge>
+                            </Tooltip>
+                          )}
+                        </HStack>
+                        <Text fontSize="xs" color={subTextColor} noOfLines={1}>{member.roles.join(', ')}</Text>
+                      </Box>
                     </HStack>
                     );
                   })}
@@ -464,6 +496,7 @@ export default function ServiceSchedule({
             const highlighted = assignment.id === highlightedAssignmentId;
             const isOwn = isOwnAssignment(assignment);
             const showActions = isOwn && assignment.status === 'pending';
+            const blockout = assignment.team_member ? isBlockedOut(assignment.team_member.id) : undefined;
 
             return (
               <Box
@@ -491,6 +524,13 @@ export default function ServiceSchedule({
                       <Text fontWeight="600" color={headingColor} fontSize="sm" isTruncated>
                         {isOwn ? 'You' : (assignment.team_member?.name || 'Unknown')}
                       </Text>
+                      {blockout && (
+                        <Tooltip label={`Blocked out ${new Date(blockout.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(blockout.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${blockout.reason ? ` (${blockout.reason})` : ''}`}>
+                          <Badge variant="subtle" colorScheme="orange" fontSize="xs" borderRadius="full" px="1.5">
+                            Blocked
+                          </Badge>
+                        </Tooltip>
+                      )}
                       <StatusBadge
                         status={mapAssignmentStatus(assignment.status)}
                         size="sm"

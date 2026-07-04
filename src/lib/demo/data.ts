@@ -596,5 +596,7 @@ export function getInitialDemoData() {
     chatChannels: [...DEMO_CHAT_CHANNELS],
     rehearsalLogs: [...DEMO_REHEARSAL_LOGS],
     debriefs: [...DEMO_DEBRIEFS],
+    preferences: [],
+    blockoutDates: [],
   };
 }
