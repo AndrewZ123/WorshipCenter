@@ -96,8 +96,14 @@ export async function POST(request: NextRequest) {
       });
 
     if (teamMemberError) {
-      console.warn('[Signup API] Team member creation warning:', teamMemberError.message);
-      // Don't fail signup for this - it's not critical
+      console.error('[Signup API] Team member creation error:', teamMemberError.message);
+      // Clean up the church and user profile we just created
+      await supabaseAdmin.from('users').delete().eq('id', authUserId);
+      await supabaseAdmin.from('churches').delete().eq('id', churchId);
+      return NextResponse.json(
+        { error: `Failed to create team member: ${teamMemberError.message}` },
+        { status: 500 }
+      );
     }
 
     console.log('[Signup API] Success! Church created:', churchId);

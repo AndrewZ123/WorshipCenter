@@ -139,11 +139,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return 'not_found';
       }
 
-      const { data: teamMember } = await supabase
+      let { data: teamMember } = await supabase
         .from('team_members')
         .select('id')
         .eq('user_id', authUserId)
         .maybeSingle();
+
+      if (!teamMember && userData.role === 'admin') {
+        const { data: newMember } = await supabase
+          .from('team_members')
+          .insert({
+            church_id: userData.church_id,
+            name: userData.name,
+            email: userData.email || '',
+            phone: '',
+            roles: ['Worship Leader'],
+            user_id: authUserId,
+          })
+          .select('id')
+          .maybeSingle();
+        teamMember = newMember;
+      }
 
       if (teamMember) {
         (userData as any).team_member_id = teamMember.id;

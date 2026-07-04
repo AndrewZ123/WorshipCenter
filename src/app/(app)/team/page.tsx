@@ -222,6 +222,11 @@ export default function TeamPage() {
 
   const handleDelete = async () => {
     if (!deleteId || !church) return;
+    if (deleteId === user?.team_member_id) {
+      toast({ title: 'Cannot remove yourself', description: 'You cannot remove your own team member profile.', status: 'error', duration: 3000 });
+      setDeleteId(null);
+      return;
+    }
     await store.teamMembers.delete(deleteId, church.id);
     toast({ title: 'Team member removed', status: 'info', duration: 2000 });
     setDeleteId(null); await loadMembers();
@@ -461,9 +466,11 @@ export default function TeamPage() {
                             <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email || !!member.user_id}>
                               <HStack><Mail size={16} /><Text>Send Invite Email</Text></HStack>
                             </MenuItem>
-                            <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
-                              <HStack><Trash2 size={16} /><Text>Remove</Text></HStack>
-                            </MenuItem>
+                            {member.id !== user?.team_member_id && (
+                              <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
+                                <HStack><Trash2 size={16} /><Text>Remove</Text></HStack>
+                              </MenuItem>
+                            )}
                           </MenuList>
                         </Menu>
                       ) : (
@@ -552,9 +559,11 @@ export default function TeamPage() {
                             <MenuItem onClick={() => handleSendInvitation(member)} isDisabled={!member.email || !!member.user_id}>
                               <HStack><Mail size={16} /><Text>Send Invite Email</Text></HStack>
                             </MenuItem>
-                            <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
-                              <HStack><Trash2 size={16} /><Text>Remove</Text></HStack>
-                            </MenuItem>
+                            {member.id !== user?.team_member_id && (
+                              <MenuItem color="red.500" onClick={() => { setDeleteId(member.id); deleteDisclosure.onOpen(); }}>
+                                <HStack><Trash2 size={16} /><Text>Remove</Text></HStack>
+                              </MenuItem>
+                            )}
                           </MenuList>
                         </Menu>
                       ) : (
