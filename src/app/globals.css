@@ -9,7 +9,16 @@
 }
 
 html, body {
-  height: 100%;
+  min-height: 100dvh;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* App shell pages manage their own scroll; standalone pages use body scroll */
+.app-shell-page {
+  height: 100dvh;
   overflow: hidden;
 }
 
