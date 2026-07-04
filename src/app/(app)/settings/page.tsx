@@ -23,26 +23,29 @@ import {
   Badge,
   Divider,
 } from '@chakra-ui/react';
-import { FiCamera, FiUser, FiHome, FiHelpCircle } from 'react-icons/fi';
+import { FiCamera, FiUser, FiHome, FiHelpCircle, FiAlertTriangle } from 'react-icons/fi';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useTour } from '@/lib/tour/TourContext';
 import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 import { Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function SettingsPage() {
-  const { user, church } = useAuth();
+  const { user, church, deleteAccount } = useAuth();
   const toast = useToast();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { start } = useTour();
+  const { confirm: confirmDelete, ConfirmDialog: DeleteConfirmDialog } = useConfirmDialog();
   
   const [userName, setUserName] = useState('');
   const [churchName, setChurchName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -341,18 +344,101 @@ export default function SettingsPage() {
                   </FormHelperText>
                 </FormControl>
                 
-                <Button
-                  colorScheme="brand"
-                  onClick={handleSaveChurch}
-                  isLoading={isLoading}
-                  alignSelf="flex-start"
-                >
-                  Save Church Settings
-                </Button>
-              </VStack>
-            </CardBody>
-          </Card>
-        )}
+          <Button
+            colorScheme="brand"
+            onClick={handleSaveChurch}
+            isLoading={isLoading}
+            alignSelf="flex-start"
+          >
+            Save Church Settings
+          </Button>
+        </VStack>
+      </CardBody>
+    </Card>
+  )}
+
+  {/* Support Section */}
+  <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
+    <CardBody>
+      <VStack align="stretch" spacing={4}>
+        <HStack spacing={4}>
+          <Box p="3" borderRadius="lg" bg="teal.50" color="teal.600" flexShrink={0}>
+            <FiHelpCircle size={22} />
+          </Box>
+          <Box flex="1">
+            <Heading size="md" color={textColor}>Need Help?</Heading>
+            <Text fontSize="sm" color={subtextColor} mt="1">
+              Contact us at support@worshipcenter.app or visit our support page.
+            </Text>
+          </Box>
+          <Button
+            as="a"
+            href="/support"
+            target="_blank"
+            size="sm"
+            colorScheme="teal"
+            variant="outline"
+          >
+            Visit Support
+          </Button>
+        </HStack>
+      </VStack>
+    </CardBody>
+  </Card>
+
+  {/* Danger Zone */}
+  <Card bg={bgColor} borderColor="red.200" borderWidth="1px">
+    <CardBody>
+      <VStack align="stretch" spacing={4}>
+        <HStack spacing={4}>
+          <Box p="3" borderRadius="lg" bg="red.50" color="red.500" flexShrink={0}>
+            <FiAlertTriangle size={22} />
+          </Box>
+          <Box>
+            <Heading size="md" color="red.500">Danger Zone</Heading>
+            <Text fontSize="sm" color={subtextColor} mt="1">
+              Permanently delete your account and all associated data. This action cannot be undone.
+            </Text>
+          </Box>
+        </HStack>
+        <Button
+          colorScheme="red"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            confirmDelete(
+              'Delete Account',
+              'This will permanently delete your account and all associated data, including your user profile, messages, and contributions. This action cannot be undone.',
+              async () => {
+                setIsDeleting(true);
+                try {
+                  const result = await deleteAccount();
+                  if (result.success) {
+                    toast({ title: 'Account deleted', status: 'success', duration: 3000 });
+                    router.push('/login');
+                  } else {
+                    toast({ title: 'Deletion failed', description: result.error || 'Please try again or contact support.', status: 'error', duration: 5000 });
+                  }
+                } catch (error) {
+                  toast({ title: 'Deletion failed', description: 'An unexpected error occurred.', status: 'error', duration: 5000 });
+                } finally {
+                  setIsDeleting(false);
+                }
+              },
+              { confirmLabel: 'Delete My Account', variant: 'destructive', icon: 'user' }
+            );
+          }}
+          isDisabled={isDeleting}
+          isLoading={isDeleting}
+          leftIcon={<FiAlertTriangle size={16} />}
+          alignSelf="flex-start"
+        >
+          Delete Account
+        </Button>
+      </VStack>
+    </CardBody>
+  </Card>
+  {DeleteConfirmDialog}
 
         {/* Walkthrough Tour */}
         <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">

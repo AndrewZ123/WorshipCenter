@@ -185,6 +185,38 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             aria-label="Toggle dark mode"
           />
         </HStack>
+        <HStack spacing="2" mt="2">
+          <HelpCircle size={12} />
+          <Text
+            fontSize="xs"
+            color={subtextColor}
+            cursor="pointer"
+            _hover={{ color: logoAccent }}
+            onClick={() => window.open('/support', '_blank')}
+          >
+            Support
+          </Text>
+          <Text fontSize="xs" color={subtextColor}>·</Text>
+          <Text
+            fontSize="xs"
+            color={subtextColor}
+            cursor="pointer"
+            _hover={{ color: logoAccent }}
+            onClick={() => window.open('/privacy', '_blank')}
+          >
+            Privacy
+          </Text>
+          <Text fontSize="xs" color={subtextColor}>·</Text>
+          <Text
+            fontSize="xs"
+            color={subtextColor}
+            cursor="pointer"
+            _hover={{ color: logoAccent }}
+            onClick={() => window.open('/terms', '_blank')}
+          >
+            Terms
+          </Text>
+        </HStack>
       </Box>
 
       {/* Notifications + User section */}
@@ -289,11 +321,17 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               )}
               <MenuItem
                 icon={<HelpCircle size={16} />}
-                as="a"
-                href="mailto:support@worshipcenter.app"
+                onClick={() => { window.open('/support', '_blank'); onClose?.(); }}
                 fontSize="sm"
               >
                 Help & Support
+              </MenuItem>
+              <MenuItem
+                icon={<HelpCircle size={16} />}
+                onClick={() => { window.open('/privacy', '_blank'); onClose?.(); }}
+                fontSize="sm"
+              >
+                Privacy Policy
               </MenuItem>
               <MenuItem
                 icon={<Sparkles size={16} />}

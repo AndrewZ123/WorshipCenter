@@ -188,7 +188,7 @@ export interface Notification {
   id: string;
   church_id: string;
   user_id: string;
-  type: 'invitation' | 'status_change' | 'service_reminder' | 'general' | 'assignment_created' | 'assignment_reminder' | 'assignment_changed' | 'assignment_declined' | 'initial_reminder' | 'pre_rehearsal_reminder' | 'pre_service_reminder' | 'escalation' | 'debrief_request';
+  type: 'invitation' | 'status_change' | 'service_reminder' | 'general' | 'assignment_created' | 'assignment_reminder' | 'assignment_changed' | 'assignment_declined' | 'initial_reminder' | 'pre_rehearsal_reminder' | 'pre_service_reminder' | 'escalation' | 'debrief_request' | 'plan_change';
   title: string;
   message: string;
   read: boolean;

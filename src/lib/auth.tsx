@@ -15,6 +15,7 @@ interface AuthContextType {
   logout: () => void;
   resetPassword: (email: string) => Promise<boolean>;
   updatePassword: (password: string) => Promise<boolean>;
+  deleteAccount: () => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
   resetPassword: async () => false,
   updatePassword: async () => false,
+  deleteAccount: async () => ({ success: false, error: 'Not implemented' }),
 });
 
 // Removed simple password store methods since Supabase Auth handles credentials.
@@ -449,8 +451,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const deleteAccount = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Get current session token for auth
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const response = await fetch(`${apiBaseUrl()}/api/auth/delete-account`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        return { success: false, error: result.error || 'Failed to delete account' };
+      }
+
+      // Clear cached data
+      if (user?.id) {
+        try {
+          localStorage.removeItem(`wc_user_${user.id}`);
+          localStorage.removeItem(`wc_church_${user.id}`);
+          if (user.church_id) {
+            localStorage.removeItem(`wc_subscription_${user.church_id}`);
+          }
+        } catch (err) {
+          console.warn('[Auth] Failed to clear cache:', err);
+        }
+      }
+
+      setUser(null);
+      setChurch(null);
+
+      return { success: true };
+    } catch (err) {
+      console.error('[Auth] Delete account exception:', err);
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, church, loading, login, signup, join, logout, resetPassword, updatePassword }}>
+    <AuthContext.Provider value={{ user, church, loading, login, signup, join, logout, resetPassword, updatePassword, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

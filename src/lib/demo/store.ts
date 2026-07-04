@@ -504,7 +504,6 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
 
     chat: {
       getByChurch: async (_churchId: string, _limit?: number, _offset?: number): Promise<ChatMessagePopulated[]> => {
-        // Demo chat messages - return sample data
         const demo = getDemoContext();
         if (!demo.user || !demo.church) return [];
         
@@ -514,7 +513,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
             church_id: demo.church.id,
             user_id: demo.user.id,
             content: 'Hey team! Don\'t forget rehearsal this Thursday at 7pm.',
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
             user: { id: demo.user.id, name: demo.user.name, email: demo.user.email },
           },
           {
@@ -522,7 +521,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
             church_id: demo.church.id,
             user_id: demo.user.id,
             content: 'Also, please review new song we\'re adding this week. Link in the song library!',
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 1).toISOString(), // 1 hour ago
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 1).toISOString(),
             user: { id: demo.user.id, name: demo.user.name, email: demo.user.email },
           },
         ];
@@ -539,7 +538,8 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
           user: user ? { id: user.id, name: user.name, email: user.email } : { id: 'unknown', name: 'Unknown User' },
         };
       },
-      subscribe: (_churchId: string, _callback: (message: ChatMessagePopulated) => void) => {
+      report: async () => { /* no-op in demo mode */ return { id: 'demo' }; },
+      subscribe: (_churchId: string, _callback: (message: ChatMessagePopulated) => void, _onError?: (error: Error) => void) => {
         // Demo doesn't support real-time subscriptions
         return () => {};
       },

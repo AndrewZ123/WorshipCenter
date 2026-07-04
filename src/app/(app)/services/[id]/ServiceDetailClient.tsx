@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Box, Text, HStack, Button, VStack, Input, Flex,
@@ -28,6 +28,8 @@ import ServiceMode from '@/components/services/ServiceMode';
 import RehearsalTab from '@/components/services/RehearsalTab';
 import ServiceDebriefForm from '@/components/services/ServiceDebriefForm';
 import { generateServicePDF } from '@/components/services/ServicePrintView';
+import type { PlanChange } from '@/lib/planChanges';
+import { computeKeyChange, computeItemAdded, computeItemRemoved, formatChangesSummary } from '@/lib/planChanges';
 
 // Lucide icons
 import { 
@@ -133,6 +135,10 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   
   // Team members have read-only access
   const isReadOnly = user?.role === 'team';
+
+  // Plan-change notification accumulation (debounced)
+  const pendingChanges = useRef<PlanChange[]>([]);
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   const roleLabel = (r: string) => r.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
@@ -399,6 +405,125 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     }
   };
 
+  // Plan-change notification helpers
+  function accumulatePlanChange(change: PlanChange) {
+    pendingChanges.current.push(change);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      flushPlanChanges();
+    }, 5000);
+  }
+
+  const getRecipientUserIds = useCallback(async (): Promise<string[]> => {
+    if (!church) return [];
+    const assignedUserIds = assignments
+      .map(a => teamMembers.find(m => m.id === a.team_member_id))
+      .filter((m): m is TeamMember => !!m?.user_id)
+      .map(m => m.user_id!);
+    const churchUsers = await store.users.getByChurch(church.id).catch(() => []);
+    const leaderIds = churchUsers
+      .filter(u => u.role !== 'team')
+      .map(u => u.id);
+    return [...new Set([...assignedUserIds, ...leaderIds])];
+  }, [assignments, teamMembers, church, store]);
+
+  const flushPlanChanges = useCallback(async () => {
+    const changes = pendingChanges.current;
+    pendingChanges.current = [];
+    debounceTimer.current = null;
+    if (changes.length === 0 || !church || !service) return;
+
+    // 1. Send in-app notifications automatically
+    const recipientIds = await getRecipientUserIds();
+    if (recipientIds.length > 0) {
+      await Promise.all(
+        recipientIds.map(uid =>
+          store.notifications.create({
+            church_id: church.id,
+            user_id: uid,
+            type: 'plan_change',
+            title: `Plan Updated: ${service.title}`,
+            message: formatChangesSummary(changes),
+            service_id: serviceId,
+            read: false,
+            link_url: `/services/${serviceId}`,
+          })
+        )
+      ).catch(e => console.error('[PlanChange] Failed to send in-app notifications:', e));
+    }
+
+    // 2. Show toast with email option
+    const changeSummary = changes.length <= 3
+      ? formatChangesSummary(changes)
+      : `${formatChangesSummary(changes.slice(0, 3))}\n…and ${changes.length - 3} more`;
+
+    const session = (await supabase.auth.getSession()).data.session;
+
+    toast({
+      status: 'info',
+      duration: 10000,
+      isClosable: true,
+      position: 'bottom-right',
+      render: ({ onClose }) => (
+        <Box
+          p="4"
+          bg="white"
+          borderRadius="lg"
+          border="1px solid"
+          borderColor="gray.200"
+          boxShadow="0 4px 12px rgba(0,0,0,0.15)"
+          _dark={{ bg: 'gray.700', borderColor: 'gray.600' }}
+        >
+          <Text fontWeight="600" fontSize="sm" color="gray.800" _dark={{ color: 'white' }} mb="1">
+            Plan Changes Saved
+          </Text>
+          <Text fontSize="xs" color="gray.500" _dark={{ color: 'gray.300' }} whiteSpace="pre-wrap" mb="3">
+            {changeSummary}
+          </Text>
+          <HStack spacing="2">
+            <Button
+              size="xs"
+              colorScheme="teal"
+              fontWeight="600"
+              onClick={async () => {
+                try {
+                  const res = await fetch(apiUrl('/api/notifications/send-plan-change'), {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+                    },
+                    body: JSON.stringify({
+                      churchId: church.id,
+                      serviceId,
+                      serviceTitle: service.title,
+                      changes,
+                    }),
+                  });
+                  if (res.ok) {
+                    onClose();
+                    toast({ title: 'Team notified', status: 'success', duration: 3000 });
+                  } else {
+                    const err = await res.json();
+                    toast({ title: 'Failed to send', description: err.error, status: 'error', duration: 3000 });
+                  }
+                } catch (e) {
+                  console.error('[PlanChange] Email failed:', e);
+                  toast({ title: 'Failed to send', description: 'Network error', status: 'error', duration: 3000 });
+                }
+              }}
+            >
+              Notify Team
+            </Button>
+            <Button size="xs" variant="ghost" onClick={onClose}>
+              Dismiss
+            </Button>
+          </HStack>
+        </Box>
+      ),
+    });
+  }, [church, service, serviceId, getRecipientUserIds, store, toast]);
+
   const handleAddSong = () => {
     setAddSongId(null);
     addSongModal.onOpen();
@@ -437,6 +562,8 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       setAddSongId(null);
       await loadData();
       toast({ title: 'Song added to service', status: 'success', duration: 2000 });
+
+      accumulatePlanChange(computeItemAdded({ title: selectedSong.title, type: 'song' }));
     } catch (error) {
       console.error('Error adding song:', error);
       toast({ title: 'Error adding song', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
@@ -465,6 +592,8 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       setAddSegmentDuration('');
       await loadData();
       toast({ title: 'Segment added to service', status: 'success', duration: 2000 });
+
+      accumulatePlanChange(computeItemAdded({ title: addSegmentTitle, type: 'segment' }));
     } catch (error) {
       console.error('Error adding segment:', error);
       toast({ title: 'Error adding segment', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
@@ -474,10 +603,16 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   const handleDeleteItem = async (itemId: string) => {
     if (!church || !service) return;
 
+    const deletedItem = items.find(i => i.id === itemId);
+
     try {
       await store.serviceItems.delete(itemId, church.id);
       await loadData();
       toast({ title: 'Item removed', status: 'info', duration: 2000 });
+
+      if (deletedItem) {
+        accumulatePlanChange(computeItemRemoved({ title: deletedItem.title, type: deletedItem.type }));
+      }
     } catch (error) {
       console.error('Error deleting item:', error);
       toast({ title: 'Error deleting item', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
@@ -565,6 +700,8 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         }
       }
 
+      const change = computeKeyChange(editingItem, itemKey);
+
       await store.serviceItems.update(editingItem.id, church.id, {
         title: newTitle,
         notes: itemNotes || undefined,
@@ -577,9 +714,13 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       editItemModal.onClose();
       await loadData();
       toast({ title: 'Item updated', status: 'success', duration: 2000 });
+
+      if (change) {
+        accumulatePlanChange(change);
+      }
     } catch (error) {
       console.error('Error updating item:', error);
-      toast({ title: 'Error updating item', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
+      toast({ title: 'Error updating item', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 2000 });
     }
   };
 

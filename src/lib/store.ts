@@ -1091,6 +1091,24 @@ export const db = {
         }
       };
     },
+    report: async (messageId: string, churchId: string, reportedBy: string, reason: string) => {
+      const { data, error } = await supabase
+        .from('chat_reports')
+        .insert({
+          message_id: messageId,
+          church_id: churchId,
+          reported_by: reportedBy,
+          reason,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Chat] Report failed:', error);
+        throw error;
+      }
+      return data;
+    },
   },
 
   // Service Chat

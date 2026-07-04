@@ -9,11 +9,12 @@ import { formatRelativeDate, formatServiceDate } from '@/lib/formatDate';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Box, Text, HStack, VStack, Flex, Spinner, Center, IconButton,
-  Badge, SlideFade, useColorModeValue, Input, InputGroup, InputRightElement
+  Badge, SlideFade, useColorModeValue, Input, InputGroup, InputRightElement,
+  Menu, MenuButton, MenuList, MenuItem, useToast,
 } from '@chakra-ui/react';
 import { 
   Send, MessageCircle, Smile, Hash, Users, MoreVertical,
-  Check, CheckCheck
+  Check, CheckCheck, Flag
 } from 'lucide-react';
 import type { ChatMessagePopulated } from '@/lib/types';
 
@@ -114,13 +115,19 @@ function MessageBubble({
   isOwn, 
   showAvatar, 
   showName,
-  isGrouped 
+  isGrouped,
+  churchId,
+  userId,
+  onReport,
 }: { 
   message: ChatMessagePopulated; 
   isOwn: boolean;
   showAvatar: boolean;
   showName: boolean;
   isGrouped: boolean;
+  churchId: string;
+  userId: string;
+  onReport: (messageId: string) => void;
 }) {
   const ownBubbleBg = useColorModeValue('teal.500', 'teal.400');
   const otherBubbleBg = useColorModeValue('white', 'gray.700');
@@ -128,6 +135,7 @@ function MessageBubble({
   const ownTextColor = 'white';
   const otherTextColor = useColorModeValue('gray.800', 'white');
   const timeColor = useColorModeValue('gray.400', 'gray.500');
+  const menuBg = useColorModeValue('white', 'gray.700');
   
   return (
     <motion.div
@@ -193,9 +201,50 @@ function MessageBubble({
             _hover={{
               '& .timestamp': {
                 opacity: 1,
+              },
+              '& .message-actions': {
+                opacity: 1,
               }
             }}
           >
+            {/* Message actions (more menu) */}
+            {!isOwn && (
+              <Box
+                className="message-actions"
+                position="absolute"
+                right="-12px"
+                top="-12px"
+                opacity="0"
+                transition="opacity 0.15s"
+                zIndex="1"
+              >
+                <Menu>
+                  <MenuButton
+                    as={IconButton}
+                    aria-label="Message options"
+                    icon={<MoreVertical size={14} />}
+                    size="xs"
+                    borderRadius="full"
+                    bg={menuBg}
+                    border="1px solid"
+                    borderColor="gray.200"
+                    boxShadow="sm"
+                    _hover={{ bg: 'gray.100' }}
+                    minW="28px"
+                    h="28px"
+                  />
+                  <MenuList minW="140px">
+                    <MenuItem
+                      icon={<Flag size={14} />}
+                      onClick={() => onReport(message.id)}
+                      fontSize="sm"
+                    >
+                      Report Message
+                    </MenuItem>
+                  </MenuList>
+                </Menu>
+              </Box>
+            )}
             <Text fontSize="sm" lineHeight="1.5" whiteSpace="pre-wrap" wordBreak="break-word">
               {message.content}
             </Text>
@@ -227,12 +276,14 @@ function MessageBubble({
 
 export default function ChatPage() {
   const { user, church } = useAuth();
+  const toast = useToast();
   const [messages, setMessages] = useState<ChatMessagePopulated[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [reportedMessages, setReportedMessages] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -348,6 +399,21 @@ export default function ChatPage() {
       setIsSending(false);
     }
   };
+
+  const handleReportMessage = useCallback(async (messageId: string) => {
+    if (!user?.id || !church?.id) return;
+    if (reportedMessages.has(messageId)) {
+      toast({ title: 'Already reported', status: 'info', duration: 2000 });
+      return;
+    }
+    try {
+      await db.chat.report(messageId, church.id, user.id, 'Inappropriate content');
+      setReportedMessages((prev) => new Set(prev).add(messageId));
+      toast({ title: 'Message reported', description: 'Your church admin has been notified.', status: 'success', duration: 3000 });
+    } catch (error) {
+      toast({ title: 'Report failed', description: 'Please try again.', status: 'error', duration: 3000 });
+    }
+  }, [user?.id, church?.id, reportedMessages, toast]);
 
   // Handle Enter key to send
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -529,6 +595,9 @@ export default function ChatPage() {
                         showAvatar={showAvatar}
                         showName={showName}
                         isGrouped={isGrouped}
+                        churchId={church?.id || ''}
+                        userId={user?.id || ''}
+                        onReport={handleReportMessage}
                       />
                     );
                   })}

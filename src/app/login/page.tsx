@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Box, Flex, VStack, Heading, Text, Input, Button, FormControl,
+  Box, Flex, VStack, HStack, Heading, Text, Input, Button, FormControl,
   FormLabel, Link as ChakraLink, Alert, AlertIcon, Card, CardBody,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
@@ -98,6 +98,22 @@ export default function LoginPage() {
             Create your church
           </ChakraLink>
         </Text>
+
+        <Box mt="6" textAlign="center">
+          <HStack spacing="4" justify="center" fontSize="xs" color="gray.400" as="span">
+            <ChakraLink href="/privacy" color="gray.400" _hover={{ color: 'brand.500' }}>
+              Privacy
+            </ChakraLink>
+            <Text as="span">·</Text>
+            <ChakraLink href="/terms" color="gray.400" _hover={{ color: 'brand.500' }}>
+              Terms
+            </ChakraLink>
+            <Text as="span">·</Text>
+            <ChakraLink href="/support" color="gray.400" _hover={{ color: 'brand.500' }}>
+              Support
+            </ChakraLink>
+          </HStack>
+        </Box>
       </Box>
     </Flex>
   );
