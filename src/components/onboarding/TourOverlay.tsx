@@ -120,7 +120,7 @@ export default function TourOverlay() {
       pointerEvents: 'auto',
       left: '16px',
       right: '16px',
-      bottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
+      bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
       display: 'flex',
       justifyContent: 'center',
     };
