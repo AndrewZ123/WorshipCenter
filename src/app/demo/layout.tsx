@@ -22,8 +22,10 @@ import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 // Lucide icons
 import { 
   Calendar, Home, Music, Users, BarChart2, CreditCard, Menu as MenuIcon,
-  RefreshCw, ExternalLink, Moon, Repeat, Building2, PieChart, MessageSquare, CheckSquare, Sparkles
+  RefreshCw, ExternalLink, Moon, Repeat, Building2, PieChart, MessageSquare, CheckSquare, Sparkles,
+  Settings, FileBarChart, MessageCircle
 } from 'lucide-react';
+
 
 interface NavItem {
   label: string;
@@ -36,11 +38,15 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Services', href: '/demo/services', icon: Calendar },
   { label: 'Songs', href: '/demo/songs', icon: Music },
   { label: 'Team', href: '/demo/team', icon: Users },
+  { label: 'Tasks', href: '/demo/tasks', icon: CheckSquare },
+  { label: 'Templates', href: '/demo/templates', icon: Repeat },
   { label: 'Song Usage', href: '/demo/usage', icon: BarChart2 },
   { label: 'Reports', href: '/demo/reports', icon: PieChart },
+  { label: 'Team Chat', href: '/demo/chat', icon: MessageCircle },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
+  { label: 'Settings', href: '/demo/settings', icon: Settings },
   { label: 'Billing', href: '/demo/settings/billing', icon: CreditCard },
 ];
 
@@ -287,10 +293,16 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 function DemoShell({ children }: { children: React.ReactNode }) {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { setDrawerControls } = useTour();
+  const router = useRouter();
+  const pathname = usePathname();
   const mainBg = useColorModeValue('gray.50', 'gray.900');
   const headerBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const headingColor = useColorModeValue('gray.900', 'white');
+  const bottomNavActiveColor = useColorModeValue('teal.600', 'teal.300');
+  const bottomNavInactiveColor = useColorModeValue('gray.400', 'gray.500');
+  const bottomNavBg = useColorModeValue('white', 'gray.800');
+  const bottomNavBorder = useColorModeValue('gray.200', 'gray.700');
 
   // Register drawer controls so TourOverlay can open/close it
   React.useEffect(() => {
@@ -388,7 +400,12 @@ function DemoShell({ children }: { children: React.ReactNode }) {
           className="main-content"
         sx={{
             paddingTop: ['calc(92px + env(safe-area-inset-top))', null, null, '0'],
-            paddingBottom: ['env(safe-area-inset-bottom)', null, null, '0'],
+            paddingBottom: [
+              'calc(48px + env(safe-area-inset-bottom))', 
+              'calc(48px + env(safe-area-inset-bottom))', 
+              null, 
+              '0'
+            ],
             '@media (min-width: 62em)': {
               paddingTop: '0',
               paddingBottom: '0',
@@ -400,6 +417,64 @@ function DemoShell({ children }: { children: React.ReactNode }) {
           </Box>
         </Box>
       </Flex>
+
+      {/* Mobile Bottom Nav */}
+      <Box
+        display={{ base: 'block', lg: 'none' }}
+        position="fixed"
+        bottom="0"
+        left="0"
+        right="0"
+        zIndex="999"
+        bg={bottomNavBg}
+        borderTop="1px solid"
+        borderColor={bottomNavBorder}
+        className="bottom-nav"
+        sx={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <Flex h="48px" align="center" justify="space-around" px="2">
+          {[
+            { label: 'Home', href: '/demo' as const, icon: Home },
+            { label: 'Services', href: '/demo/services' as const, icon: Calendar },
+            { label: 'Tasks', href: '/demo/tasks' as const, icon: CheckSquare },
+            { label: 'Chat', href: '/demo/chat' as const, icon: MessageCircle },
+            { label: 'More', icon: MenuIcon, isMore: true },
+          ].map((item: { label: string; href?: string; icon?: any; isMore?: boolean }) => {
+            const active = !item.isMore && !!item.href && (pathname === item.href || (item.href !== '/demo' && pathname.startsWith(item.href)));
+            const Icon = item.icon;
+            return (
+              <Flex
+                key={item.label}
+                direction="column"
+                align="center"
+                justify="center"
+                flex="1"
+                h="full"
+                minH="44px"
+                cursor="pointer"
+                color={active ? bottomNavActiveColor : bottomNavInactiveColor}
+                  onClick={() => {
+                  if (item.isMore || !item.href) {
+                    onOpen();
+                  } else {
+                    router.push(item.href);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={item.label}
+                _hover={{ color: bottomNavActiveColor }}
+                transition="color 0.15s"
+              >
+                <Icon size={20} />
+                <Text fontSize="10px" fontWeight={active ? '600' : '500'} mt="1px">
+                  {item.label}
+                </Text>
+              </Flex>
+            );
+          })}
+        </Flex>
+      </Box>
     </Flex>
   );
 }

@@ -20,6 +20,10 @@ import type {
   ServiceDebrief,
   TimingComparisonItem,
   DebriefTrends,
+  ServiceTask,
+  MemberGroup,
+  MemberGroupMember,
+  TeamMemberNote,
 } from '@/lib/types';
 
 // Get the demo context type from the context file
@@ -34,6 +38,13 @@ type DemoContextType = {
   songUsage: SongUsage[];
   templates: ServiceTemplate[];
   rehearsalLogs: RehearsalLog[];
+  tasks: ServiceTask[];
+  memberGroups: MemberGroup[];
+  memberGroupMembers: MemberGroupMember[];
+  memberNotes: TeamMemberNote[];
+  chatChannels: any[];
+  chatMessages: any[];
+  debriefs: ServiceDebrief[];
   createSong: (song: Omit<Song, 'id' | 'created_at'>) => Song;
   updateSong: (id: string, updates: Partial<Song>) => Song;
   deleteSong: (id: string) => boolean;
@@ -58,6 +69,23 @@ type DemoContextType = {
   updateTemplate: (id: string, updates: Partial<ServiceTemplate>) => ServiceTemplate;
   deleteTemplate: (id: string) => boolean;
   createServiceFromTemplate: (templateId: string, dateString: string) => Service | null;
+  createTask: (t: Omit<ServiceTask, 'id' | 'created_at'>) => ServiceTask;
+  updateTask: (id: string, updates: Partial<ServiceTask>) => ServiceTask;
+  deleteTask: (id: string) => boolean;
+  toggleTask: (id: string, userId: string) => ServiceTask | null;
+  reorderTasks: (serviceId: string, orderedIds: string[]) => void;
+  createGroup: (g: Omit<MemberGroup, 'id' | 'created_at' | 'updated_at'>) => MemberGroup;
+  updateGroup: (id: string, updates: Partial<MemberGroup>) => MemberGroup;
+  deleteGroup: (id: string) => boolean;
+  addGroupMember: (groupId: string, teamMemberId: string, role?: string) => MemberGroupMember;
+  removeGroupMember: (groupId: string, teamMemberId: string) => boolean;
+  createMemberNote: (n: Omit<TeamMemberNote, 'id' | 'created_at' | 'updated_at'>) => TeamMemberNote;
+  deleteMemberNote: (id: string) => boolean;
+  upsertDebrief: (d: Omit<ServiceDebrief, 'id' | 'created_at' | 'updated_at'>) => ServiceDebrief;
+  getDebriefByService: (serviceId: string) => ServiceDebrief | undefined;
+  markRehearsed: (serviceId: string, teamMemberId: string, songId: string, rehearsed: boolean) => RehearsalLog;
+  markAllRehearsed: (serviceId: string, teamMemberId: string) => void;
+  getRehearsalStats: (serviceId: string) => { team_member_id: string; member_name: string; member_role: string; rehearsed_count: number; total_songs: number }[];
 };
 
 // In-memory persistence for demo service chat messages (keyed by serviceId)
@@ -557,22 +585,59 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       canComplete: async (_taskId: string, _churchId: string): Promise<boolean> => true,
     },
 
-    // ─── Tasks & Checklists (demo stubs) ───────────────────────────────
+    // ─── Tasks & Checklists (demo) ─────────────────────────────────────
     tasks: {
-      getByService: async (_serviceId: string, _churchId: string): Promise<any[]> => [],
-      getByChurch: async (_churchId: string): Promise<any[]> => [],
-      getMyTasks: async (_churchId: string, _teamMemberId: string): Promise<any[]> => [],
-      getById: async (_id: string, _churchId: string): Promise<any> => null,
-      create: async (_t: any): Promise<any> => {
-        throw new Error('Task creation not supported in demo');
+      getByService: async (serviceId: string, _churchId: string): Promise<ServiceTask[]> => {
+        const demo = getDemoContext();
+        return demo.tasks
+          .filter(t => t.service_id === serviceId)
+          .sort((a, b) => a.position - b.position);
       },
-      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
-        throw new Error('Task updates not supported in demo');
+      getByChurch: async (churchId: string): Promise<ServiceTask[]> => {
+        const demo = getDemoContext();
+        return demo.tasks
+          .filter(t => t.church_id === churchId)
+          .sort((a, b) => a.position - b.position);
       },
-      toggleDone: async (_id: string, _churchId: string, _userId: string): Promise<any> => null,
-      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
-      reorder: async (_serviceId: string, _orderedIds: string[]): Promise<void> => {},
-      getTaskStats: async (_serviceId: string, _churchId: string): Promise<{ total: number; done: number }> => ({ total: 0, done: 0 }),
+      getMyTasks: async (_churchId: string, teamMemberId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        const memberTasks = demo.tasks
+          .filter(t => t.assigned_team_member_id === teamMemberId)
+          .map(t => {
+            const service = demo.services.find(s => s.id === t.service_id);
+            return { ...t, service: service ? { date: service.date, title: service.title } : null };
+          });
+        return memberTasks.sort((a, b) => a.position - b.position);
+      },
+      getById: async (id: string, _churchId: string): Promise<ServiceTask | null> => {
+        const demo = getDemoContext();
+        return demo.tasks.find(t => t.id === id) || null;
+      },
+      create: async (t: any): Promise<ServiceTask> => {
+        const demo = getDemoContext();
+        return demo.createTask(t);
+      },
+      update: async (id: string, _churchId: string, updates: any): Promise<ServiceTask> => {
+        const demo = getDemoContext();
+        return demo.updateTask(id, updates);
+      },
+      toggleDone: async (id: string, _churchId: string, userId: string): Promise<ServiceTask | null> => {
+        const demo = getDemoContext();
+        return demo.toggleTask(id, userId);
+      },
+      delete: async (id: string, _churchId: string): Promise<boolean> => {
+        const demo = getDemoContext();
+        return demo.deleteTask(id);
+      },
+      reorder: async (serviceId: string, orderedIds: string[]): Promise<void> => {
+        const demo = getDemoContext();
+        demo.reorderTasks(serviceId, orderedIds);
+      },
+      getTaskStats: async (serviceId: string, _churchId: string): Promise<{ total: number; done: number }> => {
+        const demo = getDemoContext();
+        const serviceTasks = demo.tasks.filter(t => t.service_id === serviceId);
+        return { total: serviceTasks.length, done: serviceTasks.filter(t => t.status === 'done').length };
+      },
       generateFromTemplate: async (_serviceId: string, _churchId: string, _templateId: string): Promise<any[]> => [],
     },
 
@@ -596,42 +661,84 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       deleteItem: async (_itemId: string): Promise<boolean> => false,
     },
 
-    // ─── Member Groups / Bands (demo stubs) ────────────────────────────
+    // ─── Member Groups / Bands (demo) ──────────────────────────────────
     memberGroups: {
-      getByChurch: async (_churchId: string): Promise<any[]> => [],
-      getById: async (_id: string, _churchId: string): Promise<any> => null,
-      create: async (_g: any): Promise<any> => {
-        throw new Error('Member group creation not supported in demo');
+      getByChurch: async (churchId: string): Promise<MemberGroup[]> => {
+        const demo = getDemoContext();
+        return demo.memberGroups.filter(g => g.church_id === churchId);
       },
-      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
-        throw new Error('Member group updates not supported in demo');
+      getById: async (id: string, _churchId: string): Promise<MemberGroup | null> => {
+        const demo = getDemoContext();
+        return demo.memberGroups.find(g => g.id === id) || null;
       },
-      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
-      addMember: async (_groupId: string, _teamMemberId: string, _role?: string): Promise<any> => null,
-      removeMember: async (_groupId: string, _teamMemberId: string): Promise<boolean> => false,
-      getMembers: async (_groupId: string): Promise<any[]> => [],
+      create: async (g: any): Promise<MemberGroup> => {
+        const demo = getDemoContext();
+        return demo.createGroup(g);
+      },
+      update: async (id: string, _churchId: string, updates: any): Promise<MemberGroup> => {
+        const demo = getDemoContext();
+        return demo.updateGroup(id, updates);
+      },
+      delete: async (id: string, _churchId: string): Promise<boolean> => {
+        const demo = getDemoContext();
+        return demo.deleteGroup(id);
+      },
+      addMember: async (groupId: string, teamMemberId: string, role?: string): Promise<MemberGroupMember> => {
+        const demo = getDemoContext();
+        return demo.addGroupMember(groupId, teamMemberId, role);
+      },
+      removeMember: async (groupId: string, teamMemberId: string): Promise<boolean> => {
+        const demo = getDemoContext();
+        return demo.removeGroupMember(groupId, teamMemberId);
+      },
+      getMembers: async (groupId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        const members = demo.memberGroupMembers.filter(m => m.group_id === groupId);
+        return members.map(m => {
+          const tm = demo.teamMembers.find(t => t.id === m.team_member_id);
+          return { ...m, team_member: tm || null };
+        });
+      },
     },
 
-    // ─── Team Member Private Notes (demo stubs) ────────────────────────
+    // ─── Team Member Private Notes (demo) ─────────────────────────────
     memberNotes: {
-      getByMember: async (_teamMemberId: string): Promise<any[]> => [],
-      create: async (_n: any): Promise<any> => {
-        throw new Error('Member notes not supported in demo');
+      getByMember: async (teamMemberId: string): Promise<TeamMemberNote[]> => {
+        const demo = getDemoContext();
+        return demo.memberNotes.filter(n => n.team_member_id === teamMemberId);
       },
-      delete: async (_id: string): Promise<boolean> => false,
+      create: async (n: any): Promise<TeamMemberNote> => {
+        const demo = getDemoContext();
+        return demo.createMemberNote(n);
+      },
+      delete: async (id: string): Promise<boolean> => {
+        const demo = getDemoContext();
+        return demo.deleteMemberNote(id);
+      },
     },
 
-    // ─── Chat Channels (demo stubs) ────────────────────────────────────
+    // ─── Chat Channels (demo) ─────────────────────────────────────────
     channels: {
-      getByChurch: async (_churchId: string): Promise<any[]> => [],
-      getById: async (_id: string, _churchId: string): Promise<any> => null,
+      getByChurch: async (churchId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        return demo.chatChannels.filter((c: any) => c.church_id === churchId);
+      },
+      getById: async (id: string, _churchId: string): Promise<any> => {
+        const demo = getDemoContext();
+        return demo.chatChannels.find((c: any) => c.id === id) || null;
+      },
       create: async (_c: any): Promise<any> => {
         throw new Error('Channel creation not supported in demo');
       },
       delete: async (_id: string, _churchId: string): Promise<boolean> => false,
       getMembers: async (_channelId: string): Promise<any[]> => [],
       addMember: async (_channelId: string, _userId: string): Promise<any> => null,
-      getMessages: async (_channelId: string): Promise<any[]> => [],
+      getMessages: async (_channelId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        return demo.chatMessages
+          .filter((m: any) => m.channel_id === _channelId || !m.channel_id)
+          .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      },
     },
 
     // ─── Rehearsal Tracking (demo) ─────────────────────────────────────
@@ -746,15 +853,64 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       },
     },
 
-    // Service Debriefs — Demo stubs
+    // Service Debriefs — Demo
     debriefs: {
-      getByService: async (_serviceId: string, _churchId: string) => [] as any[],
-      getByChurch: async (_churchId: string, _options?: { limit?: number; months?: number }) => [] as any[],
-      getByUser: async (_churchId: string, _userId: string) => [] as any[],
-      getById: async (_id: string, _churchId: string) => null as any,
-      upsert: async (_d: any) => null as any,
-      delete: async (_id: string, _churchId: string) => true,
-      getTrends: async (_churchId: string, _months?: number) => [] as any[],
+      getByService: async (serviceId: string, _churchId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        return demo.debriefs
+          .filter(d => d.service_id === serviceId)
+          .map(d => {
+            const member = demo.teamMembers.find(tm => tm.user_id === d.user_id);
+            return { ...d, user: { id: d.user_id, name: member?.name || 'Unknown' } };
+          });
+      },
+      getByChurch: async (churchId: string, _options?: { limit?: number; months?: number }): Promise<any[]> => {
+        const demo = getDemoContext();
+        const limit = _options?.limit || 50;
+        let result = demo.debriefs
+          .filter(d => d.church_id === churchId)
+          .map(d => {
+            const service = demo.services.find(s => s.id === d.service_id);
+            return { ...d, service: service ? { title: service.title, date: service.date } : undefined };
+          })
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        if (limit) result = result.slice(0, limit);
+        return result;
+      },
+      getByUser: async (_churchId: string, userId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        return demo.debriefs.filter(d => d.user_id === userId);
+      },
+      getById: async (id: string, _churchId: string): Promise<any> => {
+        const demo = getDemoContext();
+        return demo.debriefs.find(d => d.id === id) || null;
+      },
+      upsert: async (d: any): Promise<any> => {
+        const demo = getDemoContext();
+        return demo.upsertDebrief(d);
+      },
+      delete: async (id: string, _churchId: string): Promise<boolean> => {
+        return true;
+      },
+      getTrends: async (churchId: string, _months?: number): Promise<DebriefTrends[]> => {
+        const demo = getDemoContext();
+        const churchDebriefs = demo.debriefs.filter(d => d.church_id === churchId);
+        if (churchDebriefs.length === 0) return [];
+
+        const avgRating = (vals: number[]) => {
+          if (vals.length === 0) return 0;
+          return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+        };
+
+        const period = new Date().toISOString().slice(0, 7);
+        return [{
+          avg_engagement: avgRating(churchDebriefs.map(d => d.rating_engagement)),
+          avg_flow: avgRating(churchDebriefs.map(d => d.rating_flow)),
+          avg_tech: avgRating(churchDebriefs.map(d => d.rating_tech)),
+          total_debriefs: churchDebriefs.length,
+          period,
+        }];
+      },
     },
   };
 }

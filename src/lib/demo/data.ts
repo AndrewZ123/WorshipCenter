@@ -1,4 +1,4 @@
-import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessagePopulated, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote, RehearsalLog } from '@/lib/types';
+import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessagePopulated, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote, RehearsalLog, ServiceDebrief } from '@/lib/types';
 
 // Demo Church
 export const DEMO_CHURCH: Church = {
@@ -541,6 +541,42 @@ export const DEMO_CHAT_CHANNELS = [
 ];
 
 // Helper to get all demo data at once
+// Demo Debriefs
+export const DEMO_DEBRIEFS: ServiceDebrief[] = [
+  {
+    id: 'debrief-1',
+    service_id: 'svc-1',
+    user_id: 'demo-user-1',
+    church_id: DEMO_CHURCH.id,
+    rating_engagement: 4,
+    rating_flow: 5,
+    rating_tech: 4,
+    what_went_well: 'The guest pastor brought a powerful message. Worship team was well-prepared and the transition between songs was smooth.',
+    what_broke: 'The wireless mic for the guest pastor had some interference during the first 5 minutes.',
+    what_to_change: 'Add a dedicated soundcheck slot for guest speakers before service starts.',
+    saw_god_working: 'Multiple people responded to the altar call. The Holy Spirit was moving throughout the service.',
+    timing_data: [],
+    created_at: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'debrief-2',
+    service_id: 'svc-2',
+    user_id: 'demo-user-1',
+    church_id: DEMO_CHURCH.id,
+    rating_engagement: 5,
+    rating_flow: 4,
+    rating_tech: 5,
+    what_went_well: 'Communion service was beautiful. The acoustic rendition of "What A Beautiful Name" during communion was perfect.',
+    what_broke: 'We ran 10 minutes over due to extended worship. Nothing broke per se, but the schedule was tight.',
+    what_to_change: 'Consider starting 5 minutes earlier or reducing the sermon time on communion Sundays.',
+    saw_god_working: 'Many people shared powerful testimonies during communion. The atmosphere was reverent.',
+    timing_data: [],
+    created_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 export function getInitialDemoData() {
   return {
     church: { ...DEMO_CHURCH },
@@ -559,5 +595,6 @@ export function getInitialDemoData() {
     memberNotes: [...DEMO_MEMBER_NOTES],
     chatChannels: [...DEMO_CHAT_CHANNELS],
     rehearsalLogs: [...DEMO_REHEARSAL_LOGS],
+    debriefs: [...DEMO_DEBRIEFS],
   };
 }

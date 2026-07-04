@@ -1,10 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessage, ChatMessagePopulated, RehearsalLog } from '@/lib/types';
+import type { Church, User, Song, TeamMember, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessage, ChatMessagePopulated, RehearsalLog, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote, ServiceDebrief, TimingComparisonItem } from '@/lib/types';
 import { getInitialDemoData } from './data';
 
-// Demo context types
+  // Demo context types
 interface DemoContextType {
   // Auth-like state (matches AuthProvider)
   user: User | null;
@@ -21,6 +21,12 @@ interface DemoContextType {
   templates: ServiceTemplate[];
   chatMessages: ChatMessagePopulated[];
   rehearsalLogs: RehearsalLog[];
+  tasks: ServiceTask[];
+  memberGroups: MemberGroup[];
+  memberGroupMembers: MemberGroupMember[];
+  memberNotes: TeamMemberNote[];
+  chatChannels: any[];
+  debriefs: ServiceDebrief[];
   
   // Demo actions
   resetDemo: () => void;
@@ -68,6 +74,33 @@ interface DemoContextType {
   
   // Chat
   createChatMessage: (message: Omit<ChatMessage, 'id' | 'created_at'>) => ChatMessagePopulated;
+
+  // Task CRUD
+  createTask: (t: Omit<ServiceTask, 'id' | 'created_at'>) => ServiceTask;
+  updateTask: (id: string, updates: Partial<ServiceTask>) => ServiceTask;
+  deleteTask: (id: string) => boolean;
+  toggleTask: (id: string, userId: string) => ServiceTask | null;
+  reorderTasks: (serviceId: string, orderedIds: string[]) => void;
+
+  // Member Group CRUD
+  createGroup: (g: Omit<MemberGroup, 'id' | 'created_at' | 'updated_at'>) => MemberGroup;
+  updateGroup: (id: string, updates: Partial<MemberGroup>) => MemberGroup;
+  deleteGroup: (id: string) => boolean;
+  addGroupMember: (groupId: string, teamMemberId: string, role?: string) => MemberGroupMember;
+  removeGroupMember: (groupId: string, teamMemberId: string) => boolean;
+
+  // Member Notes CRUD
+  createMemberNote: (n: Omit<TeamMemberNote, 'id' | 'created_at' | 'updated_at'>) => TeamMemberNote;
+  deleteMemberNote: (id: string) => boolean;
+
+  // Debriefs
+  upsertDebrief: (d: Omit<ServiceDebrief, 'id' | 'created_at' | 'updated_at'>) => ServiceDebrief;
+  getDebriefByService: (serviceId: string) => ServiceDebrief | undefined;
+
+  // Rehearsal helpers
+  markRehearsed: (serviceId: string, teamMemberId: string, songId: string, rehearsed: boolean) => RehearsalLog;
+  markAllRehearsed: (serviceId: string, teamMemberId: string) => void;
+  getRehearsalStats: (serviceId: string) => { team_member_id: string; member_name: string; member_role: string; rehearsed_count: number; total_songs: number }[];
 }
 
 const DemoContext = createContext<DemoContextType | null>(null);
@@ -93,6 +126,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [templates, setTemplates] = useState<ServiceTemplate[]>(initialData.templates);
   const [chatMessages, setChatMessages] = useState<ChatMessagePopulated[]>(initialData.chatMessages || []);
   const [rehearsalLogs, setRehearsalLogs] = useState<RehearsalLog[]>(initialData.rehearsalLogs || []);
+  const [tasks, setTasks] = useState<ServiceTask[]>(initialData.tasks || []);
+  const [memberGroups, setMemberGroups] = useState<MemberGroup[]>(initialData.memberGroups || []);
+  const [memberGroupMembers, setMemberGroupMembers] = useState<MemberGroupMember[]>(initialData.memberGroupMembers || []);
+  const [memberNotes, setMemberNotes] = useState<TeamMemberNote[]>(initialData.memberNotes || []);
+  const [chatChannels, setChatChannels] = useState<any[]>(initialData.chatChannels || []);
+  const [debriefs, setDebriefs] = useState<ServiceDebrief[]>(initialData.debriefs || []);
   
   // Reset demo
   const resetDemo = useCallback(() => {
@@ -106,6 +145,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     setTemplates(fresh.templates);
     setChatMessages(fresh.chatMessages || []);
     setRehearsalLogs(fresh.rehearsalLogs || []);
+    setTasks(fresh.tasks || []);
+    setMemberGroups(fresh.memberGroups || []);
+    setMemberGroupMembers(fresh.memberGroupMembers || []);
+    setMemberNotes(fresh.memberNotes || []);
+    setChatChannels(fresh.chatChannels || []);
+    setDebriefs(fresh.debriefs || []);
   }, []);
   
   // Song CRUD
@@ -423,6 +468,216 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     setChatMessages(prev => [...prev, newMessage]);
     return newMessage;
   }, [user]);
+
+  // Task CRUD
+  const createTask = useCallback((t: Omit<ServiceTask, 'id' | 'created_at'>): ServiceTask => {
+    const newTask: ServiceTask = {
+      ...t,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+    };
+    setTasks(prev => [...prev, newTask]);
+    return newTask;
+  }, []);
+
+  const updateTask = useCallback((id: string, updates: Partial<ServiceTask>): ServiceTask => {
+    let updated: ServiceTask = null!;
+    setTasks(prev => prev.map(t => {
+      if (t.id === id) {
+        updated = { ...t, ...updates };
+        return updated;
+      }
+      return t;
+    }));
+    return updated;
+  }, []);
+
+  const deleteTask = useCallback((id: string): boolean => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    return true;
+  }, []);
+
+  const toggleTask = useCallback((id: string, userId: string): ServiceTask | null => {
+    let toggled: ServiceTask | null = null;
+    setTasks(prev => prev.map(t => {
+      if (t.id === id) {
+        const isDone = t.status === 'done';
+        toggled = {
+          ...t,
+          status: isDone ? 'pending' as const : 'done' as const,
+          completed_at: isDone ? null : new Date().toISOString(),
+          completed_by: isDone ? null : userId,
+        };
+        return toggled;
+      }
+      return t;
+    }));
+    return toggled;
+  }, []);
+
+  const reorderTasks = useCallback((serviceId: string, orderedIds: string[]) => {
+    setTasks(prev => prev.map(t => {
+      const index = orderedIds.indexOf(t.id);
+      if (index !== -1 && t.service_id === serviceId) {
+        return { ...t, position: index };
+      }
+      return t;
+    }));
+  }, []);
+
+  // Member Group CRUD
+  const createGroup = useCallback((g: Omit<MemberGroup, 'id' | 'created_at' | 'updated_at'>): MemberGroup => {
+    const newGroup: MemberGroup = {
+      ...g,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setMemberGroups(prev => [...prev, newGroup]);
+    return newGroup;
+  }, []);
+
+  const updateGroup = useCallback((id: string, updates: Partial<MemberGroup>): MemberGroup => {
+    let updated: MemberGroup = null!;
+    setMemberGroups(prev => prev.map(g => {
+      if (g.id === id) {
+        updated = { ...g, ...updates, updated_at: new Date().toISOString() };
+        return updated;
+      }
+      return g;
+    }));
+    return updated;
+  }, []);
+
+  const deleteGroup = useCallback((id: string): boolean => {
+    setMemberGroups(prev => prev.filter(g => g.id !== id));
+    setMemberGroupMembers(prev => prev.filter(m => m.group_id !== id));
+    return true;
+  }, []);
+
+  const addGroupMember = useCallback((groupId: string, teamMemberId: string, role?: string): MemberGroupMember => {
+    const newMember: MemberGroupMember = {
+      group_id: groupId,
+      team_member_id: teamMemberId,
+      role: role || null,
+      joined_at: new Date().toISOString(),
+    };
+    setMemberGroupMembers(prev => [...prev, newMember]);
+    return newMember;
+  }, []);
+
+  const removeGroupMember = useCallback((groupId: string, teamMemberId: string): boolean => {
+    setMemberGroupMembers(prev => prev.filter(m => !(m.group_id === groupId && m.team_member_id === teamMemberId)));
+    return true;
+  }, []);
+
+  // Member Notes CRUD
+  const createMemberNote = useCallback((n: Omit<TeamMemberNote, 'id' | 'created_at' | 'updated_at'>): TeamMemberNote => {
+    const newNote: TeamMemberNote = {
+      ...n,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setMemberNotes(prev => [...prev, newNote]);
+    return newNote;
+  }, []);
+
+  const deleteMemberNote = useCallback((id: string): boolean => {
+    setMemberNotes(prev => prev.filter(n => n.id !== id));
+    return true;
+  }, []);
+
+  // Debriefs
+  const upsertDebrief = useCallback((d: Omit<ServiceDebrief, 'id' | 'created_at' | 'updated_at'>): ServiceDebrief => {
+    const existing = debriefs.findIndex(de => de.service_id === d.service_id && de.user_id === d.user_id);
+    if (existing >= 0) {
+      const updated: ServiceDebrief = {
+        ...debriefs[existing],
+        ...d,
+        updated_at: new Date().toISOString(),
+      };
+      setDebriefs(prev => prev.map((de, i) => i === existing ? updated : de));
+      return updated;
+    }
+    const newDebrief: ServiceDebrief = {
+      ...d,
+      id: generateId(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setDebriefs(prev => [...prev, newDebrief]);
+    return newDebrief;
+  }, [debriefs]);
+
+  const getDebriefByService = useCallback((serviceId: string): ServiceDebrief | undefined => {
+    return debriefs.find(d => d.service_id === serviceId && d.user_id === user?.id);
+  }, [debriefs, user]);
+
+  // Rehearsal helpers
+  const markRehearsed = useCallback((serviceId: string, teamMemberId: string, songId: string, rehearsed: boolean): RehearsalLog => {
+    const existing = rehearsalLogs.findIndex(
+      l => l.service_id === serviceId && l.team_member_id === teamMemberId && l.song_id === songId
+    );
+    if (existing >= 0) {
+      const updated = {
+        ...rehearsalLogs[existing],
+        rehearsed,
+        rehearsed_at: rehearsed ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      };
+      setRehearsalLogs(prev => prev.map((l, i) => i === existing ? updated : l));
+      return updated;
+    }
+    const newLog: RehearsalLog = {
+      id: generateId(),
+      church_id: church?.id || '',
+      service_id: serviceId,
+      team_member_id: teamMemberId,
+      song_id: songId,
+      rehearsed,
+      rehearsed_at: rehearsed ? new Date().toISOString() : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setRehearsalLogs(prev => [...prev, newLog]);
+    return newLog;
+  }, [rehearsalLogs, church]);
+
+  const markAllRehearsed = useCallback((serviceId: string, teamMemberId: string) => {
+    const songItems = serviceItems.filter(i => i.service_id === serviceId && i.type === 'song' && i.song_id);
+    for (const item of songItems) {
+      markRehearsed(serviceId, teamMemberId, item.song_id!, true);
+    }
+  }, [serviceItems, markRehearsed]);
+
+  const getRehearsalStats = useCallback((serviceId: string) => {
+    const songItems = serviceItems.filter(i => i.service_id === serviceId && i.type === 'song' && i.song_id);
+    const totalSongs = songItems.length;
+    const serviceAssignments = assignments.filter(a => a.service_id === serviceId);
+    if (serviceAssignments.length === 0 || totalSongs === 0) return [];
+
+    const rehearsalCounts: Record<string, Set<string>> = {};
+    for (const log of rehearsalLogs) {
+      if (log.service_id === serviceId && log.rehearsed) {
+        if (!rehearsalCounts[log.team_member_id]) {
+          rehearsalCounts[log.team_member_id] = new Set();
+        }
+        rehearsalCounts[log.team_member_id].add(log.song_id);
+      }
+    }
+
+    return serviceAssignments.map(a => {
+      const member = teamMembers.find(tm => tm.id === a.team_member_id);
+      return {
+        team_member_id: a.team_member_id,
+        member_name: member?.name || 'Unknown',
+        member_role: a.role,
+        rehearsed_count: rehearsalCounts[a.team_member_id]?.size || 0,
+        total_songs: totalSongs,
+      };
+    });
+  }, [serviceItems, assignments, rehearsalLogs, teamMembers]);
   
   const value: DemoContextType = {
     user,
@@ -437,6 +692,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     templates,
     chatMessages,
     rehearsalLogs,
+    tasks,
+    memberGroups,
+    memberGroupMembers,
+    memberNotes,
+    chatChannels,
+    debriefs,
     resetDemo,
     createSong,
     updateSong,
@@ -464,6 +725,23 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     createServiceFromTemplate,
     completeService,
     createChatMessage,
+    createTask,
+    updateTask,
+    deleteTask,
+    toggleTask,
+    reorderTasks,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    addGroupMember,
+    removeGroupMember,
+    createMemberNote,
+    deleteMemberNote,
+    upsertDebrief,
+    getDebriefByService,
+    markRehearsed,
+    markAllRehearsed,
+    getRehearsalStats,
   };
   
   return (

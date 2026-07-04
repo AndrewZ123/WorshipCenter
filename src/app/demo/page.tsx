@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Box, Text, SimpleGrid, Card, CardBody, HStack, VStack,
   Badge, Button, Flex, Divider, useColorModeValue, Icon,
+  Collapse, Tag, TagLabel,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';
 import { useStore } from '@/lib/StoreContext';
@@ -14,7 +15,7 @@ import { formatShortDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  Calendar, Music, Users, Plus, BarChart2, Sparkles, Clock
+  Calendar, Music, Users, Plus, BarChart2, Sparkles, Clock, ChevronRight, ChevronDown, CheckSquare
 } from 'lucide-react';
 
 const getGreeting = () => {
@@ -26,11 +27,12 @@ const getGreeting = () => {
 
 // Helper Component to load async stats for each service
 function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
-  const { serviceItems, assignments } = useDemo();
+  const { serviceItems, assignments, rehearsalLogs, teamMembers, songs } = useDemo();
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const [showRehearsal, setShowRehearsal] = useState(false);
 
   const stats = useMemo(() => {
     const items = serviceItems.filter((i: ServiceItem) => i.service_id === svc.id);
@@ -41,6 +43,33 @@ function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
       assignments: asgns.length,
     };
   }, [svc.id, serviceItems, assignments]);
+
+  const rehearsalStats = useMemo(() => {
+    const serviceAssignments = assignments.filter((a: ServiceAssignment) => a.service_id === svc.id);
+    const songItems = serviceItems.filter((i: any) => i.service_id === svc.id && i.type === 'song' && i.song_id);
+    const totalSongs = songItems.length;
+    if (serviceAssignments.length === 0 || totalSongs === 0) return [];
+
+    const rehearsalCounts: Record<string, Set<string>> = {};
+    for (const log of rehearsalLogs) {
+      if (log.service_id === svc.id && log.rehearsed) {
+        if (!rehearsalCounts[log.team_member_id]) {
+          rehearsalCounts[log.team_member_id] = new Set();
+        }
+        rehearsalCounts[log.team_member_id].add(log.song_id);
+      }
+    }
+
+    return serviceAssignments.map((a: ServiceAssignment) => {
+      const member = teamMembers.find(tm => tm.id === a.team_member_id);
+      return {
+        team_member_id: a.team_member_id,
+        member_name: member?.name || 'Unknown',
+        rehearsed_count: rehearsalCounts[a.team_member_id]?.size || 0,
+        total_songs: totalSongs,
+      };
+    });
+  }, [svc.id, assignments, serviceItems, rehearsalLogs, teamMembers]);
 
   return (
     <Card
@@ -77,6 +106,26 @@ function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
             <Text>{stats.assignments} assigned</Text>
           </HStack>
         </Flex>
+        {rehearsalStats.length > 0 && (
+          <Box mt="3" pt="3" borderTop="1px solid" borderColor={borderColor} onClick={(e) => e.stopPropagation()}>
+            <HStack spacing="2" cursor="pointer" onClick={() => setShowRehearsal(!showRehearsal)} py="1" role="button" tabIndex={0}>
+              {showRehearsal ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <Text fontSize="xs" fontWeight="700" color={subtextColor} textTransform="uppercase" letterSpacing="wide">Rehearsal Progress</Text>
+            </HStack>
+            <Collapse in={showRehearsal} animateOpacity>
+              <VStack spacing="2" align="stretch" mt="2">
+                {rehearsalStats.map(stat => (
+                  <HStack key={stat.team_member_id} justify="space-between" fontSize="sm">
+                    <Text color={textColor} fontWeight="500">{stat.member_name}</Text>
+                    <Tag size="sm" colorScheme={stat.rehearsed_count === stat.total_songs ? 'green' : 'orange'} borderRadius="full">
+                      <TagLabel>{stat.rehearsed_count}/{stat.total_songs}</TagLabel>
+                    </Tag>
+                  </HStack>
+                ))}
+              </VStack>
+            </Collapse>
+          </Box>
+        )}
       </CardBody>
     </Card>
   );
@@ -122,7 +171,7 @@ function StatBox({ icon, label, value }: { icon: React.ReactNode; label: string;
 }
 
 export default function DemoDashboardPage() {
-  const { user, church, songs, teamMembers, services } = useDemo();
+  const { user, church, songs, teamMembers, services, tasks, assignments } = useDemo();
   const store = useStore();
   const router = useRouter();
 
@@ -191,6 +240,36 @@ export default function DemoDashboardPage() {
           value={thisWeekServices.length} 
         />
       </SimpleGrid>
+
+      {/* My Tasks */}
+      {user?.team_member_id && tasks.filter(t => t.assigned_team_member_id === user.team_member_id && t.status !== 'done').length > 0 && (
+        <Box mb="8">
+          <Flex justify="space-between" align="center" mb="4">
+            <Text fontSize="lg" fontWeight="semibold" color={textColor}>My Tasks</Text>
+            <Button variant="ghost" size="sm" color="teal.600" rightIcon={<ChevronRight size={16} />} onClick={() => router.push('/demo/tasks')}>View all</Button>
+          </Flex>
+          <Box bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} overflow="hidden" boxShadow="0 1px 3px rgba(0,0,0,0.06)">
+            {tasks.filter(t => t.assigned_team_member_id === user.team_member_id && t.status !== 'done').slice(0, 5).map((task, i) => {
+              const svc = services.find(s => s.id === task.service_id);
+              return (
+                <Box key={task.id}>
+                  <HStack px="5" py="3" cursor="pointer" _hover={{ bg: hoverBg }} transition="all 0.15s" onClick={() => router.push(`/demo/services/${task.service_id}`)} justify="space-between">
+                    <HStack spacing="3">
+                      <CheckSquare size={16} color="var(--chakra-colors-teal-600)" />
+                      <Box>
+                        <Text fontWeight="500" fontSize="sm" color={textColor}>{task.title}</Text>
+                        {svc && <Text fontSize="xs" color={subtextColor}>{svc.title} · {formatShortDate(svc.date)}</Text>}
+                      </Box>
+                    </HStack>
+                    <Badge colorScheme={task.priority === 'urgent' ? 'red' : 'teal'} variant="subtle" fontSize="xs">{task.priority || 'pending'}</Badge>
+                  </HStack>
+                  {i < Math.min(tasks.filter(t => t.assigned_team_member_id === user.team_member_id && t.status !== 'done').length, 5) - 1 && <Divider />}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      )}
 
       {/* This Week */}
       <Box mb="8">

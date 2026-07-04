@@ -160,13 +160,20 @@ export default function DemoTemplatesPage() {
                   <Button
                     size="sm"
                     flex="1"
+                    onClick={() => router.push(`/demo/templates/${template.id}`)}
+                  >
+                    Edit Template
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => {
                       setGenerateTemplateId(template.id);
                       setGenerateDate(getNextDateForDay(template.day_of_week));
                       generateModal.onOpen();
                     }}
                   >
-                    Generate Service
+                    Generate
                   </Button>
                   <Button
                     size="sm"
