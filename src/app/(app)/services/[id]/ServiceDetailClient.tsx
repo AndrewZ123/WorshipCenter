@@ -25,6 +25,7 @@ import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
 import ServiceTasks from '@/components/services/ServiceTasks';
 import ServiceMode from '@/components/services/ServiceMode';
+import ServiceMobileView from '@/components/services/ServiceMobileView';
 import RehearsalTab from '@/components/services/RehearsalTab';
 import ServiceDebriefForm from '@/components/services/ServiceDebriefForm';
 import { generateServicePDF } from '@/components/services/ServicePrintView';
@@ -92,6 +93,17 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
   // Service Mode (Live Dashboard)
   const [serviceModeOpen, setServiceModeOpen] = useState(false);
+  const [mobileViewOpen, setMobileViewOpen] = useState(false);
+
+  // Detect phone vs tablet/desktop at 768px breakpoint
+  const [isPhone, setIsPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    setIsPhone(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsPhone(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // Item editing modal state
   const editItemModal = useDisclosure();
@@ -846,18 +858,32 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         </HStack>
         
         <HStack spacing="2">
-          {!isReadOnly && (
+          {isPhone ? (
             <Button
               size="sm"
               colorScheme="teal"
               variant="solid"
-              onClick={() => setServiceModeOpen(true)}
+              onClick={() => setMobileViewOpen(true)}
               leftIcon={<Monitor size={16} />}
               fontWeight="600"
               isDisabled={items.length === 0}
             >
               Service Mode
             </Button>
+          ) : (
+            !isReadOnly && (
+              <Button
+                size="sm"
+                colorScheme="teal"
+                variant="solid"
+                onClick={() => setServiceModeOpen(true)}
+                leftIcon={<Monitor size={16} />}
+                fontWeight="600"
+                isDisabled={items.length === 0}
+              >
+                Service Mode
+              </Button>
+            )
           )}
           {!editing && !isReadOnly && (
             <Menu>
@@ -1688,15 +1714,16 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         </>
       )}
 
-      {/* Service Mode (Live Dashboard) */}
-      {service && church && (
+      {/* Service Mode (Live Dashboard) — Desktop / Tablet controller */}
+      {service && church && !isPhone && (
         <ServiceMode
           service={service}
           items={items}
+          churchId={church.id}
+          currentUserId={user?.id || ''}
           isOpen={serviceModeOpen}
           onClose={async (timingData?: Array<{ itemId: string; actualSeconds: number }>) => {
             setServiceModeOpen(false);
-            // Persist timing data if provided
             if (timingData && timingData.length > 0 && church) {
               try {
                 await Promise.all(
@@ -1709,6 +1736,18 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
               }
             }
           }}
+        />
+      )}
+
+      {/* Service Mode (Mobile Companion View) — Phone viewer */}
+      {service && church && isPhone && (
+        <ServiceMobileView
+          service={service}
+          items={items}
+          churchId={church.id}
+          currentUser={user}
+          isOpen={mobileViewOpen}
+          onClose={() => setMobileViewOpen(false)}
         />
       )}
 

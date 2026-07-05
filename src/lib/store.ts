@@ -30,6 +30,7 @@ import type {
   ServiceDebriefPopulated,
   TimingComparisonItem,
   DebriefTrends,
+  ServiceLiveSession,
 } from './types';
 
 // Helper to sanitize string fields in objects before database operations
@@ -2373,6 +2374,101 @@ export const db = {
         .from('team_member_blockout_dates')
         .delete()
         .eq('id', id);
+      return !error;
+    },
+  },
+
+  // ─── Service Live Sessions ──────────────────────────────────────
+
+  serviceLive: {
+    getActiveSession: async (serviceId: string, churchId: string): Promise<ServiceLiveSession | null> => {
+      const { data } = await supabase
+        .from('service_live_sessions')
+        .select('*')
+        .eq('service_id', serviceId)
+        .eq('church_id', churchId)
+        .eq('is_live', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data as ServiceLiveSession | null;
+    },
+
+    startSession: async (
+      serviceId: string,
+      churchId: string,
+      userId: string,
+      currentItemId?: string,
+      currentIndex?: number,
+    ): Promise<ServiceLiveSession | null> => {
+      const now = new Date().toISOString();
+      const { data } = await supabase
+        .from('service_live_sessions')
+        .insert({
+          service_id: serviceId,
+          church_id: churchId,
+          current_item_id: currentItemId || null,
+          current_index: currentIndex ?? 0,
+          elapsed_ms: 0,
+          is_paused: true,
+          is_live: true,
+          controlled_by: userId,
+          started_at: now,
+          updated_at: now,
+        })
+        .select()
+        .single();
+
+      if (data) {
+        return data as ServiceLiveSession;
+      }
+
+      // Fallback: maybe it was just created, try to fetch it
+      const { data: fallback } = await supabase
+        .from('service_live_sessions')
+        .select('*')
+        .eq('service_id', serviceId)
+        .eq('church_id', churchId)
+        .eq('is_live', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (fallback as ServiceLiveSession) || null;
+    },
+
+    updateSession: async (
+      sessionId: string,
+      updates: Partial<Pick<ServiceLiveSession, 'current_item_id' | 'current_index' | 'elapsed_ms' | 'is_paused' | 'is_live'>>,
+    ): Promise<ServiceLiveSession | null> => {
+      const { data } = await supabase
+        .from('service_live_sessions')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', sessionId)
+        .select()
+        .single();
+
+      if (data) {
+        return data as ServiceLiveSession;
+      }
+      return null;
+    },
+
+    endSession: async (sessionId: string) => {
+      const { error } = await supabase
+        .from('service_live_sessions')
+        .delete()
+        .eq('id', sessionId);
+      return !error;
+    },
+
+    endActiveSessions: async (serviceId: string, churchId: string) => {
+      // End all active sessions for this service (cleanup)
+      const { error } = await supabase
+        .from('service_live_sessions')
+        .update({ is_live: false, updated_at: new Date().toISOString() })
+        .eq('service_id', serviceId)
+        .eq('church_id', churchId)
+        .eq('is_live', true);
       return !error;
     },
   },

@@ -2,19 +2,20 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Box, Text, HStack, VStack, Button, Flex, Card, CardBody,
+  Box, Text, HStack, VStack, Button, Flex,
   IconButton, useColorModeValue, Modal, ModalOverlay,
   ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter,
   useDisclosure, Badge, Progress, Spacer,
 } from '@chakra-ui/react';
 import type { Service, ServiceItem } from '@/lib/types';
 import { formatServiceDate } from '@/lib/formatDate';
+import { db } from '@/lib/store';
+import { createControllerChannel, publishState, publishEndSession, startLiveSession } from '@/lib/service-live-sync';
 
-// Lucide icons
 import {
   Play, Pause, SkipForward, SkipBack, X, Clock,
-  Music, AlignLeft, Maximize2, Minimize2, Bell,
-  FastForward, Eye, EyeOff, Zap, Timer,
+  Music, AlignLeft, Maximize2, Minimize2,
+  Eye, EyeOff, Zap,
 } from 'lucide-react';
 
 interface TimingSnapshot {
@@ -26,29 +27,34 @@ interface ServiceModeProps {
   service: Service;
   items: ServiceItem[];
   isOpen: boolean;
+  churchId: string;
+  currentUserId: string;
   onClose: (timingData?: TimingSnapshot[]) => void;
 }
 
 interface RunningItemState {
   itemId: string;
-  startedAt: number; // timestamp
-  pausedElapsed: number; // ms accumulated when paused
+  startedAt: number;
+  pausedElapsed: number;
   isPaused: boolean;
 }
 
-export default function ServiceMode({ service, items, isOpen, onClose }: ServiceModeProps) {
+export default function ServiceMode({ service, items, isOpen, onClose, churchId, currentUserId }: ServiceModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [elapsed, setElapsed] = useState(0); // ms elapsed for current item
+  const [elapsed, setElapsed] = useState(0);
   const [isPaused, setIsPaused] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [runningState, setRunningState] = useState<RunningItemState | null>(null);
   const [showPresenterNotes, setShowPresenterNotes] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(false);
-  const [warningThreshold, setWarningThreshold] = useState(2); // minutes before end to show warning
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const timingSnapshotRef = useRef<Record<string, number>>({}); // itemId -> actual seconds
+  const timingSnapshotRef = useRef<Record<string, number>>({});
+  const sessionIdRef = useRef<string | null>(null);
+  const liveChannelRef = useRef<ReturnType<typeof createControllerChannel> | null>(null);
+  const broadcastIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const dbWriteTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastBroadcastRef = useRef<string>('');
 
-  // Colors
   const bgColor = useColorModeValue('gray.900', 'gray.900');
   const cardBg = useColorModeValue('whiteAlpha.100', 'whiteAlpha.100');
   const textColor = 'whiteAlpha.900';
@@ -61,10 +67,82 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
   const nextItem = items[currentIndex + 1];
   const prevItem = items[currentIndex - 1];
 
-  // Total estimated duration
   const totalEstimated = items.reduce((sum, item) => sum + (item.duration_minutes || 0), 0);
-
   const estimatedMs = (currentItem?.duration_minutes || 0) * 60 * 1000;
+
+  // ─── Broadcast & DB sync ──────────────────────────────────────
+
+  const broadcastCurrentState = useCallback(() => {
+    if (!liveChannelRef.current || !sessionIdRef.current) return;
+    publishState(liveChannelRef.current, sessionIdRef.current, {
+      currentIndex,
+      currentItemId: currentItem?.id || null,
+      elapsedMs: elapsed,
+      isPaused,
+    });
+  }, [currentIndex, currentItem, elapsed, isPaused]);
+
+  const debouncedDbWrite = useCallback(() => {
+    if (dbWriteTimerRef.current) clearTimeout(dbWriteTimerRef.current);
+    dbWriteTimerRef.current = setTimeout(() => {
+      if (sessionIdRef.current) {
+        db.serviceLive.updateSession(sessionIdRef.current, {
+          current_item_id: currentItem?.id || null,
+          current_index: currentIndex,
+          elapsed_ms: elapsed,
+          is_paused: isPaused,
+          is_live: true,
+        }).catch(() => {});
+      }
+    }, 2000);
+  }, [currentIndex, currentItem, elapsed, isPaused]);
+
+  // Publish state whenever relevant state changes
+  useEffect(() => {
+    if (!isOpen) return;
+    broadcastCurrentState();
+    debouncedDbWrite();
+  }, [broadcastCurrentState, debouncedDbWrite, isOpen]);
+
+  // Periodic broadcast (heartbeat + timer sync)
+  useEffect(() => {
+    if (!isOpen) return;
+    broadcastIntervalRef.current = setInterval(() => {
+      broadcastCurrentState();
+    }, 1000);
+    return () => {
+      if (broadcastIntervalRef.current) clearInterval(broadcastIntervalRef.current);
+    };
+  }, [isOpen, broadcastCurrentState]);
+
+  // Start live session on mount
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const init = async () => {
+      const session = await startLiveSession(service.id, churchId, currentUserId, items[0]?.id, 0);
+      if (session) {
+        sessionIdRef.current = session.id;
+      }
+      const channel = createControllerChannel(service.id);
+      liveChannelRef.current = channel;
+    };
+
+    init();
+
+    return () => {
+      // Cleanup on unmount
+      if (sessionIdRef.current) {
+        db.serviceLive.endSession(sessionIdRef.current).catch(() => {});
+        sessionIdRef.current = null;
+      }
+      if (liveChannelRef.current) {
+        publishEndSession(liveChannelRef.current, sessionIdRef.current || '');
+        liveChannelRef.current.unsubscribe();
+        liveChannelRef.current = null;
+      }
+    };
+  }, [isOpen, service.id, churchId, currentUserId, items]);
 
   // Timer effect
   useEffect(() => {
@@ -74,7 +152,6 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         const totalElapsed = runningState.pausedElapsed + (now - runningState.startedAt);
         setElapsed(totalElapsed);
 
-        // Auto-advance when estimated time is reached
         if (autoAdvance && estimatedMs > 0 && totalElapsed >= estimatedMs && currentIndex < items.length - 1) {
           handleNext();
         }
@@ -113,9 +190,7 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
           setIsFullscreen(!isFullscreen);
           break;
         case 'Escape':
-          if (isFullscreen) {
-            setIsFullscreen(false);
-          }
+          if (isFullscreen) setIsFullscreen(false);
           break;
       }
     };
@@ -144,14 +219,12 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         await document.exitFullscreen();
       }
     } catch (err) {
-      // Fallback to state-based fullscreen
       setIsFullscreen(!isFullscreen);
     }
   }, [isFullscreen]);
 
   const togglePause = useCallback(() => {
     if (isPaused) {
-      // Resume
       setRunningState(prev => prev ? {
         ...prev,
         startedAt: Date.now(),
@@ -163,7 +236,6 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         isPaused: false,
       });
     } else {
-      // Pause
       if (runningState) {
         const now = Date.now();
         const totalElapsed = runningState.pausedElapsed + (now - runningState.startedAt);
@@ -224,6 +296,22 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
     });
   };
 
+  const handleClose = useCallback(() => {
+    saveCurrentTiming();
+    if (sessionIdRef.current) {
+      db.serviceLive.endSession(sessionIdRef.current).catch(() => {});
+      sessionIdRef.current = null;
+    }
+    if (liveChannelRef.current) {
+      publishEndSession(liveChannelRef.current, sessionIdRef.current || '');
+      liveChannelRef.current = null;
+    }
+    const timingArray = Object.entries(timingSnapshotRef.current)
+      .filter(([, seconds]) => seconds > 0)
+      .map(([itemId, actualSeconds]) => ({ itemId, actualSeconds }));
+    onClose(timingArray.length > 0 ? timingArray : undefined);
+  }, [saveCurrentTiming, onClose]);
+
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -236,7 +324,7 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
   if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="full" isCentered>
+    <Modal isOpen={isOpen} onClose={handleClose} size="full" isCentered>
       <ModalOverlay backdropBlur="none" bg="gray.900" />
       <ModalContent
         bg={bgColor}
@@ -251,94 +339,95 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
         <Flex
           justify="space-between"
           align="center"
-          px={{ base: '4', md: '8' }}
-          py="4"
+          px={{ base: '4', md: '6', lg: '8' }}
+          py={{ base: '3', md: '4' }}
           borderBottom="1px solid"
           borderColor="whiteAlpha.200"
         >
-          <HStack spacing="4">
+          <HStack spacing={{ base: '3', md: '4' }}>
             <Badge colorScheme="teal" fontSize="sm" px="3" py="1" borderRadius="full">
               <HStack spacing="2">
                 <Box w="8px" h="8px" borderRadius="full" bg="teal.300" className={isPaused ? '' : 'animate-pulse'} />
-                <Text fontWeight="700">SERVICE MODE</Text>
+                <Text fontWeight="700" fontSize={{ base: 'xs', md: 'sm' }}>LIVE</Text>
               </HStack>
             </Badge>
             <VStack spacing="0" align="start">
-              <Text fontSize="lg" fontWeight="bold">{service.title}</Text>
-              <Text fontSize="sm" color={subtextColor}>
+              <Text fontSize={{ base: 'md', md: 'lg' }} fontWeight="bold" noOfLines={1}>{service.title}</Text>
+              <Text fontSize="xs" color={subtextColor}>
                 {formatServiceDate(service.date)} {service.time && `· ${service.time}`}
               </Text>
             </VStack>
           </HStack>
 
-          <HStack spacing="2">
+          <HStack spacing={{ base: '1', md: '2' }}>
             <Button
-              size="sm"
-              leftIcon={<Zap size={16} />}
+              size={{ base: 'xs', md: 'sm' }}
+              leftIcon={<Zap size={14} />}
               variant={autoAdvance ? 'solid' : 'ghost'}
               colorScheme={autoAdvance ? 'teal' : undefined}
               color={autoAdvance ? 'white' : 'whiteAlpha.700'}
               _hover={{ color: 'white', bg: autoAdvance ? 'teal.600' : 'whiteAlpha.200' }}
               onClick={() => setAutoAdvance(!autoAdvance)}
+              display={{ base: 'none', md: 'inline-flex' }}
             >
-              Auto-Advance
+              Auto
             </Button>
             <Button
-              size="sm"
-              leftIcon={showPresenterNotes ? <EyeOff size={16} /> : <Eye size={16} />}
+              size={{ base: 'xs', md: 'sm' }}
+              leftIcon={showPresenterNotes ? <EyeOff size={14} /> : <Eye size={14} />}
               variant={showPresenterNotes ? 'solid' : 'ghost'}
               colorScheme={showPresenterNotes ? 'purple' : undefined}
               color={showPresenterNotes ? 'white' : 'whiteAlpha.700'}
               _hover={{ color: 'white', bg: showPresenterNotes ? 'purple.600' : 'whiteAlpha.200' }}
               onClick={() => setShowPresenterNotes(!showPresenterNotes)}
+              display={{ base: 'none', md: 'inline-flex' }}
             >
               Notes
             </Button>
             <IconButton
               aria-label="Toggle fullscreen"
-              icon={isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+              icon={isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
               variant="ghost"
               color="whiteAlpha.700"
               _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
               onClick={toggleFullscreen}
+              size={{ base: 'sm', md: 'md' }}
             />
             <IconButton
               aria-label="Exit service mode"
-              icon={<X size={20} />}
+              icon={<X size={18} />}
               variant="ghost"
               color="whiteAlpha.700"
               _hover={{ color: 'red.400', bg: 'whiteAlpha.200' }}
-              onClick={() => {
-                saveCurrentTiming();
-                const timingArray = Object.entries(timingSnapshotRef.current)
-                  .filter(([, seconds]) => seconds > 0)
-                  .map(([itemId, actualSeconds]) => ({ itemId, actualSeconds }));
-                onClose(timingArray.length > 0 ? timingArray : undefined);
-              }}
+              onClick={handleClose}
+              size={{ base: 'sm', md: 'md' }}
             />
           </HStack>
         </Flex>
 
         {/* Main Content */}
-        <Flex h={{ base: 'calc(100dvh - 56px)', lg: 'calc(100vh - 73px)' }} direction={{ base: 'column', lg: 'row' }}>
+        <Flex
+          h={{ base: 'calc(100dvh - 52px)', md: 'calc(100dvh - 60px)', lg: 'calc(100vh - 73px)' }}
+          direction={{ base: 'column', md: 'row' }}
+        >
           {/* Presenter Notes Panel */}
           {showPresenterNotes && (
             <Box
-              w={{ base: 'full', lg: '320px' }}
+              w={{ base: 'full', md: '280px', lg: '320px' }}
               bg="blackAlpha.400"
-              borderRight={{ base: 'none', lg: '1px solid' }}
-              borderBottom={{ base: '1px solid', lg: 'none' }}
+              borderRight={{ base: 'none', md: '1px solid' }}
+              borderBottom={{ base: '1px solid', md: 'none' }}
               borderColor="purple.500"
               overflowY="auto"
               flexShrink={0}
-              maxH={{ base: '250px', lg: 'none' }}
-              p="4"
+              maxH={{ base: '200px', md: 'none' }}
+              p={{ base: '3', md: '4' }}
             >
               <HStack mb="3" justify="space-between">
                 <HStack spacing="2">
-                  <Eye size={16} color="#D6BCFA" />
-                  <Text fontSize="sm" fontWeight="bold" color="purple.200" letterSpacing="wide" textTransform="uppercase">
-                    Presenter Notes
+                  <Eye size={14} color="#D6BCFA" />
+                  <Text fontSize="xs" fontWeight="bold" color="purple.200" letterSpacing="wide" textTransform="uppercase">
+                    Notes
                   </Text>
                 </HStack>
                 <Badge colorScheme="purple" fontSize="xs">
@@ -348,7 +437,6 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
 
               {currentItem ? (
                 <VStack spacing="3" align="stretch">
-                  {/* Item-specific notes */}
                   {currentItem.notes ? (
                     <Box bg="whiteAlpha.50" borderRadius="md" p="3">
                       <Text fontSize="xs" color="purple.300" mb="1" fontWeight="bold">ITEM NOTES</Text>
@@ -362,7 +450,6 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                     </Text>
                   )}
 
-                  {/* Song-specific info */}
                   {currentItem.type === 'song' && (
                     <Box bg="whiteAlpha.50" borderRadius="md" p="3">
                       <Text fontSize="xs" color="purple.300" mb="2" fontWeight="bold">SONG DETAILS</Text>
@@ -389,7 +476,6 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                     </Box>
                   )}
 
-                  {/* Timing info */}
                   <Box bg="whiteAlpha.50" borderRadius="md" p="3">
                     <Text fontSize="xs" color="purple.300" mb="2" fontWeight="bold">TIMING</Text>
                     <VStack spacing="1" align="stretch" fontSize="sm">
@@ -426,7 +512,6 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                     </VStack>
                   </Box>
 
-                  {/* Next item preview */}
                   {nextItem && (
                     <Box bg="purple.500Alpha.200" borderRadius="md" p="3" borderColor="purple.500" borderWidth="1px">
                       <Text fontSize="xs" color="purple.300" mb="1" fontWeight="bold">UP NEXT</Text>
@@ -451,20 +536,18 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
             direction="column"
             align="center"
             justify="center"
-            p={{ base: '6', md: '12' }}
+            p={{ base: '4', md: '8', lg: '12' }}
             position="relative"
           >
             {currentItem ? (
-              <VStack spacing="6" align="center" maxW="800px" w="full">
-                {/* Item Number */}
-                <Text fontSize="sm" color={subtextColor} letterSpacing="wider" textTransform="uppercase">
+              <VStack spacing={{ base: '4', md: '6' }} align="center" maxW="800px" w="full">
+                <Text fontSize="xs" color={subtextColor} letterSpacing="wider" textTransform="uppercase">
                   Item {currentIndex + 1} of {items.length}
                 </Text>
 
-                {/* Icon */}
                 <Box
-                  w="80px"
-                  h="80px"
+                  w={{ base: '60px', md: '80px' }}
+                  h={{ base: '60px', md: '80px' }}
                   borderRadius="2xl"
                   bg={currentItem.type === 'song' ? 'teal.500' : 'whiteAlpha.200'}
                   display="flex"
@@ -472,15 +555,14 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                   justifyContent="center"
                 >
                   {currentItem.type === 'song' ? (
-                    <Music size={40} color="white" />
+                    <Music size={32} color="white" />
                   ) : (
-                    <AlignLeft size={40} color="white" />
+                    <AlignLeft size={32} color="white" />
                   )}
                 </Box>
 
-                {/* Title */}
                 <Text
-                  fontSize={{ base: '3xl', md: '5xl' }}
+                  fontSize={{ base: '2xl', md: '4xl', lg: '5xl' }}
                   fontWeight="bold"
                   textAlign="center"
                   lineHeight="1.2"
@@ -488,50 +570,47 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                   {currentItem.title}
                 </Text>
 
-                {/* Details */}
                 <HStack spacing="4" flexWrap="wrap" justify="center">
                   {currentItem.type === 'song' && currentItem.key && (
-                    <Badge colorScheme="teal" fontSize="md" px="4" py="2" borderRadius="lg">
+                    <Badge colorScheme="teal" fontSize={{ base: 'sm', md: 'md' }} px="4" py="2" borderRadius="lg">
                       Key: {currentItem.key}
                     </Badge>
                   )}
                   {currentItem.duration_minutes && (
-                    <Badge variant="outline" colorScheme="whiteAlpha" fontSize="md" px="4" py="2" borderRadius="lg">
+                    <Badge variant="outline" colorScheme="whiteAlpha" fontSize={{ base: 'sm', md: 'md' }} px="4" py="2" borderRadius="lg">
                       Est: {currentItem.duration_minutes} min
                     </Badge>
                   )}
                   {currentItem.assigned_to && (
-                    <Text fontSize="md" color={subtextColor}>
+                    <Text fontSize={{ base: 'sm', md: 'md' }} color={subtextColor}>
                       Led by: {currentItem.assigned_to}
                     </Text>
                   )}
                 </HStack>
 
-                {/* Notes */}
                 {currentItem.notes && (
                   <Box
                     bg={cardBg}
                     borderRadius="xl"
-                    px="6"
-                    py="4"
+                    px={{ base: '4', md: '6' }}
+                    py={{ base: '3', md: '4' }}
                     maxW="600px"
                     textAlign="center"
                   >
-                    <Text fontSize="md" color={subtextColor} whiteSpace="pre-wrap">
+                    <Text fontSize="sm" color={subtextColor} whiteSpace="pre-wrap">
                       {currentItem.notes}
                     </Text>
                   </Box>
                 )}
 
-                {/* Timer */}
-                <VStack spacing="2" mt="4">
+                <VStack spacing="2" mt={{ base: '2', md: '4' }}>
                   <HStack spacing="3" align="baseline">
-                    <Clock size={24} color={accentColor} />
-                    <Text fontSize="4xl" fontWeight="bold" fontFamily="mono" color={elapsed > estimatedMs && estimatedMs > 0 ? 'red.400' : accentColor}>
+                    <Clock size={22} color={accentColor} />
+                    <Text fontSize={{ base: '3xl', md: '4xl' }} fontWeight="bold" fontFamily="mono" color={elapsed > estimatedMs && estimatedMs > 0 ? 'red.400' : accentColor}>
                       {formatTime(elapsed)}
                     </Text>
                     {estimatedMs > 0 && (
-                      <Text fontSize="xl" color={subtextColor} fontFamily="mono">
+                      <Text fontSize={{ base: 'lg', md: 'xl' }} color={subtextColor} fontFamily="mono">
                         / {formatTime(estimatedMs)}
                       </Text>
                     )}
@@ -541,46 +620,52 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                       value={progress}
                       colorScheme={progress > 100 ? 'red' : 'teal'}
                       size="xs"
-                      w="300px"
+                      w={{ base: '200px', md: '300px' }}
                       borderRadius="full"
                     />
                   )}
                 </VStack>
 
                 {/* Playback Controls */}
-                <HStack spacing="6" mt="8">
+                <HStack spacing={{ base: '4', md: '6' }} mt={{ base: '4', md: '8' }}>
                   <IconButton
                     aria-label="Previous item"
-                    icon={<SkipBack size={28} />}
+                    icon={<SkipBack size={24} />}
                     variant="ghost"
                     color="whiteAlpha.700"
                     _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
                     isDisabled={currentIndex === 0}
                     onClick={handlePrev}
-                    size="lg"
+                    size={{ base: 'md', md: 'lg' }}
                     borderRadius="full"
+                    minW={{ base: '44px', md: 'auto' }}
+                    minH={{ base: '44px', md: 'auto' }}
                   />
                   <IconButton
                     aria-label={isPaused ? 'Play timer' : 'Pause timer'}
-                    icon={isPaused ? <Play size={36} /> : <Pause size={36} />}
+                    icon={isPaused ? <Play size={32} /> : <Pause size={32} />}
                     variant="solid"
                     colorScheme="teal"
                     onClick={togglePause}
-                    size="lg"
+                    size={{ base: 'lg', md: 'lg' }}
                     borderRadius="full"
-                    w="80px"
-                    h="80px"
+                    w={{ base: '64px', md: '80px' }}
+                    h={{ base: '64px', md: '80px' }}
+                    minW={{ base: '64px', md: '80px' }}
+                    minH={{ base: '64px', md: '80px' }}
                   />
                   <IconButton
                     aria-label="Next item"
-                    icon={<SkipForward size={28} />}
+                    icon={<SkipForward size={24} />}
                     variant="ghost"
                     color="whiteAlpha.700"
                     _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
                     isDisabled={currentIndex === items.length - 1}
                     onClick={handleNext}
-                    size="lg"
+                    size={{ base: 'md', md: 'lg' }}
                     borderRadius="full"
+                    minW={{ base: '44px', md: 'auto' }}
+                    minH={{ base: '44px', md: 'auto' }}
                   />
                 </HStack>
               </VStack>
@@ -592,20 +677,20 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
             )}
           </Flex>
 
-          {/* Sidebar - Queue */}
+          {/* Sidebar - Service Flow */}
           {!isFullscreen && items.length > 0 && (
             <Box
-              w={{ base: 'full', lg: '350px' }}
+              w={{ base: 'full', md: '260px', lg: '350px' }}
               bg="blackAlpha.300"
-              borderLeft={{ base: 'none', lg: '1px solid' }}
-              borderTop={{ base: '1px solid', lg: 'none' }}
+              borderLeft={{ base: 'none', md: '1px solid' }}
+              borderTop={{ base: '1px solid', md: 'none' }}
               borderColor="whiteAlpha.200"
               overflowY="auto"
               flexShrink={0}
-              maxH={{ base: '300px', lg: 'none' }}
+              maxH={{ base: '240px', md: 'none' }}
             >
               <VStack spacing="2" align="stretch" p="4">
-                <Text fontSize="sm" fontWeight="bold" color={subtextColor} letterSpacing="wide" textTransform="uppercase" mb="2">
+                <Text fontSize="xs" fontWeight="bold" color={subtextColor} letterSpacing="wide" textTransform="uppercase" mb="2">
                   Service Flow
                 </Text>
                 {items.map((item, index) => {
@@ -616,8 +701,8 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                       key={item.id}
                       bg={isActive ? activeItemBg : itemBg}
                       borderRadius="lg"
-                      px="4"
-                      py="3"
+                      px="3"
+                      py="2"
                       cursor="pointer"
                       onClick={() => handleItemClick(index)}
                       opacity={isPast ? 0.5 : 1}
@@ -631,22 +716,22 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                     >
                       <HStack spacing="3">
                         <Text
-                          fontSize="sm"
+                          fontSize="xs"
                           fontWeight="bold"
                           color={isActive ? 'white' : subtextColor}
-                          minW="24px"
+                          minW="20px"
                         >
                           {index + 1}.
                         </Text>
                         <Box flex="1">
                           <HStack spacing="2">
                             {item.type === 'song' ? (
-                              <Music size={14} color={isActive ? 'white' : accentColor} />
+                              <Music size={12} color={isActive ? 'white' : accentColor} />
                             ) : (
-                              <AlignLeft size={14} color={isActive ? 'white' : subtextColor} />
+                              <AlignLeft size={12} color={isActive ? 'white' : subtextColor} />
                             )}
                             <Text
-                              fontSize="sm"
+                              fontSize="xs"
                               fontWeight={isActive ? 'bold' : 'medium'}
                               color={isActive ? 'white' : textColor}
                               noOfLines={1}
@@ -654,18 +739,12 @@ export default function ServiceMode({ service, items, isOpen, onClose }: Service
                               {item.title}
                             </Text>
                           </HStack>
-                          {item.duration_minutes && (
-                            <Text fontSize="xs" color={isActive ? 'whiteAlpha.700' : subtextColor} ml="20px">
-                              {item.duration_minutes} min
-                            </Text>
-                          )}
                         </Box>
                       </HStack>
                     </Box>
                   );
                 })}
 
-                {/* Up Next Preview */}
                 {nextItem && (
                   <Box mt="4" p="3" bg="whiteAlpha.100" borderRadius="lg">
                     <Text fontSize="xs" color={subtextColor} letterSpacing="wide" textTransform="uppercase" mb="1">

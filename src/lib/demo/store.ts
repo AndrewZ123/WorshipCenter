@@ -582,6 +582,15 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
 
     serviceChat: createDemoServiceChat(getDemoContext),
 
+    // ─── Service Live Sessions (demo stubs) ────────────────────────────
+    serviceLive: {
+      getActiveSession: async (_serviceId: string, _churchId: string): Promise<any> => null,
+      startSession: async (_serviceId: string, _churchId: string, _userId: string): Promise<any> => null,
+      updateSession: async (_sessionId: string, _updates: any): Promise<any> => null,
+      endSession: async (_sessionId: string): Promise<any> => true,
+      endActiveSessions: async (_serviceId: string, _churchId: string): Promise<any> => true,
+    },
+
     // ─── Task Dependencies (demo stubs) ────────────────────────────────
     taskDependencies: {
       getByTask: async (_taskId: string, _churchId: string): Promise<any[]> => [],

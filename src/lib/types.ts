@@ -521,3 +521,29 @@ export interface DebriefTrends {
   total_debriefs: number;
   period: string; // e.g., "2026-06" for monthly grouping
 }
+
+// ─── Service Live Sessions ───────────────────────────────────────────
+
+export interface ServiceLiveSession {
+  id: string;
+  service_id: string;
+  church_id: string;
+  current_item_id: string | null;
+  current_index: number;
+  elapsed_ms: number;
+  is_paused: boolean;
+  is_live: boolean;
+  controlled_by: string | null;
+  started_at: string | null;
+  updated_at: string;
+}
+
+export interface LiveStateMessage {
+  type: 'state_update' | 'heartbeat' | 'service_ended';
+  sessionId: string;
+  currentIndex?: number;
+  currentItemId?: string | null;
+  elapsedMs?: number;
+  isPaused?: boolean;
+  timestamp: number;
+}
