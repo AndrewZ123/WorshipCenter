@@ -643,6 +643,46 @@ export default function SettingsPage() {
     </Card>
   )}
 
+  {/* Walkthrough Tour */}
+  <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
+    <CardBody>
+      <HStack spacing={4} align="flex-start">
+        <Box
+          p="3"
+          borderRadius="lg"
+          bg="teal.50"
+          color="teal.600"
+          flexShrink={0}
+        >
+          <Sparkles size={22} />
+        </Box>
+        <VStack align="stretch" spacing={3} flex="1">
+          <Box>
+            <Heading size="md" color={textColor}>Walkthrough Tour</Heading>
+            <Text fontSize="sm" color={subtextColor} mt="1">
+              Take a guided tour of WorshipCenter to learn about every section and feature.
+            </Text>
+          </Box>
+          <Button
+            colorScheme="teal"
+            size="sm"
+            alignSelf="flex-start"
+            leftIcon={<Sparkles size={16} />}
+            onClick={() => {
+              const isMobile = window.matchMedia('(max-width: 62em)').matches;
+              start(isMobile ? MOBILE_TOUR_STEPS : TOUR_STEPS);
+              router.push('/dashboard');
+            }}
+            borderRadius="lg"
+            fontWeight="600"
+          >
+            Start Walkthrough
+          </Button>
+        </VStack>
+      </HStack>
+    </CardBody>
+  </Card>
+
   {/* Support Section */}
   <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
     <CardBody>
@@ -725,46 +765,6 @@ export default function SettingsPage() {
     </CardBody>
   </Card>
   {DeleteConfirmDialog}
-
-        {/* Walkthrough Tour */}
-        <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
-          <CardBody>
-            <HStack spacing={4} align="flex-start">
-              <Box
-                p="3"
-                borderRadius="lg"
-                bg="teal.50"
-                color="teal.600"
-                flexShrink={0}
-              >
-                <Sparkles size={22} />
-              </Box>
-              <VStack align="stretch" spacing={3} flex="1">
-                <Box>
-                  <Heading size="md" color={textColor}>Walkthrough Tour</Heading>
-                  <Text fontSize="sm" color={subtextColor} mt="1">
-                    Take a guided tour of WorshipCenter to learn about every section and feature.
-                  </Text>
-                </Box>
-                <Button
-                  colorScheme="teal"
-                  size="sm"
-                  alignSelf="flex-start"
-                  leftIcon={<Sparkles size={16} />}
-                  onClick={() => {
-                    const isMobile = window.matchMedia('(max-width: 62em)').matches;
-                    start(isMobile ? MOBILE_TOUR_STEPS : TOUR_STEPS);
-                    router.push('/dashboard');
-                  }}
-                  borderRadius="lg"
-                  fontWeight="600"
-                >
-                  Start Walkthrough
-                </Button>
-              </VStack>
-            </HStack>
-          </CardBody>
-        </Card>
       </VStack>
     </Box>
   );
