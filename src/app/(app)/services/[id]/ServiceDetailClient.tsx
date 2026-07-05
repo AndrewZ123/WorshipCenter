@@ -507,40 +507,15 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
             {changeSummary}
           </Text>
           <HStack spacing="2">
-            <Button
-              size="xs"
-              colorScheme="teal"
-              fontWeight="600"
-              onClick={async () => {
-                try {
-                  const res = await fetch(apiUrl('/api/notifications/send-plan-change'), {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-                    },
-                    body: JSON.stringify({
-                      churchId: church.id,
-                      serviceId,
-                      serviceTitle: service.title,
-                      changes,
-                    }),
-                  });
-                  if (res.ok) {
-                    onClose();
-                    toast({ title: 'Team notified', status: 'success', duration: 3000 });
-                  } else {
-                    const err = await res.json();
-                    toast({ title: 'Failed to send', description: err.error, status: 'error', duration: 3000 });
-                  }
-                } catch (e) {
-                  console.error('[PlanChange] Email failed:', e);
-                  toast({ title: 'Failed to send', description: 'Network error', status: 'error', duration: 3000 });
-                }
-              }}
-            >
-              Notify Team
-            </Button>
+            <NotifyTeamButton
+              churchId={church.id}
+              serviceId={serviceId}
+              serviceTitle={service.title}
+              changes={changes}
+              sessionToken={session?.access_token}
+              onClose={onClose}
+              toast={toast}
+            />
             <Button size="xs" variant="ghost" onClick={onClose}>
               Dismiss
             </Button>
@@ -2155,5 +2130,55 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         </ModalContent>
       </Modal>
     </Box>
+  );
+}
+
+function NotifyTeamButton({ churchId, serviceId, serviceTitle, changes, sessionToken, onClose, toast }: {
+  churchId: string;
+  serviceId: string;
+  serviceTitle: string;
+  changes: PlanChange[];
+  sessionToken?: string;
+  onClose: () => void;
+  toast: ReturnType<typeof useToast>;
+}) {
+  const [sending, setSending] = useState(false);
+
+  const handleNotify = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const res = await fetch(apiUrl('/api/notifications/send-plan-change'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
+        },
+        body: JSON.stringify({
+          churchId,
+          serviceId,
+          serviceTitle,
+          changes,
+        }),
+      });
+      if (res.ok) {
+        onClose();
+        toast({ title: 'Team notified', status: 'success', duration: 3000 });
+      } else {
+        const err = await res.json();
+        toast({ title: 'Failed to send', description: err.error, status: 'error', duration: 3000 });
+      }
+    } catch (e) {
+      console.error('[PlanChange] Email failed:', e);
+      toast({ title: 'Failed to send', description: 'Network error', status: 'error', duration: 3000 });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Button size="xs" colorScheme="teal" fontWeight="600" onClick={handleNotify} isLoading={sending} loadingText="Sending...">
+      Notify Team
+    </Button>
   );
 }
