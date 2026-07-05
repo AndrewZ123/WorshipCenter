@@ -218,7 +218,7 @@ export default function DemoServiceDetailClient() {
   const isCompleted = service.status === 'completed';
 
   return (
-    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       {/* Header */}
       <Flex mb="4" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
         <HStack spacing="3" w={{ base: 'full', md: 'auto' }}>

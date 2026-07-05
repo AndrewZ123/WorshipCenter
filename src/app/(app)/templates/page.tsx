@@ -122,7 +122,7 @@ export default function TemplatesPage() {
   }
 
   return (
-    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       <Flex justify="space-between" align="center" mb="6" flexWrap="wrap" gap="4">
         <HStack spacing="3">
           <IconButton aria-label="Back" icon={<BackIcon />} variant="ghost" onClick={() => router.push('/services')} />

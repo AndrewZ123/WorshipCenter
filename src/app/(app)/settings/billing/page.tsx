@@ -19,7 +19,7 @@ import { PRICING } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiUrl } from '@/lib/api-base';
-import { SimpleGrid } from '@chakra-ui/react';
+import { Box, SimpleGrid } from '@chakra-ui/react';
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
 
@@ -240,7 +240,7 @@ export default function BillingPage() {
   const currentPlan = subscription?.price_type || null;
 
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 24px' }}>
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="720px" mx="auto">
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>
         Billing & Subscription
@@ -563,6 +563,6 @@ export default function BillingPage() {
           </p>
         </div>
       )}
-    </div>
+    </Box>
   );
 }

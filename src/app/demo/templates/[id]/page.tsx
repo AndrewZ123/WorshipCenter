@@ -146,7 +146,7 @@ export default function DemoTemplateEditor() {
   };
 
   return (
-    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       <HStack mb="6" spacing="3">
         <IconButton aria-label="Back" icon={<ArrowLeft size={20} />} variant="ghost" onClick={() => router.push('/demo/templates')} />
         <Box flex="1">

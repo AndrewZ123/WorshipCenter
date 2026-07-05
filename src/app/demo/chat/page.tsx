@@ -297,7 +297,9 @@ export default function DemoChatPage() {
 
   return (
     <Box 
-      p={{ base: '0', md: '4' }} 
+      px={{ base: '0', md: '4' }} 
+      pt={{ base: '2', md: '8' }}
+      pb={{ base: '0', md: '4' }}
       maxW="900px" 
       mx="auto" 
       h={{ base: 'calc(100dvh - 48px - env(safe-area-inset-top) - 48px - env(safe-area-inset-bottom))', md: 'auto' }}

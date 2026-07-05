@@ -25,7 +25,7 @@ export default function DemoSettingsPage() {
   const subtextColor = useColorModeValue('gray.600', 'gray.400');
 
   return (
-    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       <VStack spacing={8} align="stretch">
         <Box>
           <Heading size="lg" mb={2} color={textColor}>Settings</Heading>
