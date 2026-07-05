@@ -1741,14 +1741,19 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
       {/* Service Mode (Mobile Companion View) — Phone viewer */}
       {service && church && isPhone && (
-        <ServiceMobileView
-          service={service}
-          items={items}
-          churchId={church.id}
-          currentUser={user}
-          isOpen={mobileViewOpen}
-          onClose={() => setMobileViewOpen(false)}
-        />
+        <Modal isOpen={mobileViewOpen} onClose={() => setMobileViewOpen(false)} size="full" isCentered>
+          <ModalOverlay bg="blackAlpha.50" backdropFilter="none" />
+          <ModalContent borderRadius="0" m="0" h="100dvh" maxW="100vw" overflow="hidden" bg="transparent" boxShadow="none">
+            <ServiceMobileView
+              service={service}
+              items={items}
+              churchId={church.id}
+              currentUser={user}
+              isOpen={true}
+              onClose={() => setMobileViewOpen(false)}
+            />
+          </ModalContent>
+        </Modal>
       )}
 
       {/* Debrief Form Modal */}
