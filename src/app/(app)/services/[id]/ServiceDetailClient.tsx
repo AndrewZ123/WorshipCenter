@@ -123,12 +123,16 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   // Add song modal state
   const addSongModal = useDisclosure();
   const [addSongId, setAddSongId] = useState<string | null>(null);
+  const [addSongSearchText, setAddSongSearchText] = useState('');
+  const [addSongIsNew, setIsNewSong] = useState(false);
+  const [addSongAssignedTo, setAddSongAssignedTo] = useState('');
   
   // Add segment modal state
   const addSegmentModal = useDisclosure();
   const [addSegmentTitle, setAddSegmentTitle] = useState('');
   const [addSegmentNotes, setAddSegmentNotes] = useState('');
   const [addSegmentDuration, setAddSegmentDuration] = useState('');
+  const [addSegmentAssignedTo, setAddSegmentAssignedTo] = useState('');
 
   // Debrief state
   const [debriefEntries, setDebriefEntries] = useState<ServiceDebriefPopulated[]>([]);
@@ -538,6 +542,9 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
   const handleAddSong = () => {
     setAddSongId(null);
+    setAddSongSearchText('');
+    setIsNewSong(false);
+    setAddSongAssignedTo('');
     addSongModal.onOpen();
   };
 
@@ -545,37 +552,75 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     setAddSegmentTitle('');
     setAddSegmentNotes('');
     setAddSegmentDuration('');
+    setAddSegmentAssignedTo('');
     addSegmentModal.onOpen();
   };
   
   const handleSaveAddSong = async () => {
-    if (!church || !addSongId) return;
-    
+    if (!church) return;
+
     try {
-      const selectedSong = songs.find(s => s.id === addSongId);
-      if (!selectedSong) {
-        toast({ title: 'Song not found', status: 'error', duration: 3000 });
-        return;
+      let songId = addSongId;
+      let songTitle = '';
+      let songKey = '';
+
+      if (!addSongIsNew) {
+        const selectedSong = songs.find(s => s.id === addSongId);
+        if (!selectedSong) {
+          toast({ title: 'Please select a song', status: 'error', duration: 3000 });
+          return;
+        }
+        songId = selectedSong.id;
+        songTitle = selectedSong.title;
+        songKey = selectedSong.default_key || 'C';
+      } else {
+        if (!addSongSearchText.trim()) {
+          toast({ title: 'Please enter a song title', status: 'error', duration: 3000 });
+          return;
+        }
+        // Check if a song with this title already exists
+        const existingSong = songs.find(s => s.title.toLowerCase() === addSongSearchText.trim().toLowerCase());
+        if (existingSong) {
+          songId = existingSong.id;
+          songTitle = existingSong.title;
+          songKey = existingSong.default_key || 'C';
+        } else {
+          const newSong = await store.songs.create({
+            church_id: church.id,
+            title: addSongSearchText.trim(),
+            artist: '',
+            default_key: 'C',
+            ccli_number: '',
+            tags: [],
+          });
+          songId = newSong.id;
+          songTitle = newSong.title;
+          songKey = newSong.default_key || 'C';
+        }
       }
-      
+
       const newPosition = items.length;
       await store.serviceItems.create({
         service_id: serviceId,
         type: 'song',
-        title: selectedSong.title,
-        song_id: addSongId,
-        key: selectedSong.default_key || null,
+        title: songTitle,
+        song_id: songId,
+        key: songKey || null,
         duration_minutes: null,
         position: newPosition,
         notes: '',
+        assigned_to: addSongAssignedTo || null,
       });
-      
+
       addSongModal.onClose();
       setAddSongId(null);
+      setAddSongSearchText('');
+      setIsNewSong(false);
+      setAddSongAssignedTo('');
       await loadData();
       toast({ title: 'Song added to service', status: 'success', duration: 2000 });
 
-      accumulatePlanChange(computeItemAdded({ title: selectedSong.title, type: 'song' }));
+      accumulatePlanChange(computeItemAdded({ title: songTitle, type: 'song' }));
     } catch (error) {
       console.error('Error adding song:', error);
       toast({ title: 'Error adding song', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
@@ -596,6 +641,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         position: newPosition,
         song_id: null,
         key: null,
+        assigned_to: addSegmentAssignedTo || null,
       });
       
       addSegmentModal.onClose();
@@ -1937,26 +1983,87 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing="4">
-              <FormControl isRequired>
-                <FormLabel fontWeight="600" fontSize="sm">Select a Song</FormLabel>
-                <Select 
-                  value={addSongId || ''} 
-                  onChange={(e) => setAddSongId(e.target.value || null)}
-                  placeholder="Search and select a song"
+              <FormControl>
+                <FormLabel fontWeight="600" fontSize="sm">Source</FormLabel>
+                <HStack spacing="2">
+                  <Button
+                    size="sm"
+                    variant={!addSongIsNew ? 'solid' : 'outline'}
+                    colorScheme="teal"
+                    onClick={() => setIsNewSong(false)}
+                    flex="1"
+                  >
+                    From Library
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={addSongIsNew ? 'solid' : 'outline'}
+                    colorScheme="teal"
+                    onClick={() => setIsNewSong(true)}
+                    flex="1"
+                  >
+                    New Song
+                  </Button>
+                </HStack>
+              </FormControl>
+
+              {!addSongIsNew ? (
+                <FormControl isRequired>
+                  <FormLabel fontWeight="600" fontSize="sm">Select a Song</FormLabel>
+                  <Select
+                    value={addSongId || ''}
+                    onChange={(e) => setAddSongId(e.target.value || null)}
+                    placeholder="Search and select a song"
+                    borderRadius="lg"
+                  >
+                    {songs.map(song => (
+                      <option key={song.id} value={song.id}>
+                        {song.title} {song.artist ? `- ${song.artist}` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              ) : (
+                <FormControl isRequired>
+                  <FormLabel fontWeight="600" fontSize="sm">Song Title</FormLabel>
+                  <Input
+                    value={addSongSearchText}
+                    onChange={(e) => setAddSongSearchText(e.target.value)}
+                    placeholder="Type a new song name..."
+                    borderRadius="lg"
+                    autoFocus
+                  />
+                </FormControl>
+              )}
+
+              <FormControl>
+                <FormLabel fontWeight="600" fontSize="sm">Assigned To</FormLabel>
+                <Input
+                  list="add-song-team-members"
+                  value={addSongAssignedTo}
+                  onChange={(e) => setAddSongAssignedTo(e.target.value)}
+                  placeholder="Type any name (optional)"
                   borderRadius="lg"
-                >
-                  {songs.map(song => (
-                    <option key={song.id} value={song.id}>
-                      {song.title} {song.artist ? `- ${song.artist}` : ''}
-                    </option>
+                />
+                <datalist id="add-song-team-members">
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.name} />
                   ))}
-                </Select>
+                </datalist>
+                <Text fontSize="xs" color="gray.500" mt="1">Type any name — team member or guest</Text>
               </FormControl>
             </VStack>
           </ModalBody>
           <ModalFooter gap="2">
             <Button variant="ghost" onClick={addSongModal.onClose}>Cancel</Button>
-            <Button colorScheme="teal" onClick={handleSaveAddSong} isDisabled={!addSongId} fontWeight="600">Add Song</Button>
+            <Button
+              colorScheme="teal"
+              onClick={handleSaveAddSong}
+              isDisabled={addSongIsNew ? !addSongSearchText.trim() : !addSongId}
+              fontWeight="600"
+            >
+              Add Song
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -1990,6 +2097,23 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                 />
               </FormControl>
               
+              <FormControl>
+                <FormLabel fontWeight="600" fontSize="sm">Assigned To</FormLabel>
+                <Input
+                  list="add-segment-team-members"
+                  value={addSegmentAssignedTo}
+                  onChange={(e) => setAddSegmentAssignedTo(e.target.value)}
+                  placeholder="Type any name (optional)"
+                  borderRadius="lg"
+                />
+                <datalist id="add-segment-team-members">
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.name} />
+                  ))}
+                </datalist>
+                <Text fontSize="xs" color="gray.500" mt="1">Type any name — team member or guest</Text>
+              </FormControl>
+
               <FormControl>
                 <FormLabel fontWeight="600" fontSize="sm">Notes</FormLabel>
                 <Textarea 

@@ -21,7 +21,7 @@ import type { ChordProParsed } from '@/lib/chordpro';
 // Lucide icons
 import { 
   Plus, Search, Music, MoreVertical, Trash2, Edit, 
-  SlidersHorizontal, Mic2, Upload
+  SlidersHorizontal, Mic2, Upload, AlertCircle
 } from 'lucide-react';
 
 export default function SongsPage() {
@@ -125,6 +125,8 @@ export default function SongsPage() {
     toast({ title: 'Song deleted', status: 'info', duration: 2000 });
     setDeleteId(null); await loadSongs();
   };
+
+  const isIncomplete = (song: Song) => !song.artist && !song.ccli_number;
 
   const filtered = songs.filter((s) => {
     const matchesSearch = s.title.toLowerCase().includes(search.toLowerCase()) || s.artist.toLowerCase().includes(search.toLowerCase()) || s.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
@@ -330,7 +332,12 @@ export default function SongsPage() {
                             <Music size={16} color={iconTeal} />
                           </Box>
                           <Box>
-                            <Text fontWeight="600" color={headingColor}>{song.title}</Text>
+                            <HStack spacing="1.5">
+                              <Text fontWeight="600" color={headingColor}>{song.title}</Text>
+                              {isIncomplete(song) && (
+                                <AlertCircle size={14} color="var(--chakra-colors-orange-400)" aria-label="Incomplete song info" />
+                              )}
+                            </HStack>
                             {song.tags.length > 0 && (
                               <HStack spacing="1" mt="1">
                                 {song.tags.slice(0, 3).map((tag) => (
@@ -434,7 +441,12 @@ export default function SongsPage() {
                           <Music size={18} color={iconTeal} />
                         </Box>
                         <Box>
-                          <Text fontWeight="600" color={headingColor}>{song.title}</Text>
+                          <HStack spacing="1.5">
+                            <Text fontWeight="600" color={headingColor}>{song.title}</Text>
+                            {isIncomplete(song) && (
+                              <AlertCircle size={14} color="var(--chakra-colors-orange-400)" aria-label="Incomplete song info" />
+                            )}
+                          </HStack>
                           <HStack spacing="2" mt="1">
                             <Mic2 size={12} color="var(--chakra-colors-gray-400)" />
                             <Text fontSize="sm" color={subtextColor}>{song.artist || 'Unknown'}</Text>
