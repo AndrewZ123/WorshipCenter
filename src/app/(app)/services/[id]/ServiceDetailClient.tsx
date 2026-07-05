@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Box, Text, HStack, Button, VStack, Input, Flex,
@@ -147,6 +147,17 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   const emptyColor = useColorModeValue('gray.400', 'gray.500');
   const itemTitleColor = useColorModeValue('gray.800', 'white');
   const hoverBg = useColorModeValue('gray.50', 'gray.700');
+
+  const matchedSongs = useMemo(() => {
+    if (!addSongSearchText.trim()) return [];
+    const q = addSongSearchText.toLowerCase();
+    return songs.filter(s => s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q)).slice(0, 15);
+  }, [songs, addSongSearchText]);
+
+  const hasExactTitleMatch = useMemo(() => {
+    if (!addSongSearchText.trim()) return false;
+    return songs.some(s => s.title.toLowerCase() === addSongSearchText.trim().toLowerCase());
+  }, [songs, addSongSearchText]);
   
   // Team members have read-only access
   const isReadOnly = user?.role === 'team';
@@ -1994,51 +2005,44 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
               {addSongSearchText.trim() && (
                 <Box w="full" maxH="240px" overflowY="auto" borderWidth="1px" borderColor={borderColor} borderRadius="lg">
-                  {songs
-                    .filter(s => s.title.toLowerCase().includes(addSongSearchText.toLowerCase()) || s.artist.toLowerCase().includes(addSongSearchText.toLowerCase()))
-                    .slice(0, 15)
-                    .map(song => (
-                      <Box
-                        key={song.id}
-                        px="3"
-                        py="2.5"
-                        cursor="pointer"
-                        transition="background 0.1s"
-                        bg={addSongId === song.id ? 'teal.50' : 'transparent'}
-                        _hover={{ bg: hoverBg }}
-                        _dark={{ bg: addSongId === song.id ? 'teal.900' : 'transparent' }}
-                        onClick={() => {
-                          setAddSongId(song.id);
-                          setAddSongSearchText(song.title);
-                        }}
-                        borderBottom="1px solid"
-                        borderBottomColor={borderColor}
-                      >
-                        <HStack spacing="3">
-                          <Music size={14} color="var(--chakra-colors-teal-500)" />
-                          <Text fontWeight={addSongId === song.id ? '600' : '500'} fontSize="sm" color={headingColor} flex="1">
-                            {song.title}
-                          </Text>
-                          {song.artist && (
-                            <Text fontSize="xs" color={subtextColor}>{song.artist}</Text>
-                          )}
-                          {song.default_key && (
-                            <Badge variant="subtle" colorScheme="teal" fontSize="xs">{song.default_key}</Badge>
-                          )}
-                        </HStack>
-                      </Box>
-                    ))}
+                  {matchedSongs.map(song => (
+                    <Box
+                      key={song.id}
+                      px="3"
+                      py="2.5"
+                      cursor="pointer"
+                      bg={addSongId === song.id ? 'teal.50' : 'transparent'}
+                      _hover={{ bg: hoverBg }}
+                      _dark={{ bg: addSongId === song.id ? 'teal.900' : 'transparent' }}
+                      onClick={() => {
+                        setAddSongId(song.id);
+                        setAddSongSearchText(song.title);
+                      }}
+                      borderBottom="1px solid"
+                      borderBottomColor={borderColor}
+                    >
+                      <HStack spacing="3">
+                        <Music size={14} color="var(--chakra-colors-teal-500)" />
+                        <Text fontWeight={addSongId === song.id ? '600' : '500'} fontSize="sm" color={headingColor} flex="1">
+                          {song.title}
+                        </Text>
+                        {song.artist && (
+                          <Text fontSize="xs" color={subtextColor}>{song.artist}</Text>
+                        )}
+                        {song.default_key && (
+                          <Badge variant="subtle" colorScheme="teal" fontSize="xs">{song.default_key}</Badge>
+                        )}
+                      </HStack>
+                    </Box>
+                  ))}
+                  {matchedSongs.length > 0 && <Box borderBottom="1px solid" borderBottomColor={borderColor} />}
                   {!addSongId && (
                     <Box
                       px="3"
                       py="2.5"
                       cursor="pointer"
-                      transition="background 0.1s"
                       _hover={{ bg: 'orange.50' }}
                       _dark={{ _hover: { bg: 'orange.900' } }}
-                      onClick={() => setAddSongId(null)}
-                      borderTop={songs.some(s => s.title.toLowerCase().includes(addSongSearchText.toLowerCase()) || s.artist.toLowerCase().includes(addSongSearchText.toLowerCase())) ? '1px solid' : 'none'}
-                      borderTopColor={borderColor}
                     >
                       <HStack spacing="3">
                         <Plus size={14} color="var(--chakra-colors-orange-500)" />

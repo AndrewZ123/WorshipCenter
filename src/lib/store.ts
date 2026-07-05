@@ -266,25 +266,23 @@ export const db = {
       return data as ServiceItem;
     },
     delete: async (id: string, churchId: string) => {
-      // First verify the item's service belongs to this church
       const { data: item } = await supabase
         .from('service_items')
         .select('service_id, services(church_id)')
         .eq('id', id)
         .single();
-      
-      // When joining with services, Supabase returns an array for the related table
-      if (!item || !item.services) {
+
+      if (!item) {
         console.error('[ServiceItems] Delete failed: item not found or access denied', { id, churchId });
         return false;
       }
-      
-      const services = item.services as Array<{ church_id: string }>;
-      if (services.length === 0 || services[0].church_id !== churchId) {
+
+      const svc = (Array.isArray(item.services) ? item.services[0] : item.services) as { church_id: string } | undefined;
+      if (!svc || svc.church_id !== churchId) {
         console.error('[ServiceItems] Delete failed: service church_id mismatch', { id, churchId });
         return false;
       }
-      
+
       const { error } = await supabase.from('service_items').delete().eq('id', id);
       return !error;
     },
@@ -386,25 +384,23 @@ export const db = {
       return data as SongFile;
     },
     delete: async (id: string, churchId: string) => {
-      // Verify the file's song belongs to this church
       const { data: file } = await supabase
         .from('song_files')
         .select('song_id, songs(church_id)')
         .eq('id', id)
         .single();
-      
-      // When joining with songs, Supabase returns an array for the related table
-      if (!file || !file.songs) {
+
+      if (!file) {
         console.error('[SongFiles] Delete failed: file not found or access denied', { id, churchId });
         return false;
       }
-      
-      const songs = file.songs as Array<{ church_id: string }>;
-      if (songs.length === 0 || songs[0].church_id !== churchId) {
+
+      const song = (Array.isArray(file.songs) ? file.songs[0] : file.songs) as { church_id: string } | undefined;
+      if (!song || song.church_id !== churchId) {
         console.error('[SongFiles] Delete failed: song church_id mismatch', { id, churchId });
         return false;
       }
-      
+
       const { error } = await supabase.from('song_files').delete().eq('id', id);
       return !error;
     },
@@ -1455,25 +1451,23 @@ export const db = {
       });
     },
     delete: async (id: string, churchId: string) => {
-      // Verify: assignment's service belongs to this church
       const { data: assignment } = await supabase
         .from('service_assignments')
         .select('service_id, services(church_id)')
         .eq('id', id)
         .single();
-      
-      // When joining with services, Supabase returns an array for the related table
-      if (!assignment || !assignment.services) {
+
+      if (!assignment) {
         console.error('[Assignments] Delete failed: assignment not found or access denied', { id, churchId });
         return false;
       }
-      
-      const services = assignment.services as Array<{ church_id: string }>;
-      if (services.length === 0 || services[0].church_id !== churchId) {
+
+      const svc = (Array.isArray(assignment.services) ? assignment.services[0] : assignment.services) as { church_id: string } | undefined;
+      if (!svc || svc.church_id !== churchId) {
         console.error('[Assignments] Delete failed: service church_id mismatch', { id, churchId });
         return false;
       }
-      
+
       const { error } = await supabase.from('service_assignments').delete().eq('id', id);
       return !error;
     },
