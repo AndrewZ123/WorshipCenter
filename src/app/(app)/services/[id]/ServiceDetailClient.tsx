@@ -437,7 +437,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       flushPlanChanges();
-    }, 5000);
+    }, 1500);
   }
 
   const getRecipientUserIds = useCallback(async (): Promise<string[]> => {
@@ -600,6 +600,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
             ccli_number: '',
             tags: [],
           });
+          setSongs(prev => [...prev, newSong]);
           songId = newSong.id;
           songTitle = newSong.title;
           songKey = newSong.default_key || 'C';
@@ -607,7 +608,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       }
 
       const newPosition = items.length;
-      await store.serviceItems.create({
+      const created = await store.serviceItems.create({
         service_id: serviceId,
         type: 'song',
         title: songTitle,
@@ -623,7 +624,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       setAddSongId(null);
       setAddSongSearchText('');
       setAddSongAssignedTo('');
-      await loadData();
+      setItems(prev => [...prev, created]);
       toast({ title: 'Song added to service', status: 'success', duration: 2000 });
 
       accumulatePlanChange(computeItemAdded({ title: songTitle, type: 'song' }));
@@ -638,7 +639,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     
     try {
       const newPosition = items.length;
-      await store.serviceItems.create({
+      const created = await store.serviceItems.create({
         service_id: serviceId,
         type: 'segment',
         title: addSegmentTitle,
@@ -654,7 +655,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       setAddSegmentTitle('');
       setAddSegmentNotes('');
       setAddSegmentDuration('');
-      await loadData();
+      setItems(prev => [...prev, created]);
       toast({ title: 'Segment added to service', status: 'success', duration: 2000 });
 
       accumulatePlanChange(computeItemAdded({ title: addSegmentTitle, type: 'segment' }));
@@ -671,7 +672,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
     try {
       await store.serviceItems.delete(itemId, church.id);
-      await loadData();
+      setItems(prev => prev.filter(i => i.id !== itemId));
       toast({ title: 'Item removed', status: 'info', duration: 2000 });
 
       if (deletedItem) {
@@ -766,7 +767,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
       const change = computeKeyChange(editingItem, itemKey);
 
-      await store.serviceItems.update(editingItem.id, church.id, {
+      const updated = await store.serviceItems.update(editingItem.id, church.id, {
         title: newTitle,
         notes: itemNotes || undefined,
         duration_minutes: itemDuration ? parseInt(itemDuration) : undefined,
@@ -776,7 +777,9 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       });
       
       editItemModal.onClose();
-      await loadData();
+      if (updated) {
+        setItems(prev => prev.map(i => i.id === updated.id ? updated : i));
+      }
       toast({ title: 'Item updated', status: 'success', duration: 2000 });
 
       if (change) {
