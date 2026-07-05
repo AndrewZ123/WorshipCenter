@@ -124,7 +124,6 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   const addSongModal = useDisclosure();
   const [addSongId, setAddSongId] = useState<string | null>(null);
   const [addSongSearchText, setAddSongSearchText] = useState('');
-  const [addSongIsNew, setIsNewSong] = useState(false);
   const [addSongAssignedTo, setAddSongAssignedTo] = useState('');
   
   // Add segment modal state
@@ -543,7 +542,6 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   const handleAddSong = () => {
     setAddSongId(null);
     setAddSongSearchText('');
-    setIsNewSong(false);
     setAddSongAssignedTo('');
     addSongModal.onOpen();
   };
@@ -564,13 +562,12 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       let songTitle = '';
       let songKey = '';
 
-      if (!addSongIsNew) {
-        const selectedSong = songs.find(s => s.id === addSongId);
+      if (songId) {
+        const selectedSong = songs.find(s => s.id === songId);
         if (!selectedSong) {
-          toast({ title: 'Please select a song', status: 'error', duration: 3000 });
+          toast({ title: 'Song not found', status: 'error', duration: 3000 });
           return;
         }
-        songId = selectedSong.id;
         songTitle = selectedSong.title;
         songKey = selectedSong.default_key || 'C';
       } else {
@@ -578,7 +575,6 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
           toast({ title: 'Please enter a song title', status: 'error', duration: 3000 });
           return;
         }
-        // Check if a song with this title already exists
         const existingSong = songs.find(s => s.title.toLowerCase() === addSongSearchText.trim().toLowerCase());
         if (existingSong) {
           songId = existingSong.id;
@@ -615,7 +611,6 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       addSongModal.onClose();
       setAddSongId(null);
       setAddSongSearchText('');
-      setIsNewSong(false);
       setAddSongAssignedTo('');
       await loadData();
       toast({ title: 'Song added to service', status: 'success', duration: 2000 });
@@ -1984,56 +1979,76 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
           <ModalBody>
             <VStack spacing="4">
               <FormControl>
-                <FormLabel fontWeight="600" fontSize="sm">Source</FormLabel>
-                <HStack spacing="2">
-                  <Button
-                    size="sm"
-                    variant={!addSongIsNew ? 'solid' : 'outline'}
-                    colorScheme="teal"
-                    onClick={() => setIsNewSong(false)}
-                    flex="1"
-                  >
-                    From Library
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={addSongIsNew ? 'solid' : 'outline'}
-                    colorScheme="teal"
-                    onClick={() => setIsNewSong(true)}
-                    flex="1"
-                  >
-                    New Song
-                  </Button>
-                </HStack>
+                <FormLabel fontWeight="600" fontSize="sm">Search or create song</FormLabel>
+                <Input
+                  value={addSongSearchText}
+                  onChange={(e) => {
+                    setAddSongSearchText(e.target.value);
+                    setAddSongId(null);
+                  }}
+                  placeholder="Type to search library or enter a new song name..."
+                  borderRadius="lg"
+                  autoFocus
+                />
               </FormControl>
 
-              {!addSongIsNew ? (
-                <FormControl isRequired>
-                  <FormLabel fontWeight="600" fontSize="sm">Select a Song</FormLabel>
-                  <Select
-                    value={addSongId || ''}
-                    onChange={(e) => setAddSongId(e.target.value || null)}
-                    placeholder="Search and select a song"
-                    borderRadius="lg"
-                  >
-                    {songs.map(song => (
-                      <option key={song.id} value={song.id}>
-                        {song.title} {song.artist ? `- ${song.artist}` : ''}
-                      </option>
+              {addSongSearchText.trim() && (
+                <Box w="full" maxH="240px" overflowY="auto" borderWidth="1px" borderColor={borderColor} borderRadius="lg">
+                  {songs
+                    .filter(s => s.title.toLowerCase().includes(addSongSearchText.toLowerCase()) || s.artist.toLowerCase().includes(addSongSearchText.toLowerCase()))
+                    .slice(0, 15)
+                    .map(song => (
+                      <Box
+                        key={song.id}
+                        px="3"
+                        py="2.5"
+                        cursor="pointer"
+                        transition="background 0.1s"
+                        bg={addSongId === song.id ? 'teal.50' : 'transparent'}
+                        _hover={{ bg: hoverBg }}
+                        _dark={{ bg: addSongId === song.id ? 'teal.900' : 'transparent' }}
+                        onClick={() => {
+                          setAddSongId(song.id);
+                          setAddSongSearchText(song.title);
+                        }}
+                        borderBottom="1px solid"
+                        borderBottomColor={borderColor}
+                      >
+                        <HStack spacing="3">
+                          <Music size={14} color="var(--chakra-colors-teal-500)" />
+                          <Text fontWeight={addSongId === song.id ? '600' : '500'} fontSize="sm" color={headingColor} flex="1">
+                            {song.title}
+                          </Text>
+                          {song.artist && (
+                            <Text fontSize="xs" color={subtextColor}>{song.artist}</Text>
+                          )}
+                          {song.default_key && (
+                            <Badge variant="subtle" colorScheme="teal" fontSize="xs">{song.default_key}</Badge>
+                          )}
+                        </HStack>
+                      </Box>
                     ))}
-                  </Select>
-                </FormControl>
-              ) : (
-                <FormControl isRequired>
-                  <FormLabel fontWeight="600" fontSize="sm">Song Title</FormLabel>
-                  <Input
-                    value={addSongSearchText}
-                    onChange={(e) => setAddSongSearchText(e.target.value)}
-                    placeholder="Type a new song name..."
-                    borderRadius="lg"
-                    autoFocus
-                  />
-                </FormControl>
+                  {!addSongId && (
+                    <Box
+                      px="3"
+                      py="2.5"
+                      cursor="pointer"
+                      transition="background 0.1s"
+                      _hover={{ bg: 'orange.50' }}
+                      _dark={{ _hover: { bg: 'orange.900' } }}
+                      onClick={() => setAddSongId(null)}
+                      borderTop={songs.some(s => s.title.toLowerCase().includes(addSongSearchText.toLowerCase()) || s.artist.toLowerCase().includes(addSongSearchText.toLowerCase())) ? '1px solid' : 'none'}
+                      borderTopColor={borderColor}
+                    >
+                      <HStack spacing="3">
+                        <Plus size={14} color="var(--chakra-colors-orange-500)" />
+                        <Text fontSize="sm" fontWeight="500">
+                          Add new song <Text as="span" fontWeight="700" color="orange.500">"{addSongSearchText.trim()}"</Text>
+                        </Text>
+                      </HStack>
+                    </Box>
+                  )}
+                </Box>
               )}
 
               <FormControl>
@@ -2059,7 +2074,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
             <Button
               colorScheme="teal"
               onClick={handleSaveAddSong}
-              isDisabled={addSongIsNew ? !addSongSearchText.trim() : !addSongId}
+              isDisabled={!addSongId && !addSongSearchText.trim()}
               fontWeight="600"
             >
               Add Song
