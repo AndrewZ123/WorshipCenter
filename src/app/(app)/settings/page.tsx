@@ -303,7 +303,7 @@ export default function SettingsPage() {
   }
   
   return (
-    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       <VStack spacing={8} align="stretch">
         <Box>
           <Heading size="lg" mb={2} color={textColor}>Settings</Heading>

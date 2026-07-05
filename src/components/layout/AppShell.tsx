@@ -396,6 +396,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         h="100dvh"
         position="sticky"
         top="0"
+        sx={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <SidebarContent />
       </Box>
@@ -459,7 +460,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         bg={mainBg}
         className="main-content"
         sx={{
-          paddingTop: ['calc(48px + env(safe-area-inset-top))', null, null, '0'],
+          paddingTop: ['calc(48px + env(safe-area-inset-top))', null, null, 'env(safe-area-inset-top, 0px)'],
           paddingBottom: { base: 'calc(48px + env(safe-area-inset-bottom))', lg: '0' },
         }}
       >

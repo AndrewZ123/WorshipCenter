@@ -80,6 +80,14 @@ export async function initMobile(): Promise<void> {
     }
   });
 
+  // ── Push notifications ────────────────────────────────────
+  try {
+    const { registerPushNotifications } = await import('@/lib/capacitor-push');
+    await registerPushNotifications();
+  } catch {
+    /* push plugin not available — ignore */
+  }
+
   // ── Deep links / Universal links ──────────────────────────
   CapacitorApp.addListener('appUrlOpen', ({ url }) => {
     if (!url) return;

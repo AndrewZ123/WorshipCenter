@@ -72,6 +72,13 @@ const ENV_VAR_DEFS = {
     public: false,
   },
 
+  // Push Notifications (Firebase Cloud Messaging)
+  FCM_SERVER_KEY: {
+    description: 'Firebase Cloud Messaging server key for push notifications',
+    required: false, // Optional - push notifications silently skip if not configured
+    public: false,
+  },
+
   // SMS (Twilio)
   TWILIO_ACCOUNT_SID: {
     description: 'Twilio account SID for sending SMS',

@@ -68,7 +68,7 @@ function DemoBanner() {
   };
   
   return (
-    <Box bg={bannerBg} color="white" py="2" px="4">
+    <Box bg={bannerBg} color="white" py="2" px="4" sx={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <Flex maxW="7xl" mx="auto" align="center" justify="space-between" flexWrap="wrap" gap="2">
         <HStack spacing="2">
           <Badge colorScheme="whiteAlpha" variant="solid" fontSize="xs" borderRadius="full" px="2">DEMO MODE</Badge>
@@ -325,6 +325,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
           position="sticky"
           top="0"
           overflowY="auto"
+          sx={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           <SidebarContent />
         </Box>
@@ -399,7 +400,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
           bg={mainBg}
           className="main-content"
         sx={{
-            paddingTop: ['calc(92px + env(safe-area-inset-top))', null, null, '0'],
+            paddingTop: ['calc(92px + env(safe-area-inset-top))', null, null, 'env(safe-area-inset-top, 0px)'],
             paddingBottom: [
               'calc(48px + env(safe-area-inset-bottom))', 
               'calc(48px + env(safe-area-inset-bottom))', 
@@ -407,7 +408,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
               '0'
             ],
             '@media (min-width: 62em)': {
-              paddingTop: '0',
+              paddingTop: 'env(safe-area-inset-top, 0px)',
               paddingBottom: '0',
             },
           }}

@@ -794,7 +794,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
   if (loading) {
     return (
-      <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
         {/* Header Skeleton */}
         <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
           <HStack spacing="3" flex="1">

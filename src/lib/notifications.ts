@@ -1,9 +1,10 @@
 // Unified Notification Service
-// Handles multi-channel notifications (in-app, email, SMS)
+// Handles multi-channel notifications (in-app, email, SMS, push)
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { sendSMS, isSMSAvailable, formatPhoneNumber } from '@/lib/sms';
+import { sendPushNotification, isPushConfigured } from '@/lib/push';
 import { env } from '@/lib/env';
 
 /**
@@ -28,6 +29,7 @@ export enum NotificationChannel {
   IN_APP = 'in_app',
   EMAIL = 'email',
   SMS = 'sms',
+  PUSH = 'push',
 }
 
 /**
@@ -67,12 +69,12 @@ export async function sendNotification(options: SendNotificationOptions): Promis
     subject,
     body,
     linkUrl,
-    channels = [NotificationChannel.IN_APP, NotificationChannel.EMAIL, NotificationChannel.SMS],
+    channels = [NotificationChannel.IN_APP, NotificationChannel.EMAIL, NotificationChannel.SMS, NotificationChannel.PUSH],
     organizationId,
     metadata = {},
   } = options;
 
-  // Get user details
+  const channelPushEnabled = channels.includes(NotificationChannel.PUSH) && isPushConfigured();
   const { data: user, error: userError } = await supabaseAdmin
     .from('profiles')
     .select('id, email, phone, name, organization_id')
@@ -180,6 +182,23 @@ export async function sendNotification(options: SendNotificationOptions): Promis
       console.error('[Notification] Failed to send SMS:', errorMessage);
       results.errors.push({ channel: NotificationChannel.SMS, error: errorMessage });
       // Don't mark as failed if other channels succeed
+    }
+  }
+
+  // Send push notification
+  if (channelPushEnabled) {
+    try {
+      await sendPushNotification(userId, {
+        title: subject,
+        body,
+        data: linkUrl ? { link_url: linkUrl } : {},
+      });
+
+      results.channelsSent.push(NotificationChannel.PUSH);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[Notification] Failed to send push:', errorMessage);
+      results.errors.push({ channel: NotificationChannel.PUSH, error: errorMessage });
     }
   }
 

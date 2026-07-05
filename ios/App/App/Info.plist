@@ -50,6 +50,12 @@
 	<key>ITSAppUsesNonStandardEncryption</key>
 	<false/>
 
+	<!-- Push Notifications -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+
 	<!-- Deep link: custom scheme -->
 	<key>CFBundleURLTypes</key>
 	<array>
