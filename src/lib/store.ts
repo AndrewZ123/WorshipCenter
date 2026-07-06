@@ -1016,6 +1016,13 @@ export const db = {
     },
   },
 
+  // Normalize channel message: rename `users` (Supabase join) to `user`
+  normalizeChannelMessage: (msg: any) => {
+    const userData = msg.users;
+    const user = userData ? { id: userData.id, name: userData.name, email: userData.email, avatar_url: userData.avatar_url } : { id: msg.user_id, name: 'Unknown', avatar_url: undefined };
+    return { ...msg, user };
+  },
+
   // Helper to map Supabase chat message to ChatMessagePopulated
   mapChatMessage: (msg: any): ChatMessagePopulated => {
     const userData = msg.users;
@@ -2051,7 +2058,7 @@ export const db = {
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
-      return ((data || []) as any[]).reverse();
+      return ((data || []) as any[]).reverse().map(db.normalizeChannelMessage);
     },
     sendMessage: async (channelId: string, userId: string, content: string) => {
       const { data: channel } = await supabase
@@ -2089,7 +2096,7 @@ export const db = {
           user: { id: userId, name: 'You' },
         };
       }
-      return data as any;
+      return db.normalizeChannelMessage(data);
     },
     pinMessage: async (messageId: string, isPinned: boolean) => {
       const { error } = await supabase
