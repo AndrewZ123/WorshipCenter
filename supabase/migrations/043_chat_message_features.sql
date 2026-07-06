@@ -142,6 +142,17 @@ CREATE POLICY "Users can post messages"
   );
 
 -- Enable realtime for new tables so subscriptions work
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_polls;
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_attachments;
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_reactions;
+-- Uses a PL/pgSQL block because ALTER PUBLICATION ... ADD TABLE has no IF NOT EXISTS
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'chat_polls') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chat_polls;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'chat_attachments') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chat_attachments;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'chat_reactions') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chat_reactions;
+  END IF;
+END;
+$$;
