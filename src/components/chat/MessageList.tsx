@@ -62,23 +62,16 @@ export default function MessageList({ messages, reactions, currentUserId, isLoad
   const endRef = useRef<HTMLDivElement>(null);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
-  const isFirstLoad = useRef(true);
 
   useEffect(() => {
-    if (messages.length === 0) return;
-    // Scroll the overflow container directly using scrollTop
+    if (messages.length === 0 || isLoading) return;
     const scrollToBottom = () => {
       if (!containerRef.current) return;
-      const el = containerRef.current;
-      el.scrollTop = el.scrollHeight;
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     };
-    // First attempt after layout
-    requestAnimationFrame(scrollToBottom);
-    // Second attempt after images/fonts settle (flex layout may need extra pass)
-    const timer = setTimeout(scrollToBottom, 100);
-    isFirstLoad.current = false;
-    return () => clearTimeout(timer);
-  }, [messages]);
+    // Double rAF to ensure flex layout has settled
+    requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
+  }, [messages, isLoading]);
 
   if (isLoading) {
     return (
