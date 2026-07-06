@@ -1039,7 +1039,7 @@ export const db = {
     getByChurch: async (churchId: string, limit = 50, offset = 0) => {
       const { data } = await supabase
         .from('chat_messages')
-        .select('*, users(*)')
+        .select('*, users!chat_messages_user_id_fkey(*)')
         .eq('church_id', churchId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -1051,7 +1051,7 @@ export const db = {
       const { data } = await supabase
         .from('chat_messages')
         .insert(message)
-        .select('*, users(*)')
+        .select('*, users!chat_messages_user_id_fkey(*)')
         .single();
       return db.mapChatMessage(data);
     },
@@ -2047,7 +2047,7 @@ export const db = {
     getMessages: async (channelId: string, limit = 100, offset = 0) => {
       const { data } = await supabase
         .from('chat_messages')
-        .select('*, users(id, name, email, avatar_url)')
+        .select('*, users!chat_messages_user_id_fkey(id, name, email, avatar_url)')
         .eq('channel_id', channelId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -2057,7 +2057,7 @@ export const db = {
       const { data, error } = await supabase
         .from('chat_messages')
         .insert({ channel_id: channelId, user_id: userId, content: sanitizeHtml(content) })
-        .select('*, users(id, name, email, avatar_url)')
+        .select('*, users!chat_messages_user_id_fkey(id, name, email, avatar_url)')
         .single();
       if (error || !data) {
         console.warn('[Channels] Failed to send message:', error);
