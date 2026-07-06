@@ -61,9 +61,14 @@ export default function MessageList({ messages, reactions, currentUserId, isLoad
   const endRef = useRef<HTMLDivElement>(null);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Wait for DOM paint before scrolling
+    requestAnimationFrame(() => {
+      endRef.current?.scrollIntoView({ behavior: isFirstLoad.current ? 'instant' : 'smooth' });
+    });
+    isFirstLoad.current = false;
   }, [messages]);
 
   if (isLoading) {

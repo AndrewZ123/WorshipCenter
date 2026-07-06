@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Box, VStack, Text, useColorModeValue, Progress, Flex,
+  Box, VStack, Text, useColorModeValue, Flex,
 } from '@chakra-ui/react';
 import { Check } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -24,10 +24,13 @@ export default function PollRenderer({ pollId, userId, channelId, onVotePoll }: 
   const cardBg = useColorModeValue('gray.50', 'gray.700');
   const optionBg = useColorModeValue('white', 'gray.600');
   const optionHover = useColorModeValue('gray.100', 'gray.500');
-  const selectedBg = useColorModeValue('teal.50', 'teal.900');
   const selectedBorder = useColorModeValue('teal.400', 'teal.300');
-  const barTrack = useColorModeValue('gray.200', 'gray.600');
+  const barFill = useColorModeValue('teal.100', 'teal.700');
+  const barTrack = useColorModeValue('gray.100', 'gray.600');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.700', 'gray.200');
+  const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const selectedTextColor = useColorModeValue('teal.800', 'teal.200');
 
   const loadData = useCallback(async () => {
     const { data: p } = await supabase
@@ -102,7 +105,6 @@ export default function PollRenderer({ pollId, userId, channelId, onVotePoll }: 
 
     setVoting(optionIndex);
     try {
-      // Single-choice: remove any existing vote first, then add the new one
       if (!poll.is_multiple_choice) {
         await supabase
           .from('chat_poll_votes')
@@ -121,79 +123,100 @@ export default function PollRenderer({ pollId, userId, channelId, onVotePoll }: 
 
   return (
     <Box
-      mt="2"
-      p="4"
-      bg={cardBg}
-      borderRadius="xl"
+      mt="3"
+      borderRadius="lg"
       border="1px solid"
       borderColor={borderColor}
-      maxW={{ base: '100%', md: '420px' }}
+      overflow="hidden"
     >
-      <VStack spacing="3" align="stretch">
-        <Text fontWeight="600" fontSize="sm">
-          {poll.question}
+      {/* Header */}
+      <Box px="4" pt="3" pb="2" bg={cardBg}>
+        <Text fontSize="sm" fontWeight="600" color={textColor} lineHeight="1.4">
+          📊 {poll.question}
         </Text>
+      </Box>
 
+      {/* Options */}
+      <Box px="4" pb="3" bg={cardBg}>
         <VStack spacing="2" align="stretch">
           {poll.options.map((option, i) => {
             const pct = getPercentage(i);
-            const isSelected = userVotes.has(i);
             const count = votes.filter(v => v.option_index === i).length;
+            const isSelected = userVotes.has(i);
 
             return (
               <Box
                 key={i}
                 position="relative"
+                borderRadius="md"
                 overflow="hidden"
-                borderRadius="lg"
                 border="2px solid"
                 borderColor={isSelected ? selectedBorder : 'transparent'}
-                bg={isSelected ? selectedBg : optionBg}
+                bg={optionBg}
                 cursor={poll.is_closed ? 'default' : 'pointer'}
-                opacity={voting === i ? 0.6 : 1}
+                opacity={voting === i ? 0.5 : 1}
                 transition="all 0.15s"
-                _hover={!poll.is_closed && !isSelected ? { bg: optionHover } : undefined}
+                _hover={!poll.is_closed ? { bg: optionHover } : undefined}
                 onClick={() => handleVote(i)}
               >
-                <Progress
-                  value={pct}
-                  size="lg"
-                  colorScheme="teal"
-                  bg={barTrack}
+                {/* Bar background */}
+                <Box
                   position="absolute"
                   top="0"
                   left="0"
                   h="full"
-                  w="full"
-                  borderRadius="lg"
-                  sx={{ '& > div': { transition: 'width 0.4s ease', borderRadius: 'lg' } }}
+                  w={`${pct}%`}
+                  bg={barFill}
+                  transition="width 0.4s ease"
+                  borderRadius="md"
+                  pointerEvents="none"
                 />
+
+                {/* Content */}
                 <Flex
                   position="relative"
                   align="center"
-                  justify="space-between"
+                  gap="2.5"
                   px="3"
                   py="2.5"
-                  minH="42px"
+                  minH="40px"
                 >
-                  <Flex align="center" gap="2" flex="1">
-                    {isSelected && <Check size={14} style={{ flexShrink: 0 }} color="#319795" />}
-                    <Text
-                      fontSize="sm"
-                      fontWeight={isSelected ? '600' : '400'}
-                      color={isSelected ? 'teal.700' : undefined}
-                    >
-                      {option}
-                    </Text>
+                  {/* Check circle */}
+                  <Flex
+                    w="5"
+                    h="5"
+                    borderRadius="full"
+                    border="2px solid"
+                    borderColor={isSelected ? 'teal.400' : 'gray.300'}
+                    align="center"
+                    justify="center"
+                    flexShrink={0}
+                    bg={isSelected ? 'teal.400' : 'transparent'}
+                    transition="all 0.15s"
+                  >
+                    {isSelected && <Check size={12} color="white" strokeWidth={3} />}
                   </Flex>
+
+                  {/* Option text */}
+                  <Text
+                    fontSize="sm"
+                    fontWeight={isSelected ? '600' : '500'}
+                    color={isSelected ? selectedTextColor : textColor}
+                    flex="1"
+                    lineHeight="1.4"
+                  >
+                    {option}
+                  </Text>
+
+                  {/* Percentage */}
                   <Text
                     fontSize="xs"
                     fontWeight="600"
-                    color="gray.500"
-                    sx={{ fontVariantNumeric: 'tabular-nums' }}
+                    color={isSelected ? 'teal.600' : subtextColor}
                     flexShrink={0}
+                    sx={{ fontVariantNumeric: 'tabular-nums' }}
                   >
-                    {count} ({pct}%)
+                    {pct}%
                   </Text>
                 </Flex>
               </Box>
@@ -201,14 +224,15 @@ export default function PollRenderer({ pollId, userId, channelId, onVotePoll }: 
           })}
         </VStack>
 
-        <Flex justify="space-between" align="center">
-          <Text fontSize="xs" color="gray.400">
+        {/* Footer */}
+        <Flex justify="space-between" align="center" mt="2.5">
+          <Text fontSize="xs" color={subtextColor}>
             {totalVotes} vote{totalVotes !== 1 ? 's' : ''}
             {poll.is_closed ? ' · Closed' : ''}
             {poll.is_multiple_choice ? ' · Multiple choice' : ''}
           </Text>
         </Flex>
-      </VStack>
+      </Box>
     </Box>
   );
 }
