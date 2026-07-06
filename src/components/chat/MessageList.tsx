@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { Box, Center, Spinner, Text, VStack, Flex, useColorModeValue } from '@chakra-ui/react';
 import { MessageCircle } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
@@ -89,7 +89,7 @@ export default function MessageList({
   }, []);
 
   // Single auto-scroll effect — fires on messages change when not loading
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (messages.length === 0) return;
     if (isLoading) return;
     if (messages === prevMessagesRef.current) return;
@@ -99,7 +99,7 @@ export default function MessageList({
     isInitialLoadRef.current = false;
     prevMessagesRef.current = messages;
 
-    requestAnimationFrame(() => scrollToBottom(behavior));
+    scrollToBottom(behavior);
   }, [messages, isLoading, scrollToBottom]);
 
   // Track user scroll position
@@ -109,6 +109,19 @@ export default function MessageList({
     el.addEventListener('scroll', handleScroll, { passive: true });
     return () => el.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
+
+  // Re-scroll on viewport resize (keyboard open/close, orientation change)
+  // On Capacitor iOS, keyboard hide causes WebView resize → clientHeight changes →
+  // scrollTop gets clamped away from bottom. This listener restores it.
+  useEffect(() => {
+    const onResize = () => {
+      if (atBottomRef.current) {
+        scrollToBottom('auto');
+      }
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [scrollToBottom]);
 
   // Keep the DOM stable during loading — only show messages when everything is ready
   const showSpinner = isLoading;
