@@ -927,7 +927,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
               />
               <Portal>
               <MenuList borderRadius="xl" zIndex={50}>
-                <MenuItem onClick={() => setEditing(true)} icon={<Edit size={16} />}>Edit Service</MenuItem>
+                <MenuItem onClick={() => { setEditing(true); setActiveTab(0); setPrimaryTab(0); }} icon={<Edit size={16} />}>Edit Service</MenuItem>
                 <MenuItem onClick={() => generateServicePDF({
                   service: service!,
                   items,
