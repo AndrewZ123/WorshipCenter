@@ -375,6 +375,7 @@ export default function ChatPage() {
             channel={activeChannel}
             members={channelMembers}
             isAdmin={isAdmin}
+            churchId={church?.id}
             onUpdateChannel={(id, updates) => {
               if (!church?.id) return;
               db.channels.update(id, church.id, updates).then((updated) => {
@@ -402,7 +403,7 @@ export default function ChatPage() {
                 }
               });
             }}
-            channels={channels}
+            onMembersChanged={(channelId) => loadMembers(channelId)}
           />
         )}
       </Box>

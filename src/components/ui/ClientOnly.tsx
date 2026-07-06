@@ -9,6 +9,7 @@ interface ClientOnlyProps {
 
 export default function ClientOnly({ children, fallback = null }: ClientOnlyProps) {
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true); }, []);
   return mounted ? <>{children}</> : <>{fallback}</>;
 }

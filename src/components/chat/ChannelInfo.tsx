@@ -7,9 +7,11 @@ import {
   ModalCloseButton, ModalBody, ModalFooter, FormControl, FormLabel,
   Input, Textarea, Switch, useToast,
 } from '@chakra-ui/react';
-import { Settings, Trash2, Pencil } from 'lucide-react';
+import { Trash2, Pencil, UserPlus, X } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import ManageChannelMembersModal from './ManageChannelMembersModal';
+import { db } from '@/lib/store';
 import type { ChatChannel } from '@/lib/types';
 
 interface MemberInfo {
@@ -26,21 +28,29 @@ interface ChannelInfoProps {
   isAdmin: boolean;
   onUpdateChannel?: (id: string, updates: { name?: string; description?: string; is_announcement?: boolean }) => void;
   onDeleteChannel?: (id: string) => void;
-  channels?: ChatChannel[];
+  churchId?: string;
+  onMembersChanged?: (channelId: string) => void;
 }
 
-export default function ChannelInfo({ channel, members, isAdmin, onUpdateChannel, onDeleteChannel, channels }: ChannelInfoProps) {
+export default function ChannelInfo({
+  channel, members, isAdmin, onUpdateChannel, onDeleteChannel,
+  churchId, onMembersChanged,
+}: ChannelInfoProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState<MemberInfo | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [editName, setEditName] = useState(channel.name);
   const [editDescription, setEditDescription] = useState(channel.description || '');
   const [editIsAnnouncement, setEditIsAnnouncement] = useState(channel.is_announcement);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
-  const bgColor = useColorModeValue('gray.50', 'gray.800');
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const bgColor = useColorModeValue('white', 'gray.800');
 
   if (!channel) return null;
 
@@ -72,6 +82,24 @@ export default function ChannelInfo({ channel, members, isAdmin, onUpdateChannel
     }
   };
 
+  const handleRemoveMember = async (member: MemberInfo) => {
+    setRemovingId(member.user_id);
+    try {
+      await db.channels.removeMember(channel.id, member.user_id);
+      toast({ title: `${member.name} removed from channel`, status: 'success', duration: 2000 });
+      onMembersChanged?.(channel.id);
+    } catch {
+      toast({ title: 'Failed to remove member', status: 'error', duration: 3000 });
+    } finally {
+      setRemovingId(null);
+      setRemoveConfirm(null);
+    }
+  };
+
+  const handleMembersChanged = () => {
+    onMembersChanged?.(channel.id);
+  };
+
   const isGeneral = channel.name === 'General';
 
   return (
@@ -79,8 +107,8 @@ export default function ChannelInfo({ channel, members, isAdmin, onUpdateChannel
       <Box
         w="260px"
         borderLeft="1px solid"
-        borderColor={useColorModeValue('gray.100', 'gray.700')}
-        bg={useColorModeValue('white', 'gray.800')}
+        borderColor={borderColor}
+        bg={bgColor}
         display={{ base: 'none', lg: 'block' }}
         overflowY="auto"
       >
@@ -126,19 +154,42 @@ export default function ChannelInfo({ channel, members, isAdmin, onUpdateChannel
         </Box>
         <Divider />
         <Box p="4">
-          <Text fontWeight="700" fontSize="sm" color={textColor} mb="3">
-            Members ({members.length})
-          </Text>
+          <HStack justify="space-between" align="center" mb="3">
+            <Text fontWeight="700" fontSize="sm" color={textColor}>
+              Members ({members.length})
+            </Text>
+            {isAdmin && (
+              <IconButton
+                aria-label="Manage members"
+                icon={<UserPlus size={14} />}
+                size="xs"
+                variant="ghost"
+                colorScheme="teal"
+                onClick={() => setMembersOpen(true)}
+              />
+            )}
+          </HStack>
           <VStack spacing="2" align="stretch">
             {members.map((member) => (
               <HStack key={member.user_id} spacing="2">
                 <Avatar name={member.name} src={member.avatar_url} size="sm" />
-                <Box flex="1">
+                <Box flex="1" minW="0">
                   <Text fontSize="sm" fontWeight="500" color={textColor} noOfLines={1}>
                     {member.name}
                   </Text>
                   <Text fontSize="xs" color={subtextColor}>{member.role}</Text>
                 </Box>
+                {isAdmin && members.length > 1 && (
+                  <IconButton
+                    aria-label={`Remove ${member.name}`}
+                    icon={<X size={12} />}
+                    size="xs"
+                    variant="ghost"
+                    colorScheme="red"
+                    isLoading={removingId === member.user_id}
+                    onClick={() => setRemoveConfirm(member)}
+                  />
+                )}
               </HStack>
             ))}
           </VStack>
@@ -202,6 +253,31 @@ export default function ChannelInfo({ channel, members, isAdmin, onUpdateChannel
         confirmLabel="Delete Channel"
         variant="destructive"
       />
+
+      {/* Remove Member Confirmation */}
+      <ConfirmDialog
+        isOpen={!!removeConfirm}
+        onClose={() => setRemoveConfirm(null)}
+        onConfirm={() => removeConfirm && handleRemoveMember(removeConfirm)}
+        title={`Remove ${removeConfirm?.name}?`}
+        message={`Remove ${removeConfirm?.name} from "${channel.name}"? They will no longer see this channel's messages.`}
+        confirmLabel="Remove"
+        variant="destructive"
+        icon="user"
+      />
+
+      {/* Manage Members Modal */}
+      {churchId && (
+        <ManageChannelMembersModal
+          isOpen={membersOpen}
+          onClose={() => setMembersOpen(false)}
+          channelId={channel.id}
+          channelName={channel.name}
+          churchId={churchId}
+          currentMembers={members}
+          onMembersChanged={handleMembersChanged}
+        />
+      )}
     </>
   );
 }
