@@ -3,7 +3,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { Box, Center, Spinner, Text, VStack, Flex, useColorModeValue } from '@chakra-ui/react';
 import { MessageCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import MessageBubble from './MessageBubble';
 import type { ChatReaction } from '@/lib/types';
 
@@ -71,68 +71,29 @@ export default function MessageList({
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
+  const scrollToBottom = useCallback(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, []);
+
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     atBottomRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
   }, []);
 
-  const scrollToBottom = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-    });
-  }, []);
-
-  // Scroll to bottom on load or channel change
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
       scrollToBottom();
     }
   }, [isLoading, messages.length, scrollToBottom]);
 
-  // Scroll on new messages only if user is near bottom
   useEffect(() => {
     if (messages.length > prevLenRef.current) {
-      if (atBottomRef.current) {
-        scrollToBottom();
-      }
+      scrollToBottom();
     }
     prevLenRef.current = messages.length;
   }, [messages.length, scrollToBottom]);
 
-  // ResizeObserver + MutationObserver for async content (images, polls, reactions)
-  // ResizeObserver catches container size changes; MutationObserver catches DOM mutations
-  // like Chakra Image swapping placeholder fallback for loaded <img>
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    const recheck = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (atBottomRef.current) {
-          scrollToBottom();
-        }
-      }, 100);
-    };
-
-    const resizeObserver = new ResizeObserver(recheck);
-    resizeObserver.observe(el);
-
-    const mutationObserver = new MutationObserver(recheck);
-    mutationObserver.observe(el, { childList: true, subtree: true });
-
-    return () => {
-      resizeObserver.disconnect();
-      mutationObserver.disconnect();
-      clearTimeout(timeoutId);
-    };
-  }, [scrollToBottom]);
-
-  // Attach scroll listener to track user position
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
