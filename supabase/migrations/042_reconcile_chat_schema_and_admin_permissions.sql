@@ -55,24 +55,28 @@ DROP POLICY IF EXISTS "Admins/leaders can manage channel members" ON chat_channe
 -- Channel INSERT: any church member can create channels (privacy/visibility
 -- is enforced by SELECT/DELETE/UPDATE policies). This is required so that
 -- team members can auto-create the "General" channel on first visit.
+DROP POLICY IF EXISTS "Church members can create channels" ON chat_channels;
 CREATE POLICY "Church members can create channels"
   ON chat_channels FOR INSERT
   WITH CHECK (
     church_id IN (SELECT church_id FROM users WHERE id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Admins/leaders can update channels" ON chat_channels;
 CREATE POLICY "Admins/leaders can update channels"
   ON chat_channels FOR UPDATE
   USING (
     church_id IN (SELECT church_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader'))
   );
 
+DROP POLICY IF EXISTS "Admins/leaders can delete channels" ON chat_channels;
 CREATE POLICY "Admins/leaders can delete channels"
   ON chat_channels FOR DELETE
   USING (
     church_id IN (SELECT church_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader'))
   );
 
+DROP POLICY IF EXISTS "Admins/leaders can manage channel members" ON chat_channel_members;
 CREATE POLICY "Admins/leaders can manage channel members"
   ON chat_channel_members FOR ALL
   USING (
@@ -138,10 +142,12 @@ CREATE TABLE IF NOT EXISTS admin_permissions (
 
 ALTER TABLE admin_permissions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own admin permissions" ON admin_permissions;
 CREATE POLICY "Users can view own admin permissions"
   ON admin_permissions FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Admins can view church admin permissions" ON admin_permissions;
 CREATE POLICY "Admins can view church admin permissions"
   ON admin_permissions FOR SELECT
   USING (
@@ -150,6 +156,7 @@ CREATE POLICY "Admins can view church admin permissions"
     )
   );
 
+DROP POLICY IF EXISTS "Admins can manage admin permissions" ON admin_permissions;
 CREATE POLICY "Admins can manage admin permissions"
   ON admin_permissions FOR INSERT
   WITH CHECK (
