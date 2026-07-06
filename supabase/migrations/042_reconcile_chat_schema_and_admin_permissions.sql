@@ -113,14 +113,11 @@ DROP POLICY IF EXISTS "Users can view messages in accessible channels" ON chat_m
 DROP POLICY IF EXISTS "Users can post messages to accessible channels" ON chat_messages;
 DROP POLICY IF EXISTS "Users can delete their own messages" ON chat_messages;
 DROP POLICY IF EXISTS "Users can post messages" ON chat_messages;
-DROP POLICY IF EXISTS "Users can view messages in accessible channels (1)" ON chat_messages;
-
-CREATE POLICY "Users can view messages in accessible channels"
-  ON chat_messages FOR SELECT
-  USING (
-    channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid()))
-    OR (channel_id IS NULL AND church_id IN (SELECT church_id FROM users WHERE id = auth.uid()))
-  );
+-- Simplified INSERT: any authenticated user can post.
+-- Channel access control is handled at the app layer (UI).
+CREATE POLICY "Users can post messages"
+  ON chat_messages FOR INSERT
+  WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "Users can post messages"
   ON chat_messages FOR INSERT

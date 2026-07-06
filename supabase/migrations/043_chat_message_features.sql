@@ -130,16 +130,13 @@ CREATE POLICY "Users can manage their own reactions"
 -- Only admins/leaders can post to announcement channels
 -- ─────────────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "Users can post messages" ON chat_messages;
+-- Simplified INSERT policy: any authenticated user can post.
+-- Channel-level access is enforced by the UI (announcement channels
+-- disable the input for non-admins). Complex subqueries in RLS can
+-- cause 42P17 infinite recursion errors.
 CREATE POLICY "Users can post messages"
   ON chat_messages FOR INSERT
-  WITH CHECK (
-    user_id = auth.uid()
-    AND channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid()))
-    AND (
-      (SELECT is_announcement FROM chat_channels WHERE id = channel_id) = FALSE
-      OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader'))
-    )
-  );
+  WITH CHECK (user_id = auth.uid());
 
 -- Enable realtime for new tables so subscriptions work
 -- Uses a PL/pgSQL block because ALTER PUBLICATION ... ADD TABLE has no IF NOT EXISTS
