@@ -90,13 +90,10 @@ export default function MessageList({
     atBottomRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
   }, []);
 
-  // Scroll to bottom on load / channel change with retries for async content
+  // Scroll to bottom on load / channel change
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
       scrollToBottom();
-      // Retry on increasing delays to catch async-loaded content (images, polls, reactions)
-      const timers = [50, 150, 400].map(ms => setTimeout(scrollToBottom, ms));
-      return () => timers.forEach(clearTimeout);
     }
   }, [isLoading, messages.length, scrollToBottom]);
 
@@ -116,63 +113,70 @@ export default function MessageList({
     return () => el.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  if (isLoading) {
-    return (
-      <Center h="full" minH="300px">
-        <VStack spacing="3">
-          <Spinner size="xl" color="teal.500" />
-          <Text fontSize="sm" color={subtextColor}>Loading messages...</Text>
-        </VStack>
-      </Center>
-    );
-  }
-
-  if (messages.length === 0) {
-    return (
-      <Center h="full" minH="300px">
-        <VStack spacing="4">
-          <Box p="4" borderRadius="full" bg="teal.50" color="teal.400"><MessageCircle size={48} /></Box>
-          <VStack spacing="1">
-            <Text fontSize="lg" fontWeight="600" color="gray.700">No messages yet</Text>
-            <Text fontSize="sm" color={subtextColor} textAlign="center" maxW="280px">Start the conversation</Text>
-          </VStack>
-        </VStack>
-      </Center>
-    );
-  }
+  const showSpinner = isLoading && messages.length === 0;
+  const showEmpty = !isLoading && messages.length === 0;
+  const showMessages = messages.length > 0;
 
   return (
-    <Box ref={containerRef} flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor}>
-      <AnimatePresence initial={false}>
-        {groups.map((group, gi) => (
-          <Box key={group.date}>
-            <DateSeparator date={group.date} />
-            {group.messages.map((msg, mi) => {
-              const prev = mi > 0 ? group.messages[mi - 1] : (gi > 0 ? groups[gi - 1].messages[groups[gi - 1].messages.length - 1] : null);
-              const grouped = shouldGroupWithPrevious(msg, prev);
-              return (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  isOwn={msg.user?.id === currentUserId}
-                  showAvatar={!grouped}
-                  showName={!grouped}
-                  isGrouped={grouped}
-                  reactions={reactions[msg.id] || []}
-                  currentUserId={currentUserId}
-                  onReact={onReact}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onVotePoll={onVotePoll}
-                  onClosePoll={onClosePoll}
-                  onUpdatePoll={onUpdatePoll}
-                />
-              );
-            })}
-          </Box>
-        ))}
-      </AnimatePresence>
+    <Box ref={containerRef} flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor} position="relative">
+      {/* Always render the scroll anchor at the bottom */}
       <div ref={endRef} />
+
+      {/* Loading overlay — keep container alive */}
+      {showSpinner && (
+        <Center position="absolute" inset={0} zIndex={1}>
+          <VStack spacing="3">
+            <Spinner size="xl" color="teal.500" />
+            <Text fontSize="sm" color={subtextColor}>Loading messages...</Text>
+          </VStack>
+        </Center>
+      )}
+
+      {/* Empty state */}
+      {showEmpty && (
+        <Center h="full" minH="300px">
+          <VStack spacing="4">
+            <Box p="4" borderRadius="full" bg="teal.50" color="teal.400"><MessageCircle size={48} /></Box>
+            <VStack spacing="1">
+              <Text fontSize="lg" fontWeight="600" color="gray.700">No messages yet</Text>
+              <Text fontSize="sm" color={subtextColor} textAlign="center" maxW="280px">Start the conversation</Text>
+            </VStack>
+          </VStack>
+        </Center>
+      )}
+
+      {/* Messages */}
+      {showMessages && (
+        <AnimatePresence initial={false}>
+          {groups.map((group, gi) => (
+            <Box key={group.date}>
+              <DateSeparator date={group.date} />
+              {group.messages.map((msg, mi) => {
+                const prev = mi > 0 ? group.messages[mi - 1] : (gi > 0 ? groups[gi - 1].messages[groups[gi - 1].messages.length - 1] : null);
+                const grouped = shouldGroupWithPrevious(msg, prev);
+                return (
+                  <MessageBubble
+                    key={msg.id}
+                    message={msg}
+                    isOwn={msg.user?.id === currentUserId}
+                    showAvatar={!grouped}
+                    showName={!grouped}
+                    isGrouped={grouped}
+                    reactions={reactions[msg.id] || []}
+                    currentUserId={currentUserId}
+                    onReact={onReact}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onVotePoll={onVotePoll}
+                    onClosePoll={onClosePoll}
+                    onUpdatePoll={onUpdatePoll}
+                  />
+                );
+              })}
+            </Box>
+          ))}
+        </AnimatePresence>
+      )}
     </Box>
   );
 }
