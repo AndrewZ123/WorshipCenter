@@ -531,7 +531,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <TrialBanner />
         <TrialExpiredBanner />
         
-        <Box w="full">
+        <Box w="full" display="flex" flexDir="column" flex="1" minH="0">
           {children}
         </Box>
       </Box>

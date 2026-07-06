@@ -102,9 +102,11 @@ export default function DemoChatPage() {
     <Box
       display="flex"
       flexDir="column"
-      h={{ base: 'calc(100dvh - 48px - env(safe-area-inset-top) - 48px - env(safe-area-inset-bottom))', md: 'auto' }}
+      flex="1"
+      minH="0"
       maxW="900px"
       mx="auto"
+      w="full"
       px={{ base: '0', md: '4' }}
       pt={{ base: '0', md: '8' }}
       pb={{ base: '0', md: '4' }}

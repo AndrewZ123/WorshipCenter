@@ -413,7 +413,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
             },
           }}
         >
-          <Box w="full" maxW="100vw" overflowX="hidden">
+          <Box w="full" maxW="100vw" overflowX="hidden" display="flex" flexDir="column" flex="1" minH="0">
             {children}
           </Box>
         </Box>

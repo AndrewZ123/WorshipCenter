@@ -305,7 +305,7 @@ export default function ChatPage() {
 
   return (
     <ClientOnly fallback={<Center minH="80dvh"><Spinner size="xl" color="teal.500" /></Center>}>
-    <Box h="calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom))" display="flex" flexDir="column">
+    <Box display="flex" flexDir="column" flex="1" minH="0">
       {/* Mobile channel drawer (desktop-style, kept for fallback) */}
       <Drawer isOpen={drawerOpen} placement="left" onClose={onDrawerClose} size="xs">
         <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
