@@ -1937,18 +1937,18 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
               
               <FormControl isRequired>
                 <FormLabel fontWeight="600" fontSize="sm">Role</FormLabel>
-                <Select 
-                  value={assignRole} 
+                <Input
+                  list="assign-role-suggestions"
+                  value={assignRole}
                   onChange={(e) => setAssignRole(e.target.value)}
-                  placeholder="Select a role"
+                  placeholder="Select or type a custom role..."
                   borderRadius="lg"
-                >
+                />
+                <datalist id="assign-role-suggestions">
                   {ROLES.map(role => (
-                    <option key={role.value} value={role.value}>
-                      {role.label}
-                    </option>
+                    <option key={role.value} value={role.value} />
                   ))}
-                </Select>
+                </datalist>
               </FormControl>
             </VStack>
           </ModalBody>

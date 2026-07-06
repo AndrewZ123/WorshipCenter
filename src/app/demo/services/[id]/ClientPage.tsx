@@ -549,9 +549,10 @@ export default function DemoServiceDetailClient() {
                 </Select>
               </FormControl>
               <FormControl isRequired><FormLabel fontWeight="600">Role</FormLabel>
-                <Select value={assignRole} onChange={e => setAssignRole(e.target.value)} placeholder="Select a role">
-                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </Select>
+                <Input list="demo-role-suggestions" value={assignRole} onChange={e => setAssignRole(e.target.value)} placeholder="Select or type a custom role..." borderRadius="lg" />
+                <datalist id="demo-role-suggestions">
+                  {ROLES.map(r => <option key={r.value} value={r.value} />)}
+                </datalist>
               </FormControl>
             </VStack>
           </ModalBody>
