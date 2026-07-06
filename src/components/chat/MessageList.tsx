@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { Box, Center, Spinner, Text, VStack, Flex, useColorModeValue } from '@chakra-ui/react';
 import { MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -69,18 +69,35 @@ export default function MessageList({
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
-  const isInitialLoad = useRef(true);
+  const scrollToBottom = useCallback((instant = false) => {
+    endRef.current?.scrollIntoView({ behavior: instant ? 'instant' : 'smooth', block: 'end' });
+  }, []);
 
+  // 1. Scroll on messages load (initial + subsequent sends)
   useEffect(() => {
     if (messages.length === 0 || isLoading) return;
-    const scrollToBottom = () => {
-      endRef.current?.scrollIntoView({ behavior: isInitialLoad.current ? 'instant' : 'smooth' });
-    };
-    scrollToBottom();
-    const id = requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
-    isInitialLoad.current = false;
+    scrollToBottom(true);
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => scrollToBottom(true)));
     return () => cancelAnimationFrame(id);
-  }, [messages, isLoading]);
+  }, [messages, isLoading, scrollToBottom]);
+
+  // 2. ResizeObserver — handles async content loading (polls, images, etc.)
+  //    Only auto-scrolls if the user is already near the bottom.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let prevHeight = el.scrollHeight;
+    const ro = new ResizeObserver(() => {
+      const newHeight = el.scrollHeight;
+      const isNearBottom = el.scrollTop + el.clientHeight >= prevHeight - 60;
+      if (newHeight > prevHeight && isNearBottom) {
+        scrollToBottom(true);
+      }
+      prevHeight = newHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scrollToBottom]);
 
   if (isLoading) {
     return (
