@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Box, Flex, VStack, HStack, Text, useColorModeValue, IconButton, Textarea, Button } from '@chakra-ui/react';
+import {
+  Box, Flex, VStack, HStack, Text, useColorModeValue, IconButton, Textarea, Button,
+  Menu, MenuButton, MenuList, MenuItem,
+} from '@chakra-ui/react';
 import { motion } from 'framer-motion';
-import { Pencil, Trash2, X, Check } from 'lucide-react';
+import { MoreVertical, Pencil, Trash2, X, Check } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { formatRelativeDate } from '@/lib/formatDate';
@@ -91,145 +94,146 @@ export default function MessageBubble({
         gap="2"
         flexDir={isOwn ? 'row-reverse' : 'row'}
         mt={isGrouped ? '1' : '3'}
-        pos="relative"
-        role="group"
       >
         <Box w="28px" h="28px" flexShrink={0}>
           {showAvatar && (
             <Avatar name={message.user?.name || 'Unknown'} src={message.user?.avatar_url} size="sm" />
           )}
         </Box>
-        <VStack align={isOwn ? 'flex-end' : 'flex-start'} spacing="1" maxW={{ base: '75%', md: '65%' }} flex="1">
-          {showName && (
-            <HStack spacing="2" px="1">
-              <Text fontSize="xs" fontWeight="600" color={isOwn ? 'teal.600' : 'gray.600'}>
-                {message.user?.name || 'Unknown'}
-              </Text>
-              <Text fontSize="10px" color={timeColor}>
-                {formatRelativeDate(message.created_at)}
-              </Text>
-              {hasBeenEdited && (
-                <Text fontSize="10px" color={timeColor} fontStyle="italic">edited</Text>
-              )}
-            </HStack>
-          )}
 
-          {isEditing ? (
-            <Box w="full">
-              <Textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                bg={editBg}
-                border="1px solid"
-                borderColor={editBorder}
-                borderRadius="lg"
-                fontSize="sm"
-                minH="80px"
-                resize="vertical"
-                autoFocus
-              />
-              <HStack spacing="2" mt="2" justify="flex-end">
-                <Button size="xs" variant="ghost" leftIcon={<X size={14} />} onClick={handleCancelEdit}>
-                  Cancel
-                </Button>
-                <Button
-                  size="xs"
-                  colorScheme="teal"
-                  leftIcon={<Check size={14} />}
-                  onClick={handleSaveEdit}
-                  isLoading={isSaving}
-                  isDisabled={!editContent.trim()}
-                >
-                  Save
-                </Button>
+        <Flex align="end" gap="1" flex="1" minW="0" justify={isOwn ? 'flex-end' : 'flex-start'} role="group">
+          <VStack align={isOwn ? 'flex-end' : 'flex-start'} spacing="1" maxW={{ base: '100%', md: '100%' }} flex="1" minW="0">
+            {showName && (
+              <HStack spacing="2" px="1">
+                <Text fontSize="xs" fontWeight="600" color={isOwn ? 'teal.600' : 'gray.600'}>
+                  {message.user?.name || 'Unknown'}
+                </Text>
+                <Text fontSize="10px" color={timeColor}>
+                  {formatRelativeDate(message.created_at)}
+                </Text>
+                {hasBeenEdited && (
+                  <Text fontSize="10px" color={timeColor} fontStyle="italic">edited</Text>
+                )}
               </HStack>
-            </Box>
-          ) : (
-            <Box
-              px="4"
-              py="2.5"
-              borderRadius="2xl"
-              bg={isOwn ? ownBubbleBg : otherBubbleBg}
-              color={isOwn ? 'white' : undefined}
-              borderBottomRightRadius={isOwn ? 'sm' : '2xl'}
-              borderBottomLeftRadius={isOwn ? '2xl' : 'sm'}
-              boxShadow={isOwn ? '0 2px 8px rgba(13, 148, 136, 0.25)' : '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)'}
-              border={isOwn ? 'none' : '1px solid'}
-              borderColor={isOwn ? 'transparent' : otherBubbleBorder}
-              position="relative"
-            >
-              <MarkdownRenderer content={message.content} color={isOwn ? 'white' : undefined} />
+            )}
 
-              {/* Own-message actions */}
-              {isOwn && (onEdit || onDelete) && (
-                <HStack
-                  spacing="1"
-                  position="absolute"
-                  top="2"
-                  {...(isOwn ? { left: '-44px' } : { right: '-44px' })}
-                  opacity="0"
-                  _groupHover={{ opacity: 1 }}
-                  transition="opacity 0.15s"
-                >
+            {isEditing ? (
+              <Box w="full">
+                <Textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  bg={editBg}
+                  border="1px solid"
+                  borderColor={editBorder}
+                  borderRadius="lg"
+                  fontSize="sm"
+                  minH="80px"
+                  resize="vertical"
+                  autoFocus
+                />
+                <HStack spacing="2" mt="2" justify="flex-end">
+                  <Button size="xs" variant="ghost" leftIcon={<X size={14} />} onClick={handleCancelEdit}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="xs"
+                    colorScheme="teal"
+                    leftIcon={<Check size={14} />}
+                    onClick={handleSaveEdit}
+                    isLoading={isSaving}
+                    isDisabled={!editContent.trim()}
+                  >
+                    Save
+                  </Button>
+                </HStack>
+              </Box>
+            ) : (
+              <Box
+                px="4"
+                py="2.5"
+                borderRadius="2xl"
+                bg={isOwn ? ownBubbleBg : otherBubbleBg}
+                color={isOwn ? 'white' : undefined}
+                borderBottomRightRadius={isOwn ? 'sm' : '2xl'}
+                borderBottomLeftRadius={isOwn ? '2xl' : 'sm'}
+                boxShadow={isOwn ? '0 2px 8px rgba(13, 148, 136, 0.25)' : '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)'}
+                border={isOwn ? 'none' : '1px solid'}
+                borderColor={isOwn ? 'transparent' : otherBubbleBorder}
+              >
+                <MarkdownRenderer content={message.content} color={isOwn ? 'white' : undefined} />
+                {hasBeenEdited && !showName && (
+                  <Text
+                    fontSize="10px"
+                    color={isOwn ? 'whiteAlpha.600' : timeColor}
+                    fontStyle="italic"
+                    textAlign={isOwn ? 'right' : 'left'}
+                    mt="1"
+                  >
+                    edited
+                  </Text>
+                )}
+              </Box>
+            )}
+
+            {message.poll_id && onVotePoll && (
+              <Box w="full">
+                <PollRenderer
+                  pollId={message.poll_id}
+                  userId={currentUserId}
+                  channelId={message.channel_id}
+                  onVotePoll={onVotePoll}
+                  onClosePoll={onClosePoll}
+                  onUpdatePoll={onUpdatePoll}
+                />
+              </Box>
+            )}
+
+            {reactions.length > 0 && !isEditing && (
+              <Box px="1">
+                <ReactionBar
+                  reactions={getReactionSummary(reactions, currentUserId)}
+                  onReact={(emoji) => onReact(message.id, emoji)}
+                />
+              </Box>
+            )}
+          </VStack>
+
+          {/* 3-dot menu — only for own messages, on hover */}
+          {isOwn && (onEdit || onDelete) && (
+            <Box opacity="0" _groupHover={{ opacity: 1 }} transition="opacity 0.15s" flexShrink={0}>
+              <Menu isLazy placement="bottom-end">
+                <MenuButton
+                  as={IconButton}
+                  aria-label="Message options"
+                  icon={<MoreVertical size={16} />}
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="gray"
+                  borderRadius="full"
+                />
+                <MenuList minW="120px">
                   {onEdit && (
-                    <IconButton
-                      aria-label="Edit message"
-                      icon={<Pencil size={14} />}
-                      size="xs"
-                      variant="ghost"
-                      colorScheme="gray"
+                    <MenuItem
+                      icon={<Pencil size={15} />}
                       onClick={() => { setEditContent(message.content || ''); setIsEditing(true); }}
-                    />
+                    >
+                      Edit
+                    </MenuItem>
                   )}
                   {onDelete && (
-                    <IconButton
-                      aria-label="Delete message"
-                      icon={<Trash2 size={14} />}
-                      size="xs"
-                      variant="ghost"
-                      colorScheme="red"
+                    <MenuItem
+                      icon={<Trash2 size={15} />}
+                      color="red.500"
                       onClick={() => setDeleteOpen(true)}
-                    />
+                    >
+                      Delete
+                    </MenuItem>
                   )}
-                </HStack>
-              )}
-
-              {hasBeenEdited && !showName && (
-                <Text
-                  fontSize="10px"
-                  color={isOwn ? 'whiteAlpha.600' : timeColor}
-                  fontStyle="italic"
-                  textAlign={isOwn ? 'right' : 'left'}
-                  mt="1"
-                >
-                  edited
-                </Text>
-              )}
+                </MenuList>
+              </Menu>
             </Box>
           )}
-
-          {message.poll_id && onVotePoll && (
-            <Box w="full">
-              <PollRenderer
-                pollId={message.poll_id}
-                userId={currentUserId}
-                channelId={message.channel_id}
-                onVotePoll={onVotePoll}
-                onClosePoll={onClosePoll}
-                onUpdatePoll={onUpdatePoll}
-              />
-            </Box>
-          )}
-
-          {reactions.length > 0 && !isEditing && (
-            <Box px="1">
-              <ReactionBar
-                reactions={getReactionSummary(reactions, currentUserId)}
-                onReact={(emoji) => onReact(message.id, emoji)}
-              />
-            </Box>
-          )}
-        </VStack>
+        </Flex>
       </Flex>
 
       <ConfirmDialog
