@@ -118,34 +118,66 @@ export default function MessageBubble({
             )}
 
             {isEditing ? (
-              <Box w="full">
+              <Box
+                w="full"
+                bg={editBg}
+                borderRadius="2xl"
+                border="1px solid"
+                borderColor={editBorder}
+                overflow="hidden"
+                boxShadow="0 2px 12px rgba(0,0,0,0.08)"
+              >
+                <Flex
+                  px="3"
+                  py="1.5"
+                  borderBottom="1px solid"
+                  borderColor={editBorder}
+                  align="center"
+                  justify="space-between"
+                >
+                  <Text fontSize="xs" fontWeight="600" color={timeColor}>Editing</Text>
+                  <HStack spacing="1">
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      colorScheme="red"
+                      leftIcon={<X size={13} />}
+                      onClick={handleCancelEdit}
+                      px="2"
+                      h="7"
+                      fontSize="xs"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="xs"
+                      colorScheme="teal"
+                      leftIcon={<Check size={13} />}
+                      onClick={handleSaveEdit}
+                      isLoading={isSaving}
+                      isDisabled={!editContent.trim()}
+                      px="3"
+                      h="7"
+                      fontSize="xs"
+                      fontWeight="600"
+                    >
+                      Save
+                    </Button>
+                  </HStack>
+                </Flex>
                 <Textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  bg={editBg}
-                  border="1px solid"
-                  borderColor={editBorder}
-                  borderRadius="lg"
+                  variant="unstyled"
+                  px="4"
+                  py="3"
                   fontSize="sm"
-                  minH="80px"
-                  resize="vertical"
+                  lineHeight="1.6"
+                  minH="100px"
+                  resize="none"
                   autoFocus
+                  _placeholder={{ color: 'gray.400' }}
                 />
-                <HStack spacing="2" mt="2" justify="flex-end">
-                  <Button size="xs" variant="ghost" leftIcon={<X size={14} />} onClick={handleCancelEdit}>
-                    Cancel
-                  </Button>
-                  <Button
-                    size="xs"
-                    colorScheme="teal"
-                    leftIcon={<Check size={14} />}
-                    onClick={handleSaveEdit}
-                    isLoading={isSaving}
-                    isDisabled={!editContent.trim()}
-                  >
-                    Save
-                  </Button>
-                </HStack>
               </Box>
             ) : (
               <Box
