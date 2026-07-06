@@ -505,6 +505,12 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       create: async (_n: Omit<Notification, 'id' | 'created_at'>): Promise<Notification> => {
         throw new Error('Notifications not supported in demo');
       },
+      delete: async (_id: string): Promise<boolean> => {
+        return true;
+      },
+      deleteAll: async (_userId: string): Promise<boolean> => {
+        return true;
+      },
     },
     
     invites: {

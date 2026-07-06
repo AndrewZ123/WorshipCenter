@@ -902,6 +902,21 @@ export const db = {
       const { data } = await supabase.from('notifications').insert(n).select().single();
       return data as Notification;
     },
+    delete: async (id: string, userId: string) => {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      return !error;
+    },
+    deleteAll: async (userId: string) => {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', userId);
+      return !error;
+    },
   },
 
   // Invites

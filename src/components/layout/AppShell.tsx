@@ -249,20 +249,35 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                 )}
               </HStack>
             </PopoverTrigger>
-            <PopoverContent borderRadius="xl" maxW="320px" zIndex={50}>
+            <PopoverContent borderRadius="xl" maxW="360px" zIndex={1800} boxShadow="0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)">
               <PopoverCloseButton />
               <PopoverHeader fontWeight="700" borderBottom="1px solid" borderColor={borderColor}>
                 <HStack justify="space-between" pr="8">
                   <Text>Notifications</Text>
-                  {unreadCount > 0 && (
-                    <Text
-                      fontSize="xs" color={logoAccent} cursor="pointer"
-                      _hover={{ textDecoration: 'underline' }}
-                      onClick={handleMarkAllRead}
-                    >
-                      Mark all read
-                    </Text>
-                  )}
+                  <HStack spacing="3">
+                    {notifications.length > 0 && (
+                      <Text
+                        fontSize="xs" color="red.400" cursor="pointer"
+                        _hover={{ textDecoration: 'underline', color: 'red.500' }}
+                        onClick={async () => {
+                          await db.notifications.deleteAll(user.id);
+                          setNotifications([]);
+                          setUnreadCount(0);
+                        }}
+                      >
+                        Clear all
+                      </Text>
+                    )}
+                    {unreadCount > 0 && (
+                      <Text
+                        fontSize="xs" color={logoAccent} cursor="pointer"
+                        _hover={{ textDecoration: 'underline' }}
+                        onClick={handleMarkAllRead}
+                      >
+                        Mark all read
+                      </Text>
+                    )}
+                  </HStack>
                 </HStack>
               </PopoverHeader>
               <PopoverBody p="0" maxH="300px" overflowY="auto">
@@ -270,22 +285,46 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                   <Text p="4" fontSize="sm" color={iconColor} textAlign="center">No notifications</Text>
                 ) : (
                   notifications.map((n) => (
-                    <Box
-                      key={n.id} px="4" py="3"
+                    <HStack
+                      key={n.id} px="4" py="2.5"
                       bg={n.read ? 'transparent' : notificationBg}
                       borderBottom="1px solid" borderColor={borderColor}
                       cursor="pointer"
                       _hover={{ bg: hoverBg }}
-                      onClick={async () => {
-                        await db.notifications.markRead(n.id, user.id);
-                        setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
-                        setUnreadCount((c) => Math.max(0, c - (n.read ? 0 : 1)));
-                        if (n.service_id) router.push(`/services/${n.service_id}`);
-                      }}
+                      spacing="2"
+                      align="start"
                     >
-                      <Text fontSize="sm" fontWeight={n.read ? '400' : '600'}>{n.title}</Text>
-                      <Text fontSize="xs" color={subtextColor} mt="0.5">{n.message}</Text>
-                    </Box>
+                      <Box
+                        flex="1"
+                        onClick={async () => {
+                          await db.notifications.markRead(n.id, user.id);
+                          setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
+                          setUnreadCount((c) => Math.max(0, c - (n.read ? 0 : 1)));
+                          if (n.service_id) router.push(`/services/${n.service_id}`);
+                        }}
+                      >
+                        <Text fontSize="sm" fontWeight={n.read ? '400' : '600'}>{n.title}</Text>
+                        <Text fontSize="xs" color={subtextColor} mt="0.5" noOfLines={2}>{n.message}</Text>
+                      </Box>
+                      <Text
+                        as="span"
+                        fontSize="xs"
+                        color="gray.400"
+                        cursor="pointer"
+                        flexShrink={0}
+                        mt="0.5"
+                        _hover={{ color: 'red.400' }}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await db.notifications.delete(n.id, user.id);
+                          setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+                          if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+                        }}
+                        aria-label="Delete notification"
+                      >
+                        ✕
+                      </Text>
+                    </HStack>
                   ))
                 )}
               </PopoverBody>
