@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { Box, Center, Spinner, Text, VStack, Flex, useColorModeValue } from '@chakra-ui/react';
 import { MessageCircle } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
@@ -68,11 +68,20 @@ export default function MessageList({
   const endRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const prevLenRef = useRef(0);
+  const scrollRafRef = useRef(0);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
+  // Memoize groups to avoid recomputation on every render
+  const groups = useMemo(() => groupMessagesByDate(messages), [messages]);
+
   const scrollToBottom = useCallback(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
+    // Guard: only one scroll per frame to prevent layout thrashing
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = 0;
+      endRef.current?.scrollIntoView({ block: 'end' });
+    });
   }, []);
 
   const handleScroll = useCallback(() => {
@@ -81,12 +90,17 @@ export default function MessageList({
     atBottomRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
   }, []);
 
+  // Scroll to bottom on load / channel change with retries for async content
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
       scrollToBottom();
+      // Retry on increasing delays to catch async-loaded content (images, polls, reactions)
+      const timers = [50, 150, 400].map(ms => setTimeout(scrollToBottom, ms));
+      return () => timers.forEach(clearTimeout);
     }
   }, [isLoading, messages.length, scrollToBottom]);
 
+  // Auto-scroll on new messages (while preserving at-bottom tracking)
   useEffect(() => {
     if (messages.length > prevLenRef.current) {
       scrollToBottom();
@@ -94,6 +108,7 @@ export default function MessageList({
     prevLenRef.current = messages.length;
   }, [messages.length, scrollToBottom]);
 
+  // Track user scroll position
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -125,8 +140,6 @@ export default function MessageList({
       </Center>
     );
   }
-
-  const groups = groupMessagesByDate(messages);
 
   return (
     <Box ref={containerRef} flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor}>

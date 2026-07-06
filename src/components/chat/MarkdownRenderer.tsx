@@ -1,6 +1,6 @@
 'use client';
 
-import { Text, Box, Image, Link } from '@chakra-ui/react';
+import { Text, Box, Link } from '@chakra-ui/react';
 
 // Simple regex-based markdown-like text renderer
 // Supports: **bold**, *italic*, ~~strikethrough~~, `code`, ![gif](url), ![image](url), links
@@ -70,17 +70,23 @@ export default function MarkdownRenderer({ content, color }: MarkdownRendererPro
           case 'gif':
           case 'image':
             return (
-              <Image
+              <Box
                 key={i}
-                src={part.url}
-                alt=""
                 maxW="300px"
-                maxH="200px"
+                h="160px"
+                w="full"
                 borderRadius="md"
                 my="1"
-                objectFit="cover"
-                fallback={<Box w="200px" h="120px" bg="gray.100" borderRadius="md" />}
-              />
+                overflow="hidden"
+                bg="gray.100"
+              >
+                <img
+                  src={part.url}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  loading="lazy"
+                />
+              </Box>
             );
           case 'link':
             return (
