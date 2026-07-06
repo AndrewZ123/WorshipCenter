@@ -5,4 +5,4 @@ ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS poll_id UUID REFERENCES chat_
 CREATE INDEX IF NOT EXISTS idx_chat_messages_poll_id ON chat_messages(poll_id);
 
 -- Enable realtime for chat_poll_votes so vote updates are instant
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS chat_poll_votes;
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_poll_votes;
