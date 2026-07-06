@@ -111,7 +111,7 @@ export default function MyTasksPage() {
   }
 
   return (
-    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="1100px" mx="auto">
       {/* Header */}
       <VStack spacing="2" align="start" mb="6">
         <Heading size="lg" color={headingColor}>My Tasks</Heading>

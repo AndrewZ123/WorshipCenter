@@ -365,7 +365,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                 </Box>
               </HStack>
             </MenuButton>
-            <MenuList zIndex={50}>
+            <MenuList zIndex={50} minW="0" maxW="220px">
               <MenuItem
                 icon={<Settings size={16} />}
                 onClick={() => { router.push('/settings'); onClose?.(); }}
@@ -382,20 +382,6 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                   Billing
                 </MenuItem>
               )}
-              <MenuItem
-                icon={<HelpCircle size={16} />}
-                onClick={() => { window.open('/support', '_blank'); onClose?.(); }}
-                fontSize="sm"
-              >
-                Help & Support
-              </MenuItem>
-              <MenuItem
-                icon={<HelpCircle size={16} />}
-                onClick={() => { window.open('/privacy', '_blank'); onClose?.(); }}
-                fontSize="sm"
-              >
-                Privacy Policy
-              </MenuItem>
               <MenuItem
                 icon={<Sparkles size={16} />}
                 onClick={() => { start(isMobile ? MOBILE_TOUR_STEPS : TOUR_STEPS); onClose?.(); }}
@@ -495,7 +481,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Drawer isOpen={isOpen} placement="left" onClose={onClose} size="xs">
         <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
           <DrawerContent 
-            maxW="240px"
+            maxW="200px"
             borderRadius="0 12px 12px 0"
             boxShadow="xl"
             m="0"
@@ -532,7 +518,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <TrialBanner />
         <TrialExpiredBanner />
         
-        <Box w="full" display="flex" flexDir="column" flex="1" minH="0" overflowY="auto">
+        <Box w="full" display="flex" flexDir="column" flex="1" minH="0" overflowY="auto" overflowX="hidden">
           {children}
         </Box>
       </Box>
