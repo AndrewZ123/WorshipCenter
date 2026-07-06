@@ -23,6 +23,8 @@ export default function ChannelInfo({ channel, members, isAdmin }: ChannelInfoPr
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
+  if (!channel) return null;
+
   return (
     <Box
       w="260px"

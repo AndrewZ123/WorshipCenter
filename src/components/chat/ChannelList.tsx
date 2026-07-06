@@ -20,9 +20,10 @@ export default function ChannelList({ channels, activeChannelId, onSelect, canCr
   const subtextColor = useColorModeValue('gray.400', 'gray.500');
   const sectionColor = useColorModeValue('gray.500', 'gray.400');
 
-  const regularChannels = channels.filter(c => !c.is_announcement && !c.is_private);
-  const announcementChannels = channels.filter(c => c.is_announcement);
-  const privateChannels = channels.filter(c => c.is_private && !c.is_announcement);
+  const safe = channels.filter(Boolean);
+  const regularChannels = safe.filter(c => !c.is_announcement && !c.is_private);
+  const announcementChannels = safe.filter(c => c.is_announcement);
+  const privateChannels = safe.filter(c => c.is_private && !c.is_announcement);
 
   const renderChannel = (ch: ChatChannel) => {
     const isActive = ch.id === activeChannelId;

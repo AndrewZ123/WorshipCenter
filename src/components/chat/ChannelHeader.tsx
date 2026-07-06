@@ -13,6 +13,8 @@ export default function ChannelHeader({ channel, memberCount }: ChannelHeaderPro
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
+  if (!channel) return null;
+
   return (
     <Box
       borderBottom="1px solid"

@@ -38,19 +38,27 @@ export default function ChatPage() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'leader';
 
-  // Load channels
+  // Load channels — ref-based to avoid stale closures
+  const activeChannelRef = useRef(activeChannel);
+  activeChannelRef.current = activeChannel;
+
   const loadChannels = useCallback(async () => {
     if (!church?.id) return;
     try {
       const chs = await db.channels.getByChurch(church.id);
       if (chs.length === 0) {
-        // Auto-create General channel
         const general = await db.channels.getOrCreateGeneral(church.id);
+        if (!general) {
+          console.error('[Chat] Failed to create General channel');
+          setChannelError(true);
+          return;
+        }
         setChannels([general]);
         setActiveChannel(general);
       } else {
         setChannels(chs);
-        if (!activeChannel || !chs.find(c => c.id === activeChannel.id)) {
+        const current = activeChannelRef.current;
+        if (!current || !chs.find(c => c.id === current.id)) {
           setActiveChannel(chs[0]);
         }
       }
@@ -60,11 +68,11 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [church?.id, activeChannel]);
+  }, [church?.id]);
 
   useEffect(() => {
     loadChannels();
-  }, [church?.id]);
+  }, [loadChannels]);
 
   // Load messages and reactions for active channel
   const loadMessages = useCallback(async (channelId: string) => {
