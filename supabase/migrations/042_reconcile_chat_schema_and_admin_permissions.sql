@@ -1,15 +1,46 @@
 -- 042_reconcile_chat_schema_and_admin_permissions.sql
 -- ============================================================
--- 1. Reconcile chat_messages schema: add channel_id to existing
+-- 1. Ensure chat_channels and chat_channel_members exist
+--    (migration 024 may not have been applied yet)
+-- 2. Reconcile chat_messages schema: add channel_id to existing
 --    table (initial schema has church_id but not channel_id)
--- 2. Fix broken RLS from migration 024 that referenced
+-- 3. Fix broken RLS from migration 024 that referenced
 --    team_members.role (doesn't exist — team_members has roles[])
--- 3. Create admin_permissions table for granular admin scopes
--- 4. Auto-create "General" channel per church
+-- 4. Create admin_permissions table for granular admin scopes
+-- 5. Auto-create "General" channel per church
 -- ============================================================
 
 -- ─────────────────────────────────────────────────────────────
--- 1. Chat schema reconciliation
+-- 1. Ensure chat_channels and chat_channel_members exist
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS chat_channels (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    church_id UUID NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    type TEXT NOT NULL DEFAULT 'channel' CHECK (type IN ('channel', 'group')),
+    is_private BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_channel_members (
+    channel_id UUID NOT NULL REFERENCES chat_channels(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (channel_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_channels_church_id ON chat_channels(church_id);
+CREATE INDEX IF NOT EXISTS idx_chat_channel_members_channel_id ON chat_channel_members(channel_id);
+CREATE INDEX IF NOT EXISTS idx_chat_channel_members_user_id ON chat_channel_members(user_id);
+
+ALTER TABLE chat_channels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_channel_members ENABLE ROW LEVEL SECURITY;
+
+-- ─────────────────────────────────────────────────────────────
+-- 2. Chat schema reconciliation
 -- ─────────────────────────────────────────────────────────────
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS channel_id UUID REFERENCES chat_channels(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_id_v2 ON chat_messages(channel_id);
@@ -81,7 +112,7 @@ CREATE POLICY "Users can delete their own messages"
   USING (user_id = auth.uid());
 
 -- ─────────────────────────────────────────────────────────────
--- 2. Admin permissions table
+-- 3. Admin permissions table
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS admin_permissions (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -143,7 +174,7 @@ SELECT id, church_id FROM users WHERE role = 'admin'
 ON CONFLICT (user_id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────
--- 3. Auto-create "General" channel per church
+-- 4. Auto-create "General" channel per church
 -- ─────────────────────────────────────────────────────────────
 INSERT INTO chat_channels (church_id, name, description, type, is_private, created_by)
 SELECT c.id, 'General', 'Main church-wide announcements and discussion', 'channel', FALSE, NULL
