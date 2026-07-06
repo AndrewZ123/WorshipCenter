@@ -5,4 +5,15 @@ ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS poll_id UUID REFERENCES chat_
 CREATE INDEX IF NOT EXISTS idx_chat_messages_poll_id ON chat_messages(poll_id);
 
 -- Enable realtime for chat_poll_votes so vote updates are instant
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_poll_votes;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'chat_poll_votes') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE chat_poll_votes;
+  END IF;
+END $$;
+
+-- Add DELETE policy for chat_poll_votes so users can change their votes
+DROP POLICY IF EXISTS "Users can delete their own votes" ON chat_poll_votes;
+CREATE POLICY "Users can delete their own votes"
+  ON chat_poll_votes FOR DELETE
+  USING (user_id = auth.uid());

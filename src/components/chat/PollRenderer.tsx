@@ -77,27 +77,40 @@ export default function PollRenderer({ pollId, userId, channelId, onVotePoll }: 
   const handleVote = async (optionIndex: number) => {
     if (!poll || poll.is_closed || voting !== null) return;
 
-    setVoting(optionIndex);
-    try {
-      // Single-choice: remove previous vote first
-      if (!poll.is_multiple_choice && userVotes.size > 0) {
-        await supabase
-          .from('chat_poll_votes')
-          .delete()
-          .eq('poll_id', pollId)
-          .eq('user_id', userId);
-      }
-      // Multiple choice toggle: remove vote if already voted this option
-      if (poll.is_multiple_choice && userVotes.has(optionIndex)) {
+    // Single-choice: clicking the same option is a no-op
+    if (!poll.is_multiple_choice && userVotes.has(optionIndex)) {
+      return;
+    }
+    // Multiple choice: clicking the same option toggles it off
+    if (poll.is_multiple_choice && userVotes.has(optionIndex)) {
+      setVoting(optionIndex);
+      try {
         await supabase
           .from('chat_poll_votes')
           .delete()
           .eq('poll_id', pollId)
           .eq('user_id', userId)
           .eq('option_index', optionIndex);
-      } else {
-        await onVotePoll(pollId, userId, optionIndex);
+        await loadData();
+      } catch (e) {
+        console.error('[Poll] Unvote error:', e);
+      } finally {
+        setVoting(null);
       }
+      return;
+    }
+
+    setVoting(optionIndex);
+    try {
+      // Single-choice: remove any existing vote first, then add the new one
+      if (!poll.is_multiple_choice) {
+        await supabase
+          .from('chat_poll_votes')
+          .delete()
+          .eq('poll_id', pollId)
+          .eq('user_id', userId);
+      }
+      await onVotePoll(pollId, userId, optionIndex);
       await loadData();
     } catch (e) {
       console.error('[Poll] Vote error:', e);
