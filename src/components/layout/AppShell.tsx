@@ -518,8 +518,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Box 
         flex="1"
         minH="0"
-        overflowY={isOpen ? 'hidden' : 'auto'}
-        overflowX="hidden"
+        display="flex"
+        flexDir="column"
+        overflow="hidden"
         bg={mainBg}
         className="main-content"
         sx={{
@@ -531,7 +532,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <TrialBanner />
         <TrialExpiredBanner />
         
-        <Box w="full" display="flex" flexDir="column" flex="1" minH="0">
+        <Box w="full" display="flex" flexDir="column" flex="1" minH="0" overflowY="auto">
           {children}
         </Box>
       </Box>

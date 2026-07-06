@@ -102,8 +102,7 @@ export default function DemoChatPage() {
     <Box
       display="flex"
       flexDir="column"
-      flex="1"
-      minH="0"
+      h={{ base: '100%', md: 'auto' }}
       maxW="900px"
       mx="auto"
       w="full"

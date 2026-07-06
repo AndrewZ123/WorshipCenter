@@ -395,8 +395,8 @@ function DemoShell({ children }: { children: React.ReactNode }) {
         <Box 
           flex="1"
           minH="0"
-          overflowY="auto" 
-          overflowX="hidden"
+          display="flex"
+          flexDir="column"
           bg={mainBg}
           className="main-content"
         sx={{
@@ -413,7 +413,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
             },
           }}
         >
-          <Box w="full" maxW="100vw" overflowX="hidden" display="flex" flexDir="column" flex="1" minH="0">
+          <Box w="full" maxW="100vw" overflowX="hidden" overflowY="auto" display="flex" flexDir="column" flex="1" minH="0">
             {children}
           </Box>
         </Box>
