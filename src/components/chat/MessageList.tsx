@@ -58,17 +58,26 @@ function DateSeparator({ date }: { date: string }) {
 }
 
 export default function MessageList({ messages, reactions, currentUserId, isLoading, onReact, onVotePoll }: MessageListProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
   const isFirstLoad = useRef(true);
 
   useEffect(() => {
-    // Wait for DOM paint before scrolling
-    requestAnimationFrame(() => {
-      endRef.current?.scrollIntoView({ behavior: isFirstLoad.current ? 'instant' : 'smooth' });
-    });
+    if (messages.length === 0) return;
+    // Scroll the overflow container directly using scrollTop
+    const scrollToBottom = () => {
+      if (!containerRef.current) return;
+      const el = containerRef.current;
+      el.scrollTop = el.scrollHeight;
+    };
+    // First attempt after layout
+    requestAnimationFrame(scrollToBottom);
+    // Second attempt after images/fonts settle (flex layout may need extra pass)
+    const timer = setTimeout(scrollToBottom, 100);
     isFirstLoad.current = false;
+    return () => clearTimeout(timer);
   }, [messages]);
 
   if (isLoading) {
@@ -99,7 +108,7 @@ export default function MessageList({ messages, reactions, currentUserId, isLoad
   const groups = groupMessagesByDate(messages);
 
   return (
-    <Box flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor}>
+    <Box ref={containerRef} flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor}>
       <AnimatePresence initial={false}>
         {groups.map((group, gi) => (
           <Box key={group.date}>
