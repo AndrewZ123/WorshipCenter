@@ -2054,9 +2054,26 @@ export const db = {
       return ((data || []) as any[]).reverse();
     },
     sendMessage: async (channelId: string, userId: string, content: string) => {
+      const { data: channel } = await supabase
+        .from('chat_channels')
+        .select('church_id')
+        .eq('id', channelId)
+        .single();
+      if (!channel) {
+        console.warn('[Channels] Failed to send message: channel not found');
+        return {
+          id: `local-${Date.now()}`,
+          channel_id: channelId,
+          user_id: userId,
+          content: sanitizeHtml(content),
+          is_pinned: false,
+          created_at: new Date().toISOString(),
+          user: { id: userId, name: 'You' },
+        };
+      }
       const { data, error } = await supabase
         .from('chat_messages')
-        .insert({ channel_id: channelId, user_id: userId, content: sanitizeHtml(content) })
+        .insert({ channel_id: channelId, user_id: userId, church_id: channel.church_id, content: sanitizeHtml(content) })
         .select('*, users!chat_messages_user_id_fkey(id, name, email, avatar_url)')
         .single();
       if (error || !data) {
