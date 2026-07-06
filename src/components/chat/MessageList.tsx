@@ -119,9 +119,6 @@ export default function MessageList({
 
   return (
     <Box ref={containerRef} flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor} position="relative">
-      {/* Always render the scroll anchor at the bottom */}
-      <div ref={endRef} />
-
       {/* Loading overlay — keep container alive */}
       {showSpinner && (
         <Center position="absolute" inset={0} zIndex={1}>
@@ -177,6 +174,9 @@ export default function MessageList({
           ))}
         </AnimatePresence>
       )}
+
+      {/* Scroll anchor — MUST be the last element in the container */}
+      <div ref={endRef} />
     </Box>
   );
 }

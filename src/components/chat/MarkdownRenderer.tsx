@@ -80,8 +80,10 @@ export default function MarkdownRenderer({ content, color }: MarkdownRendererPro
                 overflow="hidden"
                 bg="gray.100"
               >
-                <Box as="img" src={part.url} alt=""
-                  w="full" h="full" objectFit="cover" display="block"
+                <img
+                  src={part.url}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   loading="lazy"
                 />
               </Box>
