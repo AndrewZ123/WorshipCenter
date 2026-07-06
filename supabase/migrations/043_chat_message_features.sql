@@ -134,6 +134,6 @@ CREATE POLICY "Users can post messages"
   );
 
 -- Enable realtime for new tables so subscriptions work
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS chat_polls;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS chat_attachments;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS chat_reactions;
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_polls;
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_attachments;
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_reactions;
