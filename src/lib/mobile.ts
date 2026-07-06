@@ -40,16 +40,7 @@ export async function initMobile(): Promise<void> {
       document.body.classList.remove('keyboard-visible');
     });
 
-    // Scroll active input into view when keyboard appears
-    Keyboard.addListener('keyboardWillShow', () => {
-      // Small delay to let the keyboard animation start
-      setTimeout(() => {
-        const active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.getAttribute('contenteditable'))) {
-          active.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 300);
-    });
+
   } catch {
     /* keyboard plugin not available — ignore */
   }
