@@ -230,9 +230,14 @@ export default function MessageBubble({
             )}
           </VStack>
 
-          {/* 3-dot menu — only for own messages, on hover */}
-          {isOwn && (onEdit || onDelete) && (
-            <Box opacity="0" _groupHover={{ opacity: 1 }} transition="opacity 0.15s" flexShrink={0}>
+          {/* 3-dot menu — only visible on hover for own messages */}
+          {(onEdit || onDelete) && (
+            <Box
+              opacity={isOwn ? '0' : '0'}
+              _groupHover={isOwn ? { opacity: 1 } : undefined}
+              transition="opacity 0.15s"
+              flexShrink={0}
+            >
               <Menu isLazy placement="bottom-end">
                 <MenuButton
                   as={IconButton}
