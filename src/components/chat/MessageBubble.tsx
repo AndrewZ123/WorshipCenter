@@ -8,6 +8,8 @@ import MarkdownRenderer from './MarkdownRenderer';
 import ReactionBar from './ReactionBar';
 import type { ChatReaction } from '@/lib/types';
 
+import PollRenderer from './PollRenderer';
+
 interface MessageBubbleProps {
   message: any;
   isOwn: boolean;
@@ -17,6 +19,7 @@ interface MessageBubbleProps {
   reactions: ChatReaction[];
   currentUserId: string;
   onReact: (messageId: string, emoji: string) => Promise<void>;
+  onVotePoll?: (pollId: string, userId: string, optionIndex: number) => Promise<any>;
 }
 
 function getReactionSummary(reactions: ChatReaction[], currentUserId: string) {
@@ -31,7 +34,7 @@ function getReactionSummary(reactions: ChatReaction[], currentUserId: string) {
 }
 
 export default function MessageBubble({
-  message, isOwn, showAvatar, showName, isGrouped, reactions, currentUserId, onReact,
+  message, isOwn, showAvatar, showName, isGrouped, reactions, currentUserId, onReact, onVotePoll,
 }: MessageBubbleProps) {
   const ownBubbleBg = useColorModeValue('teal.500', 'teal.400');
   const otherBubbleBg = useColorModeValue('white', 'gray.700');
@@ -81,6 +84,16 @@ export default function MessageBubble({
           >
             <MarkdownRenderer content={message.content} color={isOwn ? 'white' : undefined} />
           </Box>
+          {message.poll_id && onVotePoll && (
+            <Box w="full">
+              <PollRenderer
+                pollId={message.poll_id}
+                userId={currentUserId}
+                channelId={message.channel_id}
+                onVotePoll={onVotePoll}
+              />
+            </Box>
+          )}
           {reactions.length > 0 && (
             <Box px="1">
               <ReactionBar

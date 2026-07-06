@@ -13,6 +13,7 @@ interface MessageListProps {
   currentUserId: string;
   isLoading: boolean;
   onReact: (messageId: string, emoji: string) => Promise<void>;
+  onVotePoll?: (pollId: string, userId: string, optionIndex: number) => Promise<any>;
 }
 
 function groupMessagesByDate(messages: any[]) {
@@ -56,7 +57,7 @@ function DateSeparator({ date }: { date: string }) {
   );
 }
 
-export default function MessageList({ messages, reactions, currentUserId, isLoading, onReact }: MessageListProps) {
+export default function MessageList({ messages, reactions, currentUserId, isLoading, onReact, onVotePoll }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
@@ -112,6 +113,7 @@ export default function MessageList({ messages, reactions, currentUserId, isLoad
                   reactions={reactions[msg.id] || []}
                   currentUserId={currentUserId}
                   onReact={onReact}
+                  onVotePoll={onVotePoll}
                 />
               );
             })}

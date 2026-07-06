@@ -817,10 +817,39 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       },
       pinMessage: async (_messageId: string, _isPinned: boolean): Promise<boolean> => true,
       getPolls: async (_channelId: string): Promise<any[]> => [],
-      createPoll: async (_channelId: string, _userId: string, _question: string, _options: string[], _isMultipleChoice: boolean): Promise<any> => ({}),
+      createPoll: async (_channelId: string, _userId: string, _question: string, _options: string[], _isMultipleChoice: boolean): Promise<any> => {
+        const demo = getDemoContext();
+        const poll = {
+          id: `demo-poll-${Date.now()}`,
+          channel_id: _channelId,
+          user_id: _userId,
+          question: _question,
+          options: _options,
+          is_multiple_choice: _isMultipleChoice,
+          is_closed: false,
+          created_at: new Date().toISOString(),
+        };
+        const msg = {
+          id: `demo-msg-${Date.now()}`,
+          channel_id: _channelId,
+          user_id: _userId,
+          content: `📊 ${_question}`,
+          poll_id: poll.id,
+          is_pinned: false,
+          created_at: new Date().toISOString(),
+          user: demo.user ? { id: demo.user.id, name: demo.user.name, email: demo.user.email, avatar_url: demo.user.avatar_url } : { id: _userId, name: 'Unknown' },
+        };
+        demo.chatMessages.push(msg);
+        return poll;
+      },
       closePoll: async (_pollId: string): Promise<boolean> => true,
-      votePoll: async (_pollId: string, _userId: string, _optionIndex: number): Promise<any> => ({}),
+      votePoll: async (_pollId: string, _userId: string, _optionIndex: number): Promise<any> => ({ poll_id: _pollId, user_id: _userId, option_index: _optionIndex, created_at: new Date().toISOString() }),
       getPollVotes: async (_pollId: string): Promise<any[]> => [],
+      getPollWithVotes: async (_pollId: string): Promise<any> => {
+        const demo = getDemoContext();
+        const poll = demo.chatChannels.length ? { id: _pollId, question: 'Demo poll', options: ['Yes', 'No'], is_multiple_choice: false, is_closed: false } : null;
+        return { poll, votes: [] };
+      },
       addReaction: async (_messageId: string, _userId: string, _emoji: string): Promise<any> => ({ message_id: _messageId, user_id: _userId, emoji: _emoji, created_at: new Date().toISOString() }),
       removeReaction: async (_messageId: string, _userId: string, _emoji: string): Promise<boolean> => true,
       subscribe: (_channelId: string, _callback: (message: any) => void, _onError?: (error: Error) => void) => {

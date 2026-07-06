@@ -203,6 +203,10 @@ export default function ChatPage() {
     await db.channels.createPoll(activeChannel.id, user.id, question, options, isMultipleChoice);
   };
 
+  const handleVotePoll = async (pollId: string, userId: string, optionIndex: number) => {
+    return db.channels.votePoll(pollId, userId, optionIndex);
+  };
+
   const handleChannelCreated = async () => {
     await loadChannels();
   };
@@ -307,6 +311,7 @@ export default function ChatPage() {
                 currentUserId={user?.id || ''}
                 isLoading={isLoadingMessages}
                 onReact={handleReact}
+                onVotePoll={handleVotePoll}
               />
               <ChatInput
                 channelId={activeChannel.id}

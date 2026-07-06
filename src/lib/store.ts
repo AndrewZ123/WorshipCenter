@@ -2121,22 +2121,34 @@ export const db = {
         .select()
         .single();
       if (poll) {
-        // Also create a chat message announcing the poll so it appears in the feed
+        // Create a chat message linked to the poll so it appears in the feed
         const { data: channel } = await supabase
           .from('chat_channels')
           .select('church_id')
           .eq('id', channelId)
           .single();
         if (channel) {
-          const content = `📊 **${question}**\n${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n')}`;
+          const content = `📊 ${question}`;
           await supabase
             .from('chat_messages')
-            .insert({ channel_id: channelId, user_id: userId, church_id: channel.church_id, content })
+            .insert({ channel_id: channelId, user_id: userId, church_id: channel.church_id, content, poll_id: poll.id })
             .select('*, users!chat_messages_user_id_fkey(id, name, email, avatar_url)')
             .single();
         }
       }
       return poll as ChatPoll;
+    },
+    getPollWithVotes: async (pollId: string) => {
+      const { data: poll } = await supabase
+        .from('chat_polls')
+        .select('*')
+        .eq('id', pollId)
+        .single();
+      const { data: votes } = await supabase
+        .from('chat_poll_votes')
+        .select('*')
+        .eq('poll_id', pollId);
+      return { poll: poll as ChatPoll | null, votes: (votes || []) as ChatPollVote[] };
     },
     closePoll: async (pollId: string) => {
       const { error } = await supabase
