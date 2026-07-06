@@ -21,7 +21,7 @@ export default function ChannelHeader({ channel, memberCount }: ChannelHeaderPro
       borderColor={useColorModeValue('gray.100', 'gray.700')}
       p={{ base: '4', md: '4' }}
     >
-      <Flex justify="space-between" align="center">
+      <Flex justify="space-between" alignItems="center">
         <HStack spacing="3">
           <Box p="2" borderRadius="lg" bg="teal.50" color="teal.600">
             {channel.is_announcement ? <Megaphone size={20} /> : <Hash size={20} />}

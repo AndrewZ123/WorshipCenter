@@ -52,11 +52,13 @@ DROP POLICY IF EXISTS "Admins/leaders can update channels" ON chat_channels;
 DROP POLICY IF EXISTS "Admins/leaders can delete channels" ON chat_channels;
 DROP POLICY IF EXISTS "Admins/leaders can manage channel members" ON chat_channel_members;
 
--- Recreate channel policies using users.role (which actually exists)
-CREATE POLICY "Admins/leaders can create channels"
+-- Channel INSERT: any church member can create channels (privacy/visibility
+-- is enforced by SELECT/DELETE/UPDATE policies). This is required so that
+-- team members can auto-create the "General" channel on first visit.
+CREATE POLICY "Church members can create channels"
   ON chat_channels FOR INSERT
   WITH CHECK (
-    church_id IN (SELECT church_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader'))
+    church_id IN (SELECT church_id FROM users WHERE id = auth.uid())
   );
 
 CREATE POLICY "Admins/leaders can update channels"

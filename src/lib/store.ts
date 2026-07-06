@@ -2004,11 +2004,21 @@ export const db = {
         .eq('name', 'General')
         .maybeSingle();
       if (existing) return existing as any;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('chat_channels')
         .insert({ church_id: churchId, name: 'General', description: 'Main church-wide discussions', type: 'channel', is_announcement: false, is_private: false })
         .select()
         .single();
+      if (error) {
+        console.warn('[Channels] Failed to create General channel, retrying select:', error);
+        const { data: retry } = await supabase
+          .from('chat_channels')
+          .select('*')
+          .eq('church_id', churchId)
+          .eq('name', 'General')
+          .maybeSingle();
+        return (retry || null) as any;
+      }
       return data as any;
     },
     getMembers: async (channelId: string) => {

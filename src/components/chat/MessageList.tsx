@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { Box, Center, Spinner, Text, VStack, useColorModeValue } from '@chakra-ui/react';
+import { Box, Center, Spinner, Text, VStack, Flex, useColorModeValue } from '@chakra-ui/react';
 import { MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MessageBubble from './MessageBubble';
@@ -46,7 +46,7 @@ function DateSeparator({ date }: { date: string }) {
   const bgColor = useColorModeValue('gray.100', 'gray.700');
   const textColor = useColorModeValue('gray.500', 'gray.400');
   return (
-    <Flex align="center" my="4">
+    <Flex alignItems="center" my="4">
       <Box flex="1" h="1px" bg={bgColor} />
       <Text fontSize="xs" fontWeight="600" color={textColor} textTransform="uppercase" letterSpacing="wide" px="3">
         {formatDateHeader(date)}
@@ -54,10 +54,6 @@ function DateSeparator({ date }: { date: string }) {
       <Box flex="1" h="1px" bg={bgColor} />
     </Flex>
   );
-}
-
-function Flex({ children, ...props }: any) {
-  return <Box display="flex" {...props}>{children}</Box>;
 }
 
 export default function MessageList({ messages, reactions, currentUserId, isLoading, onReact }: MessageListProps) {
