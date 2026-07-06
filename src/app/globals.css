@@ -411,6 +411,16 @@ body.keyboard-visible .bottom-nav {
   display: none !important;
 }
 
+/* Hide channel navigation bar (header + pill bar) when keyboard is open */
+body.keyboard-visible .chat-nav-area {
+  display: none !important;
+}
+
+/* Ensure chat input stays above keyboard */
+body.keyboard-visible .chat-input-area {
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--keyboard-height, 0px));
+}
+
 /* Ensure smooth drag on all devices */
 [data-dnd-kit-drag-handle="true"] {
   touch-action: none !important;

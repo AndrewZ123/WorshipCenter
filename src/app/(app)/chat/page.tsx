@@ -348,29 +348,28 @@ export default function ChatPage() {
 
         {/* Main Chat Area */}
         <Box display="flex" flexDir="column" flex="1" minW="0">
-          {/* Mobile header with channel name + bottom sheet trigger */}
-          <Box display={{ base: 'flex', lg: 'none' }} borderBottom="1px solid" borderColor={borderColor} p="3" alignItems="center" onClick={onSheetOpen} cursor="pointer" _active={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
-            <IconButton
-              aria-label="Open channels"
-              icon={<Menu size={20} />}
-              variant="ghost"
-              size="sm"
-              onClick={(e) => { e.stopPropagation(); onSheetOpen(); }}
-            />
-            <HStack spacing="2" ml="2" flex="1">
-              {activeChannel?.is_announcement ? (
-                <Badge colorScheme="orange" variant="subtle" borderRadius="full" px="2" fontSize="xs">
-                  Announcement
-                </Badge>
-              ) : (
-                <Hash size={16} color="gray.400" />
-              )}
-              <Text fontWeight="600" fontSize="sm">{activeChannel?.name || 'Select a channel'}</Text>
-            </HStack>
-          </Box>
+          {/* Mobile: channel navigation (hidden when keyboard is open) */}
+          <Box className="chat-nav-area" display={{ base: 'block', lg: 'none' }}>
+            <Box display="flex" borderBottom="1px solid" borderColor={borderColor} p="3" alignItems="center" onClick={onSheetOpen} cursor="pointer" _active={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+              <IconButton
+                aria-label="Open channels"
+                icon={<Menu size={20} />}
+                variant="ghost"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onSheetOpen(); }}
+              />
+              <HStack spacing="2" ml="2" flex="1">
+                {activeChannel?.is_announcement ? (
+                  <Badge colorScheme="orange" variant="subtle" borderRadius="full" px="2" fontSize="xs">
+                    Announcement
+                  </Badge>
+                ) : (
+                  <Hash size={16} color="gray.400" />
+                )}
+                <Text fontWeight="600" fontSize="sm">{activeChannel?.name || 'Select a channel'}</Text>
+              </HStack>
+            </Box>
 
-          {/* Mobile channel pill bar */}
-          <Box display={{ base: 'block', lg: 'none' }}>
             <ChannelPillBar
               channels={channels}
               activeChannelId={activeChannel?.id || null}

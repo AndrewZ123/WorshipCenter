@@ -102,7 +102,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
 
   return (
     <>
-      <Box borderTop="1px solid" borderColor={inputBorder} p={{ base: '2', md: '4' }}>
+      <Box className="chat-input-area" borderTop="1px solid" borderColor={inputBorder} p={{ base: '2', md: '4' }}>
         {/* Formatting toolbar - hidden on mobile */}
         <HStack spacing="1" mb="2" display={{ base: 'none', md: 'flex' }}>
           <Tooltip label="Bold">

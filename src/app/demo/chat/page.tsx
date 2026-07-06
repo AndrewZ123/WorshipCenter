@@ -134,40 +134,41 @@ export default function DemoChatPage() {
           onCreateClick={() => {}}
         />
 
-        {/* Mobile header with channel name + bottom sheet trigger */}
-        <Box
-          display={{ base: 'flex', lg: 'none' }}
-          borderBottom="1px solid"
-          borderColor={borderColor}
-          p="3"
-          alignItems="center"
-          onClick={onSheetOpen}
-          cursor="pointer"
-          _active={{ bg: useColorModeValue('gray.50', 'gray.700') }}
-        >
-          <IconButton
-            aria-label="Open channels"
-            icon={<Menu size={20} />}
-            variant="ghost"
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); onSheetOpen(); }}
-          />
-          <HStack spacing="2" ml="2" flex="1">
-            <Hash size={16} color="gray.400" />
-            <Text fontWeight="600" fontSize="sm" color={textColor}>
-              {activeChannel?.name || 'Select a channel'}
-            </Text>
-          </HStack>
-          <Badge colorScheme="teal" variant="subtle" borderRadius="full" px="2" py="1" fontSize="xs">
-            <HStack spacing="1">
-              <Users size={12} />
-              <Text>{channels.length}</Text>
+        {/* Mobile: channel navigation (hidden when keyboard is open) */}
+        <Box className="chat-nav-area" display={{ base: 'block', lg: 'none' }}>
+          {/* Mobile header with channel name + bottom sheet trigger */}
+          <Box
+            display="flex"
+            borderBottom="1px solid"
+            borderColor={borderColor}
+            p="3"
+            alignItems="center"
+            onClick={onSheetOpen}
+            cursor="pointer"
+            _active={{ bg: useColorModeValue('gray.50', 'gray.700') }}
+          >
+            <IconButton
+              aria-label="Open channels"
+              icon={<Menu size={20} />}
+              variant="ghost"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); onSheetOpen(); }}
+            />
+            <HStack spacing="2" ml="2" flex="1">
+              <Hash size={16} color="gray.400" />
+              <Text fontWeight="600" fontSize="sm" color={textColor}>
+                {activeChannel?.name || 'Select a channel'}
+              </Text>
             </HStack>
-          </Badge>
-        </Box>
+            <Badge colorScheme="teal" variant="subtle" borderRadius="full" px="2" py="1" fontSize="xs">
+              <HStack spacing="1">
+                <Users size={12} />
+                <Text>{channels.length}</Text>
+              </HStack>
+            </Badge>
+          </Box>
 
-        {/* Mobile: channel pill bar */}
-        <Box display={{ base: 'block', lg: 'none' }}>
+          {/* Mobile: channel pill bar */}
           <ChannelPillBar
             channels={channels}
             activeChannelId={activeChannel?.id || null}
