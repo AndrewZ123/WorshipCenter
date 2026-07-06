@@ -176,6 +176,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS auto_create_admin_permissions_trigger ON users;
 CREATE TRIGGER auto_create_admin_permissions_trigger
     AFTER INSERT OR UPDATE OF role ON users
     FOR EACH ROW
