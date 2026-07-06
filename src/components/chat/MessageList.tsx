@@ -65,21 +65,20 @@ export default function MessageList({
   messages, reactions, currentUserId, isLoading, onReact, onEdit, onDelete, onVotePoll, onClosePoll, onUpdatePoll,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
-  const prevLenRef = useRef(0);
+  const isInitialLoadRef = useRef(true);
+  const prevMessagesRef = useRef<any[]>([]);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
   // Memoize groups to avoid recomputation on every render
   const groups = useMemo(() => groupMessagesByDate(messages), [messages]);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const el = containerRef.current;
     if (!el) return;
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-    });
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    atBottomRef.current = true;
   }, []);
 
   const handleScroll = useCallback(() => {
@@ -88,22 +87,19 @@ export default function MessageList({
     atBottomRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
   }, []);
 
-  // Single scroll effect — fires once when loading finishes and messages are ready
+  // Single auto-scroll effect — fires on messages change when not loading
   useEffect(() => {
-    if (!isLoading && messages.length > 0) {
-      scrollToBottom();
-    }
-  }, [isLoading, messages.length, scrollToBottom]);
+    if (messages.length === 0) return;
+    if (isLoading) return;
+    if (messages === prevMessagesRef.current) return;
+    if (!atBottomRef.current) return;
 
-  // Auto-scroll for new subscription messages (only if user is at bottom)
-  useEffect(() => {
-    if (messages.length > prevLenRef.current) {
-      if (prevLenRef.current > 0 && atBottomRef.current) {
-        scrollToBottom();
-      }
-    }
-    prevLenRef.current = messages.length;
-  }, [messages.length, scrollToBottom]);
+    const behavior = isInitialLoadRef.current ? 'auto' : 'smooth';
+    isInitialLoadRef.current = false;
+    prevMessagesRef.current = messages;
+
+    requestAnimationFrame(() => scrollToBottom(behavior));
+  }, [messages, isLoading, scrollToBottom]);
 
   // Track user scroll position
   useEffect(() => {
@@ -115,8 +111,9 @@ export default function MessageList({
 
   // Keep the DOM stable during loading — only show messages when everything is ready
   const showSpinner = isLoading;
-  const showEmpty = !isLoading && messages.length === 0;
-  const showMessages = messages.length > 0;
+  const showLoaded = !isLoading;
+  const showEmpty = showLoaded && messages.length === 0;
+  const showMessages = showLoaded && messages.length > 0;
 
   return (
     <Box ref={containerRef} flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor} position="relative">
@@ -176,8 +173,6 @@ export default function MessageList({
         </AnimatePresence>
       )}
 
-      {/* Scroll anchor — MUST be the last element in the container */}
-      <div ref={endRef} />
     </Box>
   );
 }

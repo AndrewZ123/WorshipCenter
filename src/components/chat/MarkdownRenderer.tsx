@@ -84,7 +84,6 @@ export default function MarkdownRenderer({ content, color }: MarkdownRendererPro
                   src={part.url}
                   alt=""
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  loading="lazy"
                 />
               </Box>
             );

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 import {
   Box, Text, HStack, VStack, Flex, Spinner, Center, useColorModeValue,
   useDisclosure, useToast, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
@@ -92,7 +93,7 @@ export default function ChatPage() {
       // Batch-load reactions for all messages
       if (msgs.length > 0) {
         const ids = msgs.map((m: any) => m.id);
-        const { data: reactionData } = await (await import('@/lib/supabase')).supabase
+        const { data: reactionData } = await supabase
           .from('chat_reactions')
           .select('*')
           .in('message_id', ids);
@@ -121,7 +122,7 @@ export default function ChatPage() {
     if (!channelId || !church) return;
     try {
       const members = await db.channels.getMembers(channelId);
-      const { data: users } = await (await import('@/lib/supabase')).supabase
+      const { data: users } = await supabase
         .from('users')
         .select('id, name, email, avatar_url, role')
         .in('id', members.map(m => m.user_id));
