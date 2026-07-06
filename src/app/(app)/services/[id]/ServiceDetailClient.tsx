@@ -2021,6 +2021,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       cursor="pointer"
                       _hover={{ bg: 'orange.50' }}
                       _dark={{ _hover: { bg: 'orange.900' } }}
+                      onClick={handleSaveAddSong}
                     >
                       <HStack spacing="3">
                         <Plus size={14} color="var(--chakra-colors-orange-500)" />
