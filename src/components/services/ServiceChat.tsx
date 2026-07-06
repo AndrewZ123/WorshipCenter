@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Box, Text, HStack, VStack, Flex, Spinner, Center, IconButton,
-  useColorModeValue, Textarea,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, MessageCircle, ArrowDown } from 'lucide-react';
@@ -204,7 +204,7 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
   const isInitialLoadRef = useRef(true);
   const messageIdSetRef = useRef<Set<string>>(new Set());
@@ -218,20 +218,6 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   const inputBorder = useColorModeValue('gray.200', 'gray.600');
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
-
-  // ─── Textarea helpers ──────────────────────────────────────────────────────
-
-  const adjustTextareaHeight = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
-  }, []);
-
-  const resetTextareaHeight = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (textarea) textarea.style.height = 'auto';
-  }, []);
 
   // ─── Scroll management ──────────────────────────────────────────────────────
 
@@ -331,7 +317,8 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
   // ─── Send message (optimistic) ──────────────────────────────────────────────
 
   const handleSend = useCallback(async () => {
-    const content = inputValue.trim();
+    const currentText = textareaRef.current?.innerText?.replace(/\n$/, '') || '';
+    const content = currentText.trim();
     if (!content || !currentUser || sending) return;
 
     const tempId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -351,7 +338,7 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
 
     setMessages((prev) => [...prev, optimisticMsg]);
     setInputValue('');
-    resetTextareaHeight();
+    if (textareaRef.current) textareaRef.current.innerText = '';
     setSending(true);
     setError(null);
     isNearBottomRef.current = true;
@@ -376,16 +363,18 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
       setSending(false);
       textareaRef.current?.focus();
     }
-  }, [inputValue, currentUser, sending, serviceId, churchId, resetTextareaHeight]);
+  }, [currentUser, sending, serviceId, churchId]);
 
   // ─── Input handlers ──────────────────────────────────────────────────────────
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value);
-    adjustTextareaHeight();
-  };
+  const onInput = useCallback(() => {
+    if (sending) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    setInputValue(el.innerText.replace(/\n$/, ''));
+  }, [sending]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -605,16 +594,15 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
       >
         <HStack spacing="2" align="end">
           <Box flex="1" position="relative">
-            <Textarea
+            <Box
               ref={textareaRef}
-              value={inputValue}
-              onChange={handleInputChange}
+              contentEditable="plaintext-only"
+              role="textbox"
+              aria-multiline="true"
+              aria-label="Type a message…"
+              data-placeholder="Type a message…"
+              onInput={onInput}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message…"
-              rows={1}
-              maxLength={MAX_MESSAGE_LENGTH}
-              isDisabled={sending}
-              resize="none"
               bg={inputBg}
               border="1px solid"
               borderColor={inputBorder}
@@ -622,11 +610,22 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
               fontSize="sm"
               px="3.5"
               py="2.5"
+              minH="44px"
               maxH="120px"
-              _placeholder={{ color: 'gray.400' }}
+              overflowY="auto"
+              lineHeight="1.5"
+              cursor="text"
               _focus={{
                 borderColor: 'teal.400',
                 boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)',
+                outline: 'none',
+              }}
+              sx={{
+                '&:empty:before': {
+                  content: 'attr(data-placeholder)',
+                  color: 'var(--chakra-colors-gray-400)',
+                  pointerEvents: 'none',
+                },
               }}
             />
           </Box>
@@ -643,7 +642,7 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
             flexShrink={0}
           />
         </HStack>
-        {inputValue.length > MAX_MESSAGE_LENGTH * 0.8 && (
+        {inputValue.trim().length > MAX_MESSAGE_LENGTH * 0.8 && (
           <Text fontSize="xs" color="gray.400" mt="1" textAlign="right">
             {inputValue.length} / {MAX_MESSAGE_LENGTH}
           </Text>

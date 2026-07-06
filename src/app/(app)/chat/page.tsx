@@ -7,9 +7,8 @@ import { supabase } from '@/lib/supabase';
 import {
   Box, Text, HStack, VStack, Flex, Spinner, Center, useColorModeValue,
   useDisclosure, useToast, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
-  Badge, IconButton, Button, useBreakpointValue,
+  Badge, IconButton, Button,
 } from '@chakra-ui/react';
-import { motion } from 'framer-motion';
 import { Menu, MessageCircle, Hash, Plus } from 'lucide-react';
 import type { ChatChannel, ChatReaction, ChatChannelWithMeta, ChatChannelMessagePopulated } from '@/lib/types';
 import ChannelList from '@/components/chat/ChannelList';
@@ -20,8 +19,6 @@ import ChannelBottomSheet from '@/components/chat/ChannelBottomSheet';
 import MessageList from '@/components/chat/MessageList';
 import ChatInput from '@/components/chat/ChatInput';
 import ChannelCreateModal from '@/components/chat/ChannelCreateModal';
-import ClientOnly from '@/components/ui/ClientOnly';
-import { mediumHaptic } from '@/lib/haptics';
 
 export default function ChatPage() {
   const { user, church } = useAuth();
@@ -252,24 +249,6 @@ export default function ChatPage() {
     return db.channels.updatePoll(pollId, updates);
   };
 
-  const isMobile = useBreakpointValue({ base: true, lg: false });
-  const channelIndexRef = useRef(0);
-  channelIndexRef.current = channels.findIndex((c) => c.id === activeChannel?.id);
-
-  const handleSwipe = useCallback((offsetX: number) => {
-    const mobile = isMobile;
-    if (!mobile || channels.length < 2) return;
-    const SWIPE_THRESHOLD = 80;
-    const idx = channels.findIndex((c) => c.id === activeChannel?.id);
-    if (offsetX > SWIPE_THRESHOLD && idx > 0) {
-      setActiveChannel(channels[idx - 1]);
-      mediumHaptic();
-    } else if (offsetX < -SWIPE_THRESHOLD && idx < channels.length - 1) {
-      setActiveChannel(channels[idx + 1]);
-      mediumHaptic();
-    }
-  }, [isMobile, channels, activeChannel?.id]);
-
   const handleChannelCreated = async () => {
     await loadChannels();
   };
@@ -305,7 +284,6 @@ export default function ChatPage() {
   }
 
   return (
-    <ClientOnly fallback={<Center minH="80dvh"><Spinner size="xl" color="teal.500" /></Center>}>
     <Box display="flex" flexDir="column" h="100%">
       {/* Mobile channel drawer (desktop-style, kept for fallback) */}
       <Drawer isOpen={drawerOpen} placement="left" onClose={onDrawerClose} size="xs">
@@ -378,22 +356,8 @@ export default function ChatPage() {
             />
           </Box>
 
-          {/* Swipe-enabled content area */}
+          {/* Content area */}
           <Box flex="1" display="flex" flexDir="column" minH="0" position="relative">
-            <motion.div
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.05}
-              onDragEnd={(_, info) => handleSwipe(info.offset.x)}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                flex: 1,
-                minHeight: 0,
-                position: 'relative',
-                zIndex: 0,
-              }}
-            >
               {!activeChannel ? (
                 <Center h="full" flex="1">
                   <VStack spacing="4">
@@ -428,7 +392,6 @@ export default function ChatPage() {
               />
             </>
           )}
-          </motion.div>
         </Box>
         </Box>
 
@@ -479,6 +442,5 @@ export default function ChatPage() {
         onCreated={handleChannelCreated}
       />
     </Box>
-    </ClientOnly>
   );
 }

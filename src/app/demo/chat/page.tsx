@@ -8,7 +8,6 @@ import {
   useDisclosure, IconButton, Badge,
 } from '@chakra-ui/react';
 import { Hash, Menu, Users } from 'lucide-react';
-import ClientOnly from '@/components/ui/ClientOnly';
 import ChannelHeader from '@/components/chat/ChannelHeader';
 import ChannelPillBar from '@/components/chat/ChannelPillBar';
 import ChannelBottomSheet from '@/components/chat/ChannelBottomSheet';
@@ -98,7 +97,6 @@ export default function DemoChatPage() {
   }
 
   return (
-    <ClientOnly fallback={<Center minH="80dvh"><Spinner size="xl" color="teal.500" /></Center>}>
     <Box
       display="flex"
       flexDir="column"
@@ -250,6 +248,5 @@ export default function DemoChatPage() {
         </Box>
       </Box>
     </Box>
-    </ClientOnly>
   );
 }

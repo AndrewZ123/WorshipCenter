@@ -1,6 +1,10 @@
 'use client';
 
-import { HStack, Box, Text, useColorModeValue } from '@chakra-ui/react';
+import { useState } from 'react';
+import {
+  HStack, Box, Text, useColorModeValue,
+  Popover, PopoverTrigger, PopoverContent, PopoverBody, SimpleGrid,
+} from '@chakra-ui/react';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😄', '🎉', '🙏', '🔥', '😢', '😮'];
 
@@ -20,6 +24,8 @@ export default function ReactionBar({ reactions, onReact, showPicker }: Reaction
   const bgColor = useColorModeValue('gray.50', 'gray.700');
   const activeBg = useColorModeValue('teal.50', 'teal.900');
   const activeColor = useColorModeValue('teal.600', 'teal.300');
+  const emojiHoverBg = useColorModeValue('gray.200', 'gray.600');
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <HStack spacing="1" mt="1" flexWrap="wrap">
@@ -50,21 +56,51 @@ export default function ReactionBar({ reactions, onReact, showPicker }: Reaction
         </Box>
       ))}
       {showPicker && (
-        <Box
-          as="button"
-          type="button"
-          px="2"
-          py="0.5"
-          borderRadius="full"
-          fontSize="xs"
-          bg={bgColor}
-          cursor="pointer"
-          _hover={{ bg: 'gray.200' }}
-          onClick={() => {}}
-          aria-label="Add reaction"
-        >
-          +
-        </Box>
+        <Popover isOpen={pickerOpen} onClose={() => setPickerOpen(false)} placement="top-start">
+          <PopoverTrigger>
+            <Box
+              as="button"
+              type="button"
+              px="2"
+              py="0.5"
+              borderRadius="full"
+              fontSize="xs"
+              bg={bgColor}
+              cursor="pointer"
+              _hover={{ bg: 'gray.200' }}
+              onClick={() => setPickerOpen(!pickerOpen)}
+              aria-label="Add reaction"
+            >
+              +
+            </Box>
+          </PopoverTrigger>
+          <PopoverContent w="auto" minW="0" _focus={{ outline: 'none' }}>
+            <PopoverBody p="2">
+              <SimpleGrid columns={4} spacing="1">
+                {QUICK_EMOJIS.map((emoji) => (
+                  <Box
+                    key={emoji}
+                    as="button"
+                    type="button"
+                    w="36px"
+                    h="36px"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    borderRadius="md"
+                    fontSize="lg"
+                    cursor="pointer"
+                    _hover={{ bg: emojiHoverBg }}
+                    onClick={() => { onReact(emoji); setPickerOpen(false); }}
+                    aria-label={emoji}
+                  >
+                    {emoji}
+                  </Box>
+                ))}
+              </SimpleGrid>
+            </PopoverBody>
+          </PopoverContent>
+        </Popover>
       )}
     </HStack>
   );

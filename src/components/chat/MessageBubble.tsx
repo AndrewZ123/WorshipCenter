@@ -56,6 +56,7 @@ export default function MessageBubble({
   const isMobile = useBreakpointValue({ base: true, lg: false });
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,6 +64,14 @@ export default function MessageBubble({
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (isEditing) {
+      requestAnimationFrame(() => {
+        editTextareaRef.current?.focus();
+      });
+    }
+  }, [isEditing]);
 
   const handleTouchStart = () => {
     longPressTimer.current = setTimeout(() => {
@@ -225,6 +234,7 @@ export default function MessageBubble({
                   </HStack>
                 </Flex>
                 <Textarea
+                  ref={editTextareaRef}
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   onKeyDown={handleEditKeyDown}
@@ -235,7 +245,6 @@ export default function MessageBubble({
                   lineHeight="1.6"
                   minH="100px"
                   resize="none"
-                  autoFocus
                   _placeholder={{ color: 'gray.400' }}
                 />
               </Box>
@@ -280,11 +289,12 @@ export default function MessageBubble({
               </Box>
             )}
 
-            {reactions.length > 0 && !isEditing && (
+            {!isEditing && (reactions.length > 0 || !isMobile) && (
               <Box px="1">
                 <ReactionBar
                   reactions={getReactionSummary(reactions, currentUserId)}
                   onReact={(emoji) => onReact(message.id, emoji)}
+                  showPicker={!isMobile || reactions.length === 0}
                 />
               </Box>
             )}

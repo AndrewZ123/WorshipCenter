@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
   HStack, Input, IconButton, Box, useColorModeValue, Text,
   useDisclosure, Tooltip, useBreakpointValue,
@@ -27,51 +27,92 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
   const { isOpen: gifOpen, onOpen: onGifOpen, onClose: onGifClose } = useDisclosure();
   const { isOpen: pollOpen, onOpen: onPollOpen, onClose: onPollClose } = useDisclosure();
   const isMobile = useBreakpointValue({ base: true, lg: false });
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLDivElement>(null);
 
   const inputBg = useColorModeValue('gray.50', 'gray.700');
   const inputBorder = useColorModeValue('gray.200', 'gray.600');
 
-  // Dismiss any stale keyboard focus on mount — WKWebView sometimes restores
-  // a keyboard session across page navigations in Capacitor. Using blur()
-  // instead of Keyboard.hide() avoids triggering CSS-driven shell-root height
-  // changes that silently clamp scrollTop in the message list.
-  useEffect(() => {
-    inputRef.current?.blur();
+  const insertAtCursor = useCallback((text: string) => {
+    inputRef.current?.focus();
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      const textNode = document.createTextNode(text);
+      range.insertNode(textNode);
+      range.setStartAfter(textNode);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    const el = inputRef.current;
+    if (el) {
+      setInput(el.innerText.replace(/\n$/, ''));
+    }
   }, []);
 
   const wrapSelection = useCallback((before: string, after: string) => {
     const el = inputRef.current;
     if (!el) return;
-    const start = el.selectionStart || 0;
-    const end = el.selectionEnd || 0;
-    const selected = input.substring(start, end);
-    const newText = input.substring(0, start) + before + selected + after + input.substring(end);
-    setInput(newText);
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(start + before.length, start + before.length + selected.length);
-    }, 0);
-  }, [input]);
+
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if (!el.contains(range.commonAncestorContainer)) return;
+
+    const selectedText = range.toString();
+    range.deleteContents();
+    const textNode = document.createTextNode(before + selectedText + after);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    const text = el.innerText.replace(/\n$/, '');
+    setInput(text);
+  }, []);
 
   const handleSend = async () => {
-    if (!input.trim() || isSending) return;
+    const currentText = inputRef.current?.innerText?.replace(/\n$/, '') || '';
+    if (!currentText.trim() || isSending) return;
     setIsSending(true);
     try {
-      await onSend(input.trim());
+      await onSend(currentText.trim());
       setInput('');
+      if (inputRef.current) {
+        inputRef.current.innerText = '';
+      }
     } finally {
       setIsSending(false);
       inputRef.current?.focus();
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
+    const el = inputRef.current;
+    if (el) {
+      setInput(el.innerText.replace(/\n$/, ''));
+    }
+  }, []);
+
+  const onInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    setInput(el.innerText.replace(/\n$/, ''));
+  }, []);
 
   if (isAnnouncement && !canPost) {
     return (
@@ -95,14 +136,12 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
     fileInput.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      // Client-side compression
       try {
         const compressed = await compressImage(file);
         const url = URL.createObjectURL(compressed);
-        setInput((prev) => prev + ` ![image](${url})`);
+        insertAtCursor(` ![image](${url})`);
       } catch {
-        // If compression fails, just insert as placeholder
-        setInput((prev) => prev + ` ![image](uploading...)`);
+        insertAtCursor(` ![image](uploading...)`);
       }
     };
     fileInput.click();
@@ -121,7 +160,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
               variant="ghost"
               color="gray.400"
               _hover={{ color: 'teal.500' }}
-              onClick={() => wrapSelection('**', '**')}
+              onMouseDown={(e) => { e.preventDefault(); wrapSelection('**', '**'); }}
             />
           </Tooltip>
           <Tooltip label="Italic">
@@ -132,7 +171,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
               variant="ghost"
               color="gray.400"
               _hover={{ color: 'teal.500' }}
-              onClick={() => wrapSelection('*', '*')}
+              onMouseDown={(e) => { e.preventDefault(); wrapSelection('*', '*'); }}
             />
           </Tooltip>
           <Tooltip label="Strikethrough">
@@ -143,7 +182,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
               variant="ghost"
               color="gray.400"
               _hover={{ color: 'teal.500' }}
-              onClick={() => wrapSelection('~~', '~~')}
+              onMouseDown={(e) => { e.preventDefault(); wrapSelection('~~', '~~'); }}
             />
           </Tooltip>
           <Box w="1px" h="4" bg="gray.200" mx="1" />
@@ -194,7 +233,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
                   try {
                     await onSend(`![gif](${url})`);
                   } catch {
-                    setInput((prev) => prev + ` ![gif](${url})`);
+                    insertAtCursor(` ![gif](${url})`);
                   }
                 }}
                 variant="inline"
@@ -208,7 +247,10 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
                 variant="ghost"
                 color="gray.400"
                 _hover={{ color: 'teal.500' }}
-                onClick={() => setInput((prev) => prev + '@')}
+                onClick={() => {
+                  insertAtCursor('@');
+                  inputRef.current?.focus();
+                }}
                 minW="44px"
                 h="36px"
               />
@@ -233,7 +275,6 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
                 onClick={() => {
                   if (!gifOpen) {
                     onGifOpen();
-                    // Keep input focused so keyboard stays open
                     requestAnimationFrame(() => inputRef.current?.focus());
                   }
                 }}
@@ -257,13 +298,16 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
 
         <HStack spacing="2" position="relative" align="end">
           <Box position="relative" flex="1">
-            <Input
+            <Box
               ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              contentEditable="plaintext-only"
+              role="textbox"
+              aria-multiline="false"
+              aria-label="Type a message..."
+              data-placeholder="Type a message..."
+              onInput={onInput}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              size="md"
+              onPaste={handlePaste}
               h={isMobile ? '44px' : '48px'}
               fontSize={isMobile ? '16px' : 'md'}
               bg={inputBg}
@@ -271,9 +315,21 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
               borderColor={inputBorder}
               borderRadius="xl"
               pr="12"
-              _placeholder={{ color: 'gray.400' }}
-              _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)' }}
-              disabled={isSending}
+              pl="4"
+              py="2.5"
+              lineHeight="1.5"
+              overflow="hidden"
+              whiteSpace="nowrap"
+              textOverflow="ellipsis"
+              cursor="text"
+              _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)', outline: 'none' }}
+              sx={{
+                '&:empty:before': {
+                  content: 'attr(data-placeholder)',
+                  color: 'var(--chakra-colors-gray-400)',
+                  pointerEvents: 'none',
+                },
+              }}
             />
             <IconButton
               aria-label="Add emoji"
@@ -295,7 +351,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
                   <DrawerBody p="3">
                     <EmojiPicker
                       onSelect={(emoji) => {
-                        setInput((prev) => prev + emoji);
+                        insertAtCursor(emoji);
                         inputRef.current?.focus();
                       }}
                       onClose={() => setShowEmoji(false)}
@@ -307,7 +363,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
             {showEmoji && !isMobile && (
               <EmojiPicker
                 onSelect={(emoji) => {
-                  setInput((prev) => prev + emoji);
+                  insertAtCursor(emoji);
                   inputRef.current?.focus();
                 }}
                 onClose={() => setShowEmoji(false)}
@@ -339,7 +395,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
           try {
             await onSend(`![gif](${url})`);
           } catch {
-            setInput((prev) => prev + ` ![gif](${url})`);
+            insertAtCursor(` ![gif](${url})`);
           }
         }}
       />
@@ -352,7 +408,6 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
   );
 }
 
-// Client-side image compression
 async function compressImage(file: File, maxWidth = 1920, quality = 0.8): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();

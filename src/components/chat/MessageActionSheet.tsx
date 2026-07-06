@@ -55,7 +55,8 @@ export default function MessageActionSheet({
                     borderRadius="full"
                     bg={emojiBg}
                     _hover={{ bg: emojiHoverBg }}
-                    fontSize="xl"
+                    lineHeight="1"
+                    fontSize="22px"
                     cursor="pointer"
                     onClick={() => { onReact(emoji); onClose(); }}
                     transition="all 0.15s"

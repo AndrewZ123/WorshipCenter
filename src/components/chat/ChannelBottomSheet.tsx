@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Box, VStack, HStack, Text, Input, Button, IconButton, useColorModeValue,
   Divider, useBreakpointValue,
@@ -23,7 +23,15 @@ export default function ChannelBottomSheet({
   isOpen, onClose, channels, activeChannelId, onSelect, canCreate, onCreateClick,
 }: ChannelBottomSheetProps) {
   const [query, setQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const bg = useColorModeValue('white', 'gray.800');
+
+  useEffect(() => {
+    if (isOpen) {
+      const id = setTimeout(() => searchInputRef.current?.focus(), 300);
+      return () => clearTimeout(id);
+    }
+  }, [isOpen]);
   const textColor = useColorModeValue('gray.700', 'gray.300');
   const activeBg = useColorModeValue('teal.50', 'rgba(13,148,136,0.15)');
   const activeColor = useColorModeValue('teal.700', 'teal.300');
@@ -100,6 +108,7 @@ export default function ChannelBottomSheet({
         </Box>
         <Box position="relative">
           <Input
+            ref={searchInputRef}
             placeholder="Search channels..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -113,7 +122,6 @@ export default function ChannelBottomSheet({
             pl="10"
             _placeholder={{ color: 'gray.400' }}
             _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)' }}
-            autoFocus
           />
           <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color="gray.400">
             <Search size={16} />

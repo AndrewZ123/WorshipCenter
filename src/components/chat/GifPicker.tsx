@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton,
   ModalBody, Input, SimpleGrid, Image, Box, Spinner, Text, VStack,
@@ -29,7 +29,14 @@ export default function GifPicker({ isOpen, onClose, onSelect, variant = 'modal'
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [giphyError, setGiphyError] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+
+  useEffect(() => {
+    if (isOpen) {
+      requestAnimationFrame(() => searchInputRef.current?.focus());
+    }
+  }, [isOpen]);
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -64,6 +71,7 @@ export default function GifPicker({ isOpen, onClose, onSelect, variant = 'modal'
     <>
       <Box position="relative" mb="4">
         <Input
+          ref={searchInputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -71,7 +79,6 @@ export default function GifPicker({ isOpen, onClose, onSelect, variant = 'modal'
           borderRadius="lg"
           size="md"
           pr="10"
-          autoFocus
         />
         <IconButton
           aria-label="Search"
@@ -150,6 +157,7 @@ export default function GifPicker({ isOpen, onClose, onSelect, variant = 'modal'
         <Box display="flex" alignItems="center" gap="2" p="2" pb="0">
           <Box position="relative" flex="1">
             <Input
+              ref={searchInputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -159,7 +167,6 @@ export default function GifPicker({ isOpen, onClose, onSelect, variant = 'modal'
               borderRadius="lg"
               pl="9"
               fontSize="sm"
-              autoFocus
             />
             <Box position="absolute" left="2.5" top="50%" transform="translateY(-50%)" color="gray.400" pointerEvents="none">
               <Search size={15} />
