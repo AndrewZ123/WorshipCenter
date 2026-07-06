@@ -26,7 +26,6 @@ export default function PollRenderer({ pollId, userId, channelId, onVotePoll }: 
   const optionHover = useColorModeValue('gray.100', 'gray.500');
   const selectedBg = useColorModeValue('teal.50', 'teal.900');
   const selectedBorder = useColorModeValue('teal.400', 'teal.300');
-  const barColor = useColorModeValue('teal.400', 'teal.300');
   const barTrack = useColorModeValue('gray.200', 'gray.600');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
 
