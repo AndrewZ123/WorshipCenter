@@ -5,7 +5,8 @@ import {
   Box, VStack, HStack, Text, useColorModeValue, Divider, Badge,
   IconButton, Button, Modal, ModalOverlay, ModalContent, ModalHeader,
   ModalCloseButton, ModalBody, ModalFooter, FormControl, FormLabel,
-  Input, Textarea, Switch, useToast,
+  Input, Textarea, Switch, useToast, useBreakpointValue,
+  Drawer, DrawerOverlay, DrawerContent, DrawerBody,
 } from '@chakra-ui/react';
 import { Trash2, Pencil, UserPlus, X } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
@@ -30,12 +31,15 @@ interface ChannelInfoProps {
   onDeleteChannel?: (id: string) => void;
   churchId?: string;
   onMembersChanged?: (channelId: string) => void;
+  /** If provided, renders as a bottom drawer on mobile. Omit or set false for desktop sidebar. */
+  isDrawerOpen?: boolean;
+  onDrawerClose?: () => void;
 }
 
-export default function ChannelInfo({
+function ChannelInfoContent({
   channel, members, isAdmin, onUpdateChannel, onDeleteChannel,
-  churchId, onMembersChanged,
-}: ChannelInfoProps) {
+  churchId, onMembersChanged, onClose,
+}: ChannelInfoProps & { onClose?: () => void }) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -50,9 +54,6 @@ export default function ChannelInfo({
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
-  const bgColor = useColorModeValue('white', 'gray.800');
-
-  if (!channel) return null;
 
   const handleSaveEdit = async () => {
     if (!editName.trim() || !onUpdateChannel) return;
@@ -104,96 +105,87 @@ export default function ChannelInfo({
 
   return (
     <>
-      <Box
-        w="260px"
-        borderLeft="1px solid"
-        borderColor={borderColor}
-        bg={bgColor}
-        display={{ base: 'none', lg: 'block' }}
-        overflowY="auto"
-      >
-        <Box p="4">
-          <HStack justify="space-between" align="center" mb="1">
-            <Text fontWeight="700" fontSize="sm" color={textColor}>About</Text>
-            {isAdmin && (
-              <HStack spacing="1">
-                <IconButton
-                  aria-label="Edit channel"
-                  icon={<Pencil size={14} />}
-                  size="xs"
-                  variant="ghost"
-                  colorScheme="gray"
-                  onClick={() => {
-                    setEditName(channel.name);
-                    setEditDescription(channel.description || '');
-                    setEditIsAnnouncement(channel.is_announcement);
-                    setEditOpen(true);
-                  }}
-                />
-                {!isGeneral && (
-                  <IconButton
-                    aria-label="Delete channel"
-                    icon={<Trash2 size={14} />}
-                    size="xs"
-                    variant="ghost"
-                    colorScheme="red"
-                    onClick={() => setDeleteOpen(true)}
-                  />
-                )}
-              </HStack>
-            )}
-          </HStack>
-          <Text fontSize="sm" color={subtextColor}>
-            {channel.description || 'No description'}
-          </Text>
-          <HStack spacing="1" mt="2" color={subtextColor}>
-            <Badge variant="subtle" colorScheme={channel.is_announcement ? 'orange' : 'teal'} fontSize="xs">
-              {channel.is_announcement ? 'Announcements' : channel.type === 'group' ? 'Private Group' : 'Channel'}
-            </Badge>
-          </HStack>
-        </Box>
-        <Divider />
-        <Box p="4">
-          <HStack justify="space-between" align="center" mb="3">
-            <Text fontWeight="700" fontSize="sm" color={textColor}>
-              Members ({members.length})
-            </Text>
-            {isAdmin && (
+      <Box p="4">
+        <HStack justify="space-between" align="center" mb="1">
+          <Text fontWeight="700" fontSize="sm" color={textColor}>About</Text>
+          {isAdmin && (
+            <HStack spacing="1">
               <IconButton
-                aria-label="Manage members"
-                icon={<UserPlus size={14} />}
+                aria-label="Edit channel"
+                icon={<Pencil size={14} />}
                 size="xs"
                 variant="ghost"
-                colorScheme="teal"
-                onClick={() => setMembersOpen(true)}
+                colorScheme="gray"
+                onClick={() => {
+                  setEditName(channel.name);
+                  setEditDescription(channel.description || '');
+                  setEditIsAnnouncement(channel.is_announcement);
+                  setEditOpen(true);
+                }}
               />
-            )}
-          </HStack>
-          <VStack spacing="2" align="stretch">
-            {members.map((member) => (
-              <HStack key={member.user_id} spacing="2">
-                <Avatar name={member.name} src={member.avatar_url} size="sm" />
-                <Box flex="1" minW="0">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} noOfLines={1}>
-                    {member.name}
-                  </Text>
-                  <Text fontSize="xs" color={subtextColor}>{member.role}</Text>
-                </Box>
-                {isAdmin && members.length > 1 && (
-                  <IconButton
-                    aria-label={`Remove ${member.name}`}
-                    icon={<X size={12} />}
-                    size="xs"
-                    variant="ghost"
-                    colorScheme="red"
-                    isLoading={removingId === member.user_id}
-                    onClick={() => setRemoveConfirm(member)}
-                  />
-                )}
-              </HStack>
-            ))}
-          </VStack>
-        </Box>
+              {!isGeneral && (
+                <IconButton
+                  aria-label="Delete channel"
+                  icon={<Trash2 size={14} />}
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="red"
+                  onClick={() => setDeleteOpen(true)}
+                />
+              )}
+            </HStack>
+          )}
+        </HStack>
+        <Text fontSize="sm" color={subtextColor}>
+          {channel.description || 'No description'}
+        </Text>
+        <HStack spacing="1" mt="2" color={subtextColor}>
+          <Badge variant="subtle" colorScheme={channel.is_announcement ? 'orange' : 'teal'} fontSize="xs">
+            {channel.is_announcement ? 'Announcements' : channel.type === 'group' ? 'Private Group' : 'Channel'}
+          </Badge>
+        </HStack>
+      </Box>
+      <Divider />
+      <Box p="4">
+        <HStack justify="space-between" align="center" mb="3">
+          <Text fontWeight="700" fontSize="sm" color={textColor}>
+            Members ({members.length})
+          </Text>
+          {isAdmin && (
+            <IconButton
+              aria-label="Manage members"
+              icon={<UserPlus size={14} />}
+              size="xs"
+              variant="ghost"
+              colorScheme="teal"
+              onClick={() => setMembersOpen(true)}
+            />
+          )}
+        </HStack>
+        <VStack spacing="2" align="stretch">
+          {members.map((member) => (
+            <HStack key={member.user_id} spacing="2">
+              <Avatar name={member.name} src={member.avatar_url} size="sm" />
+              <Box flex="1" minW="0">
+                <Text fontSize="sm" fontWeight="500" color={textColor} noOfLines={1}>
+                  {member.name}
+                </Text>
+                <Text fontSize="xs" color={subtextColor}>{member.role}</Text>
+              </Box>
+              {isAdmin && members.length > 1 && (
+                <IconButton
+                  aria-label={`Remove ${member.name}`}
+                  icon={<X size={12} />}
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="red"
+                  isLoading={removingId === member.user_id}
+                  onClick={() => setRemoveConfirm(member)}
+                />
+              )}
+            </HStack>
+          ))}
+        </VStack>
       </Box>
 
       {/* Edit Channel Modal */}
@@ -243,7 +235,6 @@ export default function ChannelInfo({
         </ModalContent>
       </Modal>
 
-      {/* Delete Channel Confirmation */}
       <ConfirmDialog
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
@@ -254,7 +245,6 @@ export default function ChannelInfo({
         variant="destructive"
       />
 
-      {/* Remove Member Confirmation */}
       <ConfirmDialog
         isOpen={!!removeConfirm}
         onClose={() => setRemoveConfirm(null)}
@@ -266,7 +256,6 @@ export default function ChannelInfo({
         icon="user"
       />
 
-      {/* Manage Members Modal */}
       {churchId && (
         <ManageChannelMembersModal
           isOpen={membersOpen}
@@ -279,5 +268,44 @@ export default function ChannelInfo({
         />
       )}
     </>
+  );
+}
+
+export default function ChannelInfo(props: ChannelInfoProps) {
+  const { channel, isDrawerOpen, onDrawerClose } = props;
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const bgColor = useColorModeValue('white', 'gray.800');
+
+  if (!channel) return null;
+
+  // If isDrawerOpen is provided, render as a mobile bottom drawer
+  if (isDrawerOpen !== undefined) {
+    return (
+      <Drawer isOpen={isDrawerOpen} placement="bottom" onClose={() => onDrawerClose?.()}>
+        <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
+        <DrawerContent
+          borderTopRadius="2xl"
+          sx={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <DrawerBody p="0">
+            <ChannelInfoContent {...props} onClose={onDrawerClose} />
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  // Desktop: right sidebar
+  return (
+    <Box
+      w="260px"
+      borderLeft="1px solid"
+      borderColor={borderColor}
+      bg={bgColor}
+      display={{ base: 'none', lg: 'block' }}
+      overflowY="auto"
+    >
+      <ChannelInfoContent {...props} />
+    </Box>
   );
 }

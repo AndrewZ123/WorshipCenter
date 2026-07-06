@@ -6,17 +6,21 @@ import { db } from '@/lib/store';
 import {
   Box, Text, HStack, VStack, Flex, Spinner, Center, useColorModeValue,
   useDisclosure, useToast, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
-  Badge, IconButton, Button,
+  Badge, IconButton, Button, useBreakpointValue,
 } from '@chakra-ui/react';
+import { motion } from 'framer-motion';
 import { Menu, MessageCircle, Hash, Plus } from 'lucide-react';
 import type { ChatChannel, ChatReaction, ChatChannelWithMeta, ChatChannelMessagePopulated } from '@/lib/types';
 import ChannelList from '@/components/chat/ChannelList';
 import ChannelHeader from '@/components/chat/ChannelHeader';
 import ChannelInfo from '@/components/chat/ChannelInfo';
+import ChannelPillBar from '@/components/chat/ChannelPillBar';
+import ChannelBottomSheet from '@/components/chat/ChannelBottomSheet';
 import MessageList from '@/components/chat/MessageList';
 import ChatInput from '@/components/chat/ChatInput';
 import ChannelCreateModal from '@/components/chat/ChannelCreateModal';
 import ClientOnly from '@/components/ui/ClientOnly';
+import { mediumHaptic } from '@/lib/haptics';
 
 export default function ChatPage() {
   const { user, church } = useAuth();
@@ -29,6 +33,7 @@ export default function ChatPage() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [channelError, setChannelError] = useState(false);
   const { isOpen: drawerOpen, onOpen: onDrawerOpen, onClose: onDrawerClose } = useDisclosure();
+  const { isOpen: sheetOpen, onOpen: onSheetOpen, onClose: onSheetClose } = useDisclosure();
   const { isOpen: createOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
@@ -246,6 +251,24 @@ export default function ChatPage() {
     return db.channels.updatePoll(pollId, updates);
   };
 
+  const isMobile = useBreakpointValue({ base: true, lg: false });
+  const channelIndexRef = useRef(0);
+  channelIndexRef.current = channels.findIndex((c) => c.id === activeChannel?.id);
+
+  const handleSwipe = useCallback((offsetX: number) => {
+    const mobile = isMobile;
+    if (!mobile || channels.length < 2) return;
+    const SWIPE_THRESHOLD = 80;
+    const idx = channels.findIndex((c) => c.id === activeChannel?.id);
+    if (offsetX > SWIPE_THRESHOLD && idx > 0) {
+      setActiveChannel(channels[idx - 1]);
+      mediumHaptic();
+    } else if (offsetX < -SWIPE_THRESHOLD && idx < channels.length - 1) {
+      setActiveChannel(channels[idx + 1]);
+      mediumHaptic();
+    }
+  }, [isMobile, channels, activeChannel?.id]);
+
   const handleChannelCreated = async () => {
     await loadChannels();
   };
@@ -283,7 +306,7 @@ export default function ChatPage() {
   return (
     <ClientOnly fallback={<Center minH="80dvh"><Spinner size="xl" color="teal.500" /></Center>}>
     <Box h="calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom))" display="flex" flexDir="column">
-      {/* Mobile channel drawer */}
+      {/* Mobile channel drawer (desktop-style, kept for fallback) */}
       <Drawer isOpen={drawerOpen} placement="left" onClose={onDrawerClose} size="xs">
         <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
         <DrawerContent maxW="240px">
@@ -300,6 +323,17 @@ export default function ChatPage() {
         </DrawerContent>
       </Drawer>
 
+      {/* Mobile channel bottom sheet */}
+      <ChannelBottomSheet
+        isOpen={sheetOpen}
+        onClose={onSheetClose}
+        channels={channels}
+        activeChannelId={activeChannel?.id || null}
+        onSelect={(ch) => setActiveChannel(ch)}
+        canCreate={isAdmin}
+        onCreateClick={onCreateOpen}
+      />
+
       <Box display="flex" flex="1" overflow="hidden" bg={cardBg} borderRadius={{ base: '0', md: 'xl' }} border={{ base: 'none', md: '1px solid' }} borderColor={borderColor} m={{ base: '0', md: '4' }}>
         {/* Desktop Channel List */}
         <Box display={{ base: 'none', lg: 'block' }}>
@@ -314,16 +348,16 @@ export default function ChatPage() {
 
         {/* Main Chat Area */}
         <Box display="flex" flexDir="column" flex="1" minW="0">
-          {/* Mobile header with hamburger */}
-          <Box display={{ base: 'flex', lg: 'none' }} borderBottom="1px solid" borderColor={borderColor} p="3" alignItems="center">
+          {/* Mobile header with channel name + bottom sheet trigger */}
+          <Box display={{ base: 'flex', lg: 'none' }} borderBottom="1px solid" borderColor={borderColor} p="3" alignItems="center" onClick={onSheetOpen} cursor="pointer" _active={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
             <IconButton
               aria-label="Open channels"
               icon={<Menu size={20} />}
               variant="ghost"
               size="sm"
-              onClick={onDrawerOpen}
+              onClick={(e) => { e.stopPropagation(); onSheetOpen(); }}
             />
-            <HStack spacing="2" ml="2">
+            <HStack spacing="2" ml="2" flex="1">
               {activeChannel?.is_announcement ? (
                 <Badge colorScheme="orange" variant="subtle" borderRadius="full" px="2" fontSize="xs">
                   Announcement
@@ -335,17 +369,44 @@ export default function ChatPage() {
             </HStack>
           </Box>
 
-          {!activeChannel ? (
-            <Center h="full" flex="1">
-              <VStack spacing="4">
-                <MessageCircle size={48} color="gray.300" />
-                <Text fontSize="lg" fontWeight="600" color="gray.500">Select a channel</Text>
-              </VStack>
-            </Center>
-          ) : (
-            <>
-              <ChannelHeader channel={activeChannel} memberCount={channelMembers.length} />
-              <MessageList
+          {/* Mobile channel pill bar */}
+          <Box display={{ base: 'block', lg: 'none' }}>
+            <ChannelPillBar
+              channels={channels}
+              activeChannelId={activeChannel?.id || null}
+              onSelect={(ch) => setActiveChannel(ch)}
+            />
+          </Box>
+
+          {/* Swipe-enabled content area */}
+          <Box flex="1" display="flex" flexDir="column" minH="0" position="relative">
+            <motion.div
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.05}
+              onDragEnd={(_, info) => handleSwipe(info.offset.x)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+                minHeight: 0,
+                position: 'relative',
+                zIndex: 0,
+              }}
+            >
+              {!activeChannel ? (
+                <Center h="full" flex="1">
+                  <VStack spacing="4">
+                    <MessageCircle size={48} color="gray.300" />
+                    <Text fontSize="lg" fontWeight="600" color="gray.500">Select a channel</Text>
+                  </VStack>
+                </Center>
+              ) : (
+                <>
+                  <Box display={{ base: 'none', lg: 'block' }}>
+                    <ChannelHeader channel={activeChannel} memberCount={channelMembers.length} />
+                  </Box>
+                  <MessageList
                 messages={messages}
                 reactions={reactions}
                 currentUserId={user?.id || ''}
@@ -367,6 +428,8 @@ export default function ChatPage() {
               />
             </>
           )}
+          </motion.div>
+        </Box>
         </Box>
 
         {/* Desktop Channel Info */}

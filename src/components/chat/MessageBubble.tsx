@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Box, Flex, VStack, HStack, Text, useColorModeValue, IconButton, Textarea, Button,
-  Menu, MenuButton, MenuList, MenuItem,
+  Menu, MenuButton, MenuList, MenuItem, useBreakpointValue,
 } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { MoreVertical, Pencil, Trash2, X, Check } from 'lucide-react';
@@ -12,6 +12,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { formatRelativeDate } from '@/lib/formatDate';
 import MarkdownRenderer from './MarkdownRenderer';
 import ReactionBar from './ReactionBar';
+import MessageActionSheet from './MessageActionSheet';
 import type { ChatReaction } from '@/lib/types';
 
 import PollRenderer from './PollRenderer';
@@ -51,6 +52,44 @@ export default function MessageBubble({
   const [editContent, setEditContent] = useState(message.content || '');
   const [isSaving, setIsSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [actionOpen, setActionOpen] = useState(false);
+  const isMobile = useBreakpointValue({ base: true, lg: false });
+
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, []);
+
+  const handleTouchStart = () => {
+    longPressTimer.current = setTimeout(() => {
+      setActionOpen(true);
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = undefined;
+    }
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = undefined;
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (isMobile) {
+      e.preventDefault();
+      setActionOpen(true);
+    }
+  };
 
   const ownBubbleBg = useColorModeValue('teal.500', 'teal.400');
   const otherBubbleBg = useColorModeValue('white', 'gray.700');
@@ -88,20 +127,33 @@ export default function MessageBubble({
     }
   };
 
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content || '');
+    } catch {
+      // Fallback: no clipboard API
+    }
+  };
+
   const hasBeenEdited = !!message.updated_at;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.2 }}
-    >
-      <Flex
-        align="end"
-        gap="2"
-        flexDir={isOwn ? 'row-reverse' : 'row'}
-        mt={isGrouped ? '1' : '3'}
+      <motion.div
+        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.2 }}
+        ref={containerRef}
+        onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
       >
+        <Flex
+          align="end"
+          gap="2"
+          flexDir={isOwn ? 'row-reverse' : 'row'}
+          mt={isGrouped ? '1' : '3'}
+        >
         <Box w="28px" h="28px" flexShrink={0}>
           {showAvatar && (
             <Avatar name={message.user?.name || 'Unknown'} src={message.user?.avatar_url} size="sm" />
@@ -238,7 +290,7 @@ export default function MessageBubble({
             )}
           </VStack>
 
-          {(onEdit || onDelete) && (
+          {(onEdit || onDelete) && !isMobile && (
             <Box opacity="0" _groupHover={{ opacity: 1 }} transition="opacity 0.15s" flexShrink={0}>
               <Menu isLazy placement="bottom-end">
                 <MenuButton
@@ -283,6 +335,18 @@ export default function MessageBubble({
         message="Are you sure you want to delete this message? This cannot be undone."
         confirmLabel="Delete"
       />
+
+      {isMobile && (
+        <MessageActionSheet
+          isOpen={actionOpen}
+          onClose={() => setActionOpen(false)}
+          isOwn={isOwn}
+          onEdit={onEdit ? () => { setEditContent(message.content || ''); setIsEditing(true); } : undefined}
+          onDelete={onDelete ? () => setDeleteOpen(true) : undefined}
+          onReact={onReact ? (emoji) => onReact(message.id, emoji) : undefined}
+          onCopy={handleCopy}
+        />
+      )}
     </motion.div>
   );
 }

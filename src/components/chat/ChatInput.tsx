@@ -3,9 +3,10 @@
 import { useState, useRef, useCallback } from 'react';
 import {
   HStack, Input, IconButton, Box, useColorModeValue, Text,
-  useDisclosure, Tooltip,
+  useDisclosure, Tooltip, useBreakpointValue,
+  Drawer, DrawerOverlay, DrawerContent, DrawerBody,
 } from '@chakra-ui/react';
-import { Send, Smile, ImagePlus, Film, BarChart3, Bold, Italic, Strikethrough } from 'lucide-react';
+import { Send, Smile, ImagePlus, Film, BarChart3, Bold, Italic, Strikethrough, AtSign } from 'lucide-react';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import PollModal from './PollModal';
@@ -25,6 +26,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
   const [showEmoji, setShowEmoji] = useState(false);
   const { isOpen: gifOpen, onOpen: onGifOpen, onClose: onGifClose } = useDisclosure();
   const { isOpen: pollOpen, onOpen: onPollOpen, onClose: onPollClose } = useDisclosure();
+  const isMobile = useBreakpointValue({ base: true, lg: false });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const inputBg = useColorModeValue('gray.50', 'gray.700');
@@ -100,9 +102,9 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
 
   return (
     <>
-      <Box borderTop="1px solid" borderColor={inputBorder} p={{ base: '3', md: '4' }}>
-        {/* Formatting toolbar */}
-        <HStack spacing="1" mb="2">
+      <Box borderTop="1px solid" borderColor={inputBorder} p={{ base: '2', md: '4' }}>
+        {/* Formatting toolbar - hidden on mobile */}
+        <HStack spacing="1" mb="2" display={{ base: 'none', md: 'flex' }}>
           <Tooltip label="Bold">
             <IconButton
               aria-label="Bold"
@@ -172,7 +174,7 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
           </Tooltip>
         </HStack>
 
-        <HStack spacing="3" position="relative">
+        <HStack spacing="2" position="relative" align="end">
           <Box position="relative" flex="1">
             <Input
               ref={inputRef}
@@ -181,8 +183,8 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               size="md"
-              h="48px"
-              fontSize="md"
+              h={isMobile ? '44px' : '48px'}
+              fontSize={isMobile ? '16px' : 'md'}
               bg={inputBg}
               border="1px solid"
               borderColor={inputBorder}
@@ -205,7 +207,23 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
               _hover={{ color: 'teal.500', bg: 'teal.50' }}
               onClick={() => setShowEmoji(!showEmoji)}
             />
-            {showEmoji && (
+            {showEmoji && isMobile && (
+              <Drawer isOpen={showEmoji} placement="bottom" onClose={() => setShowEmoji(false)}>
+                <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
+                <DrawerContent borderTopRadius="2xl" sx={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                  <DrawerBody p="3">
+                    <EmojiPicker
+                      onSelect={(emoji) => {
+                        setInput((prev) => prev + emoji);
+                        inputRef.current?.focus();
+                      }}
+                      onClose={() => setShowEmoji(false)}
+                    />
+                  </DrawerBody>
+                </DrawerContent>
+              </Drawer>
+            )}
+            {showEmoji && !isMobile && (
               <EmojiPicker
                 onSelect={(emoji) => {
                   setInput((prev) => prev + emoji);
@@ -230,6 +248,56 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
             onClick={handleSend}
           />
         </HStack>
+
+        {/* Mobile compact toolbar */}
+        {isMobile && (
+          <HStack spacing="1" mt="1">
+            <IconButton
+              aria-label="Mention"
+              icon={<AtSign size={16} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'teal.500' }}
+              onClick={() => setInput((prev) => prev + '@')}
+              minW="44px"
+              h="44px"
+            />
+            <IconButton
+              aria-label="Upload Image"
+              icon={<ImagePlus size={16} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'teal.500' }}
+              onClick={handleImageUpload}
+              minW="44px"
+              h="44px"
+            />
+            <IconButton
+              aria-label="Add GIF"
+              icon={<Film size={16} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'teal.500' }}
+              onClick={onGifOpen}
+              minW="44px"
+              h="44px"
+            />
+            <IconButton
+              aria-label="Create Poll"
+              icon={<BarChart3 size={16} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'teal.500' }}
+              onClick={onPollOpen}
+              minW="44px"
+              h="44px"
+            />
+          </HStack>
+        )}
       </Box>
 
       <GifPicker

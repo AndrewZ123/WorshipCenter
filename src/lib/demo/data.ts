@@ -446,6 +446,7 @@ const tm5 = DEMO_TEAM_MEMBERS.find(m => m.id === 'tm-5')!;
 export const DEMO_CHAT_MESSAGES: ChatMessagePopulated[] = [
   {
     id: 'chat-1',
+    channel_id: 'ch-general',
     church_id: DEMO_CHURCH.id,
     user_id: tm1.id,
     content: 'Hey team! Just uploaded chord charts for this Sunday. Please take a look and let me know if you need any changes.',
@@ -454,6 +455,7 @@ export const DEMO_CHAT_MESSAGES: ChatMessagePopulated[] = [
   },
   {
     id: 'chat-2',
+    channel_id: 'ch-general',
     church_id: DEMO_CHURCH.id,
     user_id: tm2.id,
     content: 'Thanks Jordan! I noticed we\'re doing Way Maker in B - should I transpose to A for easier playing on keys?',
@@ -462,6 +464,7 @@ export const DEMO_CHAT_MESSAGES: ChatMessagePopulated[] = [
   },
   {
     id: 'chat-3',
+    channel_id: 'ch-general',
     church_id: DEMO_CHURCH.id,
     user_id: tm1.id,
     content: 'Good call! Let\'s do it in A then. I\'ll update the setlist.',
@@ -470,6 +473,7 @@ export const DEMO_CHAT_MESSAGES: ChatMessagePopulated[] = [
   },
   {
     id: 'chat-4',
+    channel_id: 'ch-general',
     church_id: DEMO_CHURCH.id,
     user_id: tm5.id,
     content: 'Reminder: rehearsal is Thursday at 7pm. Can everyone make it?',
@@ -478,6 +482,7 @@ export const DEMO_CHAT_MESSAGES: ChatMessagePopulated[] = [
   },
   {
     id: 'chat-5',
+    channel_id: 'ch-general',
     church_id: DEMO_CHURCH.id,
     user_id: tm3.id,
     content: 'I\'ll be there! Should I bring my pedalboard or go straight to amp?',

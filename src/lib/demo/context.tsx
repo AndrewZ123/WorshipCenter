@@ -493,6 +493,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const createChatMessage = useCallback((message: Omit<ChatMessage, 'id' | 'created_at'>): ChatMessagePopulated => {
     const newMessage: ChatMessagePopulated = {
       ...message,
+      channel_id: message.channel_id,
       id: generateId(),
       created_at: new Date().toISOString(),
       user: user || { id: 'demo-user', email: 'demo@example.com', name: 'Demo User' },

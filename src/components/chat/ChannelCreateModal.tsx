@@ -5,6 +5,7 @@ import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton,
   ModalBody, ModalFooter, Button, FormControl, FormLabel, Input,
   Box, VStack, HStack, Switch, Text, useToast, Textarea,
+  useBreakpointValue,
 } from '@chakra-ui/react';
 import { db } from '@/lib/store';
 import type { User } from '@/lib/types';
@@ -23,6 +24,7 @@ export default function ChannelCreateModal({ isOpen, onClose, churchId, userId, 
   const [isAnnouncement, setIsAnnouncement] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(false);
+  const modalSize = useBreakpointValue({ base: 'full', md: 'md' });
   const [users, setUsers] = useState<User[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const toast = useToast();
@@ -74,7 +76,7 @@ export default function ChannelCreateModal({ isOpen, onClose, churchId, userId, 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="md" isCentered>
+    <Modal isOpen={isOpen} onClose={onClose} size={modalSize} isCentered>
       <ModalOverlay backdropBlur="sm" />
       <ModalContent borderRadius="2xl" mx="4">
         <ModalHeader fontWeight="700">Create Channel</ModalHeader>
