@@ -181,6 +181,9 @@ function createDemoServiceChat(getDemoContext: () => DemoContextType) {
 // This creates a demo store object that mirrors the real db interface
 export function createDemoStore(getDemoContext: () => DemoContextType) {
   return {
+    // Normalize channel message (demo already uses `user`, not `users`)
+    normalizeChannelMessage: (msg: any) => msg,
+
     churches: {
       getById: async (id: string): Promise<Church | null> => {
         const demo = getDemoContext();
