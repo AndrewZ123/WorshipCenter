@@ -67,7 +67,6 @@ export default function ChannelInfo({ channel, members, isAdmin, onUpdateChannel
     try {
       await onDeleteChannel(channel.id);
       toast({ title: 'Channel deleted', status: 'success', duration: 2000 });
-      setDeleteOpen(false);
     } catch {
       toast({ title: 'Failed to delete channel', status: 'error', duration: 3000 });
     }
@@ -147,7 +146,7 @@ export default function ChannelInfo({ channel, members, isAdmin, onUpdateChannel
       </Box>
 
       {/* Edit Channel Modal */}
-      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} size="md" isCentered>
+      <Modal key={channel.id} isOpen={editOpen} onClose={() => setEditOpen(false)} size="md" isCentered>
         <ModalOverlay backdropBlur="sm" />
         <ModalContent borderRadius="2xl" mx="4">
           <ModalHeader fontWeight="700">Edit Channel</ModalHeader>

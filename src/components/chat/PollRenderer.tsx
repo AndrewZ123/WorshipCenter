@@ -218,6 +218,11 @@ export default function PollRenderer({
             </Box>
             <Box>
               <Text fontSize="xs" fontWeight="600" color={subtextColor} mb="1">Options</Text>
+              {totalVotes > 0 && (
+                <Text fontSize="xs" color="orange.500" mb="2" fontStyle="italic">
+                  Options can't be edited after votes are cast
+                </Text>
+              )}
               <VStack spacing="2">
                 {editOptions.map((opt, i) => (
                   <HStack key={i} w="full" spacing="2">
@@ -233,9 +238,10 @@ export default function PollRenderer({
                         rows={1}
                         minH="36px"
                         py="2"
+                        isDisabled={totalVotes > 0}
                       />
                     </Box>
-                    {editOptions.length > 2 && (
+                    {editOptions.length > 2 && !(totalVotes > 0) && (
                       <IconButton
                         aria-label="Remove option"
                         icon={<X size={14} />}

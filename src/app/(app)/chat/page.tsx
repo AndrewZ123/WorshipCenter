@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/store';
 import {
   Box, Text, HStack, VStack, Flex, Spinner, Center, useColorModeValue,
-  useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
+  useDisclosure, useToast, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
   Badge, IconButton, Button,
 } from '@chakra-ui/react';
 import { Menu, MessageCircle, Hash, Plus } from 'lucide-react';
@@ -16,6 +16,7 @@ import ChannelInfo from '@/components/chat/ChannelInfo';
 import MessageList from '@/components/chat/MessageList';
 import ChatInput from '@/components/chat/ChatInput';
 import ChannelCreateModal from '@/components/chat/ChannelCreateModal';
+import ClientOnly from '@/components/ui/ClientOnly';
 
 export default function ChatPage() {
   const { user, church } = useAuth();
@@ -35,6 +36,7 @@ export default function ChatPage() {
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const toast = useToast();
 
   const isAdmin = user?.role === 'admin' || user?.role === 'leader';
 
@@ -140,6 +142,7 @@ export default function ChatPage() {
     const unsub = db.channels.subscribe(
       activeChannel.id,
       (payload, event) => {
+        if (payload.channel_id !== activeChannelRef.current?.id) return;
         if (event === 'INSERT') {
           setMessages((prev) => {
             const exists = prev.some((m) => m.id === payload.id);
@@ -182,16 +185,24 @@ export default function ChatPage() {
   };
 
   const handleEdit = async (messageId: string, content: string) => {
-    const updated = await db.channels.updateMessage(messageId, content);
-    if (updated) {
-      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: updated.content, updated_at: updated.updated_at } : m)));
+    try {
+      const updated = await db.channels.updateMessage(messageId, content);
+      if (updated) {
+        setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: updated.content, updated_at: updated.updated_at } : m)));
+      }
+    } catch {
+      toast({ title: 'Failed to edit message', status: 'error', duration: 3000 });
     }
   };
 
   const handleDelete = async (messageId: string) => {
-    const ok = await db.channels.deleteMessage(messageId);
-    if (ok) {
-      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    try {
+      const ok = await db.channels.deleteMessage(messageId);
+      if (ok) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      }
+    } catch {
+      toast({ title: 'Failed to delete message', status: 'error', duration: 3000 });
     }
   };
 
@@ -270,6 +281,7 @@ export default function ChatPage() {
   }
 
   return (
+    <ClientOnly fallback={<Center minH="80dvh"><Spinner size="xl" color="teal.500" /></Center>}>
     <Box h="calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom))" display="flex" flexDir="column">
       {/* Mobile channel drawer */}
       <Drawer isOpen={drawerOpen} placement="left" onClose={onDrawerClose} size="xs">
@@ -376,8 +388,17 @@ export default function ChatPage() {
               if (!church?.id) return;
               db.channels.delete(id, church.id).then((ok) => {
                 if (ok) {
-                  setChannels((prev) => prev.filter((c) => c.id !== id));
-                  setActiveChannel((prev) => (prev?.id === id ? channels.find((c) => c.id !== id) || null : prev));
+                  setChannels((prev) => {
+                    const idx = prev.findIndex((c) => c.id === id);
+                    const filtered = prev.filter((c) => c.id !== id);
+                    setActiveChannel((current) => {
+                      if (current?.id !== id) return current;
+                      if (filtered.length === 0) return null;
+                      if (idx > 0) return filtered[Math.min(idx - 1, filtered.length - 1)];
+                      return filtered[0];
+                    });
+                    return filtered;
+                  });
                 }
               });
             }}
@@ -394,5 +415,6 @@ export default function ChatPage() {
         onCreated={handleChannelCreated}
       />
     </Box>
+    </ClientOnly>
   );
 }

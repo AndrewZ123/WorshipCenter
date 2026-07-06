@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import {
   Box, Flex, VStack, HStack, Text, useColorModeValue, IconButton, Textarea, Button,
   Menu, MenuButton, MenuList, MenuItem,
@@ -52,38 +52,12 @@ export default function MessageBubble({
   const [isSaving, setIsSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const menuRef = useRef<HTMLDivElement>(null);
-  const rowRef = useRef<HTMLDivElement>(null);
-
   const ownBubbleBg = useColorModeValue('teal.500', 'teal.400');
   const otherBubbleBg = useColorModeValue('white', 'gray.700');
   const otherBubbleBorder = useColorModeValue('gray.200', 'gray.600');
   const timeColor = useColorModeValue('gray.400', 'gray.500');
   const editBg = useColorModeValue('white', 'gray.700');
   const editBorder = useColorModeValue('gray.300', 'gray.500');
-
-  // Client-only hover effect for the 3-dot menu.
-  // We use DOM event listeners instead of Chakra's _groupHover
-  // to avoid generating different CSS class names between SSR and client,
-  // which would cause React hydration errors (#418, #310).
-  useEffect(() => {
-    const btn = menuRef.current;
-    const row = rowRef.current;
-    if (!btn || !row) return;
-
-    const show = () => { btn.style.opacity = '1'; };
-    const hide = () => { btn.style.opacity = '0'; };
-
-    if (isOwn) {
-      row.addEventListener('mouseenter', show);
-      row.addEventListener('mouseleave', hide);
-    }
-
-    return () => {
-      row.removeEventListener('mouseenter', show);
-      row.removeEventListener('mouseleave', hide);
-    };
-  }, [isOwn]);
 
   const handleSaveEdit = async () => {
     if (!editContent.trim() || !onEdit) return;
@@ -107,6 +81,13 @@ export default function MessageBubble({
     setDeleteOpen(false);
   };
 
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveEdit();
+    }
+  };
+
   const hasBeenEdited = !!message.updated_at;
 
   return (
@@ -127,7 +108,7 @@ export default function MessageBubble({
           )}
         </Box>
 
-        <Flex ref={rowRef} align="end" gap="1" flex="1" minW="0" justify={isOwn ? 'flex-end' : 'flex-start'}>
+        <Flex role="group" align="end" gap="1" flex="1" minW="0" justify={isOwn ? 'flex-end' : 'flex-start'}>
           <VStack align={isOwn ? 'flex-end' : 'flex-start'} spacing="1" flex="1" minW="0">
             {showName && (
               <HStack spacing="2" px="1">
@@ -194,6 +175,7 @@ export default function MessageBubble({
                 <Textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
+                  onKeyDown={handleEditKeyDown}
                   variant="unstyled"
                   px="4"
                   py="3"
@@ -256,9 +238,8 @@ export default function MessageBubble({
             )}
           </VStack>
 
-          {/* 3-dot menu — visible on hover for own messages via JS event listeners */}
           {(onEdit || onDelete) && (
-            <Box ref={menuRef} opacity="0" transition="opacity 0.15s" flexShrink={0}>
+            <Box opacity="0" _groupHover={{ opacity: 1 }} transition="opacity 0.15s" flexShrink={0}>
               <Menu isLazy placement="bottom-end">
                 <MenuButton
                   as={IconButton}

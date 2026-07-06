@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDemo } from '@/lib/demo/context';
 import Avatar from '@/components/ui/Avatar';
+import ClientOnly from '@/components/ui/ClientOnly';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { formatRelativeDate, formatServiceDate } from '@/lib/formatDate';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -100,8 +101,6 @@ function MessageBubble({
   const [editContent, setEditContent] = useState(message.content || '');
   const [isSaving, setIsSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const rowRef = useRef<HTMLDivElement>(null);
 
   const ownBubbleBg = useColorModeValue('teal.500', 'teal.400');
   const otherBubbleBg = useColorModeValue('white', 'gray.700');
@@ -111,23 +110,6 @@ function MessageBubble({
   const timeColor = useColorModeValue('gray.400', 'gray.500');
   const editBg = useColorModeValue('white', 'gray.700');
   const editBorder = useColorModeValue('gray.300', 'gray.500');
-
-  // Client-only hover effect — avoids CSS class mismatch during hydration
-  useEffect(() => {
-    const btn = menuRef.current;
-    const row = rowRef.current;
-    if (!btn || !row) return;
-    const show = () => { btn.style.opacity = '1'; };
-    const hide = () => { btn.style.opacity = '0'; };
-    if (isOwn) {
-      row.addEventListener('mouseenter', show);
-      row.addEventListener('mouseleave', hide);
-    }
-    return () => {
-      row.removeEventListener('mouseenter', show);
-      row.removeEventListener('mouseleave', hide);
-    };
-  }, [isOwn]);
 
   const handleSaveEdit = async () => {
     if (!editContent.trim() || !onEdit) return;
@@ -165,7 +147,7 @@ function MessageBubble({
           )}
         </Box>
 
-        <Flex ref={rowRef} align="end" gap="1" flex="1" minW="0" justify={isOwn ? 'flex-end' : 'flex-start'}>
+        <Flex role="group" align="end" gap="1" flex="1" minW="0" justify={isOwn ? 'flex-end' : 'flex-start'}>
           <VStack
             align={isOwn ? 'flex-end' : 'flex-start'}
             spacing="1"
@@ -283,9 +265,8 @@ function MessageBubble({
             )}
           </VStack>
 
-          {/* 3-dot menu — visible on hover for own messages via JS event listeners */}
           {(onEdit || onDelete) && (
-            <Box ref={menuRef} opacity="0" transition="opacity 0.15s" flexShrink={0}>
+            <Box opacity="0" _groupHover={{ opacity: 1 }} transition="opacity 0.15s" flexShrink={0}>
               <Menu isLazy placement="bottom-end">
                 <MenuButton
                   as={IconButton}
@@ -413,6 +394,7 @@ export default function DemoChatPage() {
   const messageGroups = groupMessagesByDate(messages);
 
   return (
+    <ClientOnly fallback={<Center minH="80dvh"><Spinner size="xl" color="teal.500" /></Center>}>
     <Box
       px={{ base: '0', md: '4' }}
       pt={{ base: '2', md: '8' }}
@@ -624,5 +606,6 @@ export default function DemoChatPage() {
         </Box>
       </Box>
     </Box>
+    </ClientOnly>
   );
 }

@@ -67,10 +67,10 @@ export default function MessageList({
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
+  const prevLenRef = useRef(0);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
-  // Track whether the user is scrolled to the bottom
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -83,29 +83,48 @@ export default function MessageList({
     el.scrollTop = el.scrollHeight;
   }, []);
 
-  // Scroll to bottom whenever messages change or isLoading transitions to false,
-  // but only if the user is at the bottom (or hasn't scrolled up yet on initial load).
+  // Scroll to bottom on initial load
   useEffect(() => {
-    if (messages.length === 0) return;
-    if (!atBottomRef.current && !isLoading) return;
-    scrollToBottom();
-    // Keep trying for async-loaded content (polls, reactions) using rAF
-    let rafId: number;
-    let attempts = 0;
-    const keepScrolling = () => {
-      const el = containerRef.current;
-      if (!el) return;
-      const prev = el.scrollTop;
-      el.scrollTop = el.scrollHeight;
-      // If scrolling still moved content, there may be more async renders pending
-      if (el.scrollTop !== prev && attempts < 8) {
-        attempts++;
-        rafId = requestAnimationFrame(keepScrolling);
-      }
+    if (!isLoading && messages.length > 0) {
+      scrollToBottom();
+    }
+  }, [isLoading]);
+
+  // Scroll on new messages regardless of user position
+  useEffect(() => {
+    if (messages.length > prevLenRef.current) {
+      scrollToBottom();
+    }
+    prevLenRef.current = messages.length;
+  }, [messages.length, scrollToBottom]);
+
+  // ResizeObserver for async content (polls, reactions) with 200ms debounce
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (atBottomRef.current) {
+          scrollToBottom();
+        }
+      }, 200);
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timeoutId);
     };
-    rafId = requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(keepScrolling)));
-    return () => cancelAnimationFrame(rafId);
-  }, [messages, isLoading, scrollToBottom]);
+  }, [scrollToBottom]);
+
+  // Attach scroll listener to track user position
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
   if (isLoading) {
     return (
@@ -133,14 +152,6 @@ export default function MessageList({
   }
 
   const groups = groupMessagesByDate(messages);
-
-  // Attach scroll listener to track user position
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
 
   return (
     <Box ref={containerRef} flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor}>
