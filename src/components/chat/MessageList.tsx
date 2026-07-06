@@ -102,22 +102,32 @@ export default function MessageList({
     prevLenRef.current = messages.length;
   }, [messages.length, scrollToBottom]);
 
-  // ResizeObserver for async content (polls, reactions) with 200ms debounce
+  // ResizeObserver + MutationObserver for async content (images, polls, reactions)
+  // ResizeObserver catches container size changes; MutationObserver catches DOM mutations
+  // like Chakra Image swapping placeholder fallback for loaded <img>
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     let timeoutId: ReturnType<typeof setTimeout>;
-    const observer = new ResizeObserver(() => {
+
+    const recheck = () => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         if (atBottomRef.current) {
           scrollToBottom();
         }
-      }, 200);
-    });
-    observer.observe(el);
+      }, 100);
+    };
+
+    const resizeObserver = new ResizeObserver(recheck);
+    resizeObserver.observe(el);
+
+    const mutationObserver = new MutationObserver(recheck);
+    mutationObserver.observe(el, { childList: true, subtree: true });
+
     return () => {
-      observer.disconnect();
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
       clearTimeout(timeoutId);
     };
   }, [scrollToBottom]);
