@@ -6,9 +6,9 @@ import { db } from '@/lib/store';
 import {
   Box, Text, HStack, VStack, Flex, Spinner, Center, useColorModeValue,
   useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
-  Badge, IconButton,
+  Badge, IconButton, Button,
 } from '@chakra-ui/react';
-import { Menu, MessageCircle, Hash } from 'lucide-react';
+import { Menu, MessageCircle, Hash, Plus } from 'lucide-react';
 import type { ChatChannel, ChatReaction, ChatChannelWithMeta, ChatChannelMessagePopulated } from '@/lib/types';
 import ChannelList from '@/components/chat/ChannelList';
 import ChannelHeader from '@/components/chat/ChannelHeader';
@@ -223,8 +223,15 @@ export default function ChatPage() {
       <Center minH="80dvh">
         <VStack spacing="4">
           <MessageCircle size={48} color="gray.300" />
-          <Text fontSize="lg" fontWeight="600" color="gray.500">Could not load chat</Text>
-          <Text fontSize="sm" color={subtextColor}>Please check your connection</Text>
+          <Text fontSize="lg" fontWeight="600" color="gray.500">Chat isn't set up yet</Text>
+          <Text fontSize="sm" color={subtextColor} textAlign="center" maxW="300px">
+            No channels found. An admin needs to create the first channel to get started.
+          </Text>
+          {isAdmin && (
+            <Button colorScheme="teal" size="sm" leftIcon={<Plus size={16} />} onClick={onCreateOpen}>
+              Create Channel
+            </Button>
+          )}
         </VStack>
       </Center>
     );
