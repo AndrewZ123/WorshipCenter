@@ -68,7 +68,6 @@ export default function MessageList({
   const endRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const prevLenRef = useRef(0);
-  const scrollRafRef = useRef(0);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
@@ -76,11 +75,10 @@ export default function MessageList({
   const groups = useMemo(() => groupMessagesByDate(messages), [messages]);
 
   const scrollToBottom = useCallback(() => {
-    // Guard: only one scroll per frame to prevent layout thrashing
-    if (scrollRafRef.current) return;
-    scrollRafRef.current = requestAnimationFrame(() => {
-      scrollRafRef.current = 0;
-      endRef.current?.scrollIntoView({ block: 'end' });
+    const el = containerRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
     });
   }, []);
 
@@ -90,17 +88,19 @@ export default function MessageList({
     atBottomRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
   }, []);
 
-  // Scroll to bottom on load / channel change
+  // Single scroll effect — fires once when loading finishes and messages are ready
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
       scrollToBottom();
     }
   }, [isLoading, messages.length, scrollToBottom]);
 
-  // Auto-scroll on new messages (while preserving at-bottom tracking)
+  // Auto-scroll for new subscription messages (only if user is at bottom)
   useEffect(() => {
     if (messages.length > prevLenRef.current) {
-      scrollToBottom();
+      if (prevLenRef.current > 0 && atBottomRef.current) {
+        scrollToBottom();
+      }
     }
     prevLenRef.current = messages.length;
   }, [messages.length, scrollToBottom]);
@@ -113,7 +113,8 @@ export default function MessageList({
     return () => el.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  const showSpinner = isLoading && messages.length === 0;
+  // Keep the DOM stable during loading — only show messages when everything is ready
+  const showSpinner = isLoading;
   const showEmpty = !isLoading && messages.length === 0;
   const showMessages = messages.length > 0;
 
