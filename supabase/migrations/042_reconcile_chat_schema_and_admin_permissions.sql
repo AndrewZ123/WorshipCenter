@@ -119,16 +119,6 @@ CREATE POLICY "Users can post messages"
   ON chat_messages FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
-CREATE POLICY "Users can post messages"
-  ON chat_messages FOR INSERT
-  WITH CHECK (
-    user_id = auth.uid()
-    AND (
-      channel_id IS NULL
-      OR channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid()))
-    )
-  );
-
 CREATE POLICY "Users can delete their own messages"
   ON chat_messages FOR DELETE
   USING (user_id = auth.uid());

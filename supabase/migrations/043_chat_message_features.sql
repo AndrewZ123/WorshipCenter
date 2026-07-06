@@ -79,14 +79,11 @@ CREATE POLICY "Users can view polls in accessible channels"
   ON chat_polls FOR SELECT
   USING (channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid())));
 
--- Polls: users can create polls in channels they can access
+-- Polls: users can create polls
 DROP POLICY IF EXISTS "Users can create polls in accessible channels" ON chat_polls;
 CREATE POLICY "Users can create polls in accessible channels"
   ON chat_polls FOR INSERT
-  WITH CHECK (
-    user_id = auth.uid()
-    AND channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid()))
-  );
+  WITH CHECK (user_id = auth.uid());
 
 -- Voting: users can vote
 DROP POLICY IF EXISTS "Users can vote on polls" ON chat_poll_votes;

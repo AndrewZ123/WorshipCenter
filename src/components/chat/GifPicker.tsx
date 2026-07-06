@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton,
   ModalBody, Input, SimpleGrid, Image, Box, Spinner, Text, VStack,
-  useColorModeValue, IconButton,
+  useColorModeValue, IconButton, Alert, AlertIcon, AlertDescription,
 } from '@chakra-ui/react';
 import { Search, X } from 'lucide-react';
 
@@ -26,19 +26,27 @@ export default function GifPicker({ isOpen, onClose, onSelect }: GifPickerProps)
   const [results, setResults] = useState<GifResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [giphyError, setGiphyError] = useState('');
   const hoverBg = useColorModeValue('gray.100', 'gray.600');
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) return;
     setLoading(true);
     setSearched(true);
+    setGiphyError('');
     try {
       const res = await fetch(`/api/chat/giphy?q=${encodeURIComponent(q.trim())}`);
       const data = await res.json();
-      setResults(data.results || []);
+      if (data.error === 'GIPHY API key not configured') {
+        setGiphyError('GIPHY API key not configured. Add GIPHY_API_KEY to your environment variables.');
+        setResults([]);
+      } else {
+        setResults(data.results || []);
+      }
     } catch (error) {
       console.error('GIF search failed:', error);
       setResults([]);
+      setGiphyError('Search failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -89,7 +97,14 @@ export default function GifPicker({ isOpen, onClose, onSelect }: GifPickerProps)
 
           {!loading && searched && results.length === 0 && (
             <VStack py="8" spacing="2">
-              <Text color="gray.400" fontSize="sm">No GIFs found</Text>
+              {giphyError ? (
+                <Alert status="warning" borderRadius="lg" fontSize="sm">
+                  <AlertIcon />
+                  <AlertDescription>{giphyError}</AlertDescription>
+                </Alert>
+              ) : (
+                <Text color="gray.400" fontSize="sm">No GIFs found</Text>
+              )}
             </VStack>
           )}
 
