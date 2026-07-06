@@ -80,20 +80,24 @@ export default function MessageList({
   const scrollToBottom = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
   }, []);
 
-  // Scroll to bottom on initial load
+  // Scroll to bottom on load or channel change
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
       scrollToBottom();
     }
-  }, [isLoading]);
+  }, [isLoading, messages.length, scrollToBottom]);
 
-  // Scroll on new messages regardless of user position
+  // Scroll on new messages only if user is near bottom
   useEffect(() => {
     if (messages.length > prevLenRef.current) {
-      scrollToBottom();
+      if (atBottomRef.current) {
+        scrollToBottom();
+      }
     }
     prevLenRef.current = messages.length;
   }, [messages.length, scrollToBottom]);
