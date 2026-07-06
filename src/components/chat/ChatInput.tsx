@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   HStack, Input, IconButton, Box, useColorModeValue, Text,
   useDisclosure, Tooltip, useBreakpointValue,
@@ -31,6 +31,10 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
 
   const inputBg = useColorModeValue('gray.50', 'gray.700');
   const inputBorder = useColorModeValue('gray.200', 'gray.600');
+
+  useEffect(() => {
+    inputRef.current?.blur();
+  }, []);
 
   const wrapSelection = useCallback((before: string, after: string) => {
     const el = inputRef.current;
@@ -176,52 +180,75 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
 
         {/* Mobile compact toolbar - above input row */}
         {isMobile && (
-          <HStack spacing="1" mb="1.5">
-            <IconButton
-              aria-label="Mention"
-              icon={<AtSign size={16} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'teal.500' }}
-              onClick={() => setInput((prev) => prev + '@')}
-              minW="44px"
-              h="36px"
-            />
-            <IconButton
-              aria-label="Upload Image"
-              icon={<ImagePlus size={16} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'teal.500' }}
-              onClick={handleImageUpload}
-              minW="44px"
-              h="36px"
-            />
-            <IconButton
-              aria-label="Add GIF"
-              icon={<Film size={16} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'teal.500' }}
-              onClick={onGifOpen}
-              minW="44px"
-              h="36px"
-            />
-            <IconButton
-              aria-label="Create Poll"
-              icon={<BarChart3 size={16} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'teal.500' }}
-              onClick={onPollOpen}
-              minW="44px"
-              h="36px"
-            />
-          </HStack>
+          <>
+            {/* Inline GIF picker (above toolbar, below messages) */}
+            {gifOpen && (
+              <GifPicker
+                isOpen={gifOpen}
+                onClose={onGifClose}
+                onSelect={async (url) => {
+                  try {
+                    await onSend(`![gif](${url})`);
+                  } catch {
+                    setInput((prev) => prev + ` ![gif](${url})`);
+                  }
+                }}
+                variant="inline"
+              />
+            )}
+            <HStack spacing="1" mb="1.5">
+              <IconButton
+                aria-label="Mention"
+                icon={<AtSign size={16} />}
+                size="xs"
+                variant="ghost"
+                color="gray.400"
+                _hover={{ color: 'teal.500' }}
+                onClick={() => setInput((prev) => prev + '@')}
+                minW="44px"
+                h="36px"
+              />
+              <IconButton
+                aria-label="Upload Image"
+                icon={<ImagePlus size={16} />}
+                size="xs"
+                variant="ghost"
+                color="gray.400"
+                _hover={{ color: 'teal.500' }}
+                onClick={handleImageUpload}
+                minW="44px"
+                h="36px"
+              />
+              <IconButton
+                aria-label="Add GIF"
+                icon={<Film size={16} />}
+                size="xs"
+                variant="ghost"
+                color="gray.400"
+                _hover={{ color: 'teal.500' }}
+                onClick={() => {
+                  if (!gifOpen) {
+                    onGifOpen();
+                    // Keep input focused so keyboard stays open
+                    requestAnimationFrame(() => inputRef.current?.focus());
+                  }
+                }}
+                minW="44px"
+                h="36px"
+              />
+              <IconButton
+                aria-label="Create Poll"
+                icon={<BarChart3 size={16} />}
+                size="xs"
+                variant="ghost"
+                color="gray.400"
+                _hover={{ color: 'teal.500' }}
+                onClick={onPollOpen}
+                minW="44px"
+                h="36px"
+              />
+            </HStack>
+          </>
         )}
 
         <HStack spacing="2" position="relative" align="end">
@@ -304,8 +331,12 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
       <GifPicker
         isOpen={gifOpen}
         onClose={onGifClose}
-        onSelect={(url) => {
-          setInput((prev) => prev + ` ![gif](${url})`);
+        onSelect={async (url) => {
+          try {
+            await onSend(`![gif](${url})`);
+          } catch {
+            setInput((prev) => prev + ` ![gif](${url})`);
+          }
         }}
       />
       <PollModal

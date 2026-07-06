@@ -3,8 +3,11 @@
 import { useEffect } from 'react';
 import { initMobile } from '@/lib/mobile';
 import { isCapacitorNative } from '@/lib/api-base';
+import { useKeyboard } from '@/lib/useKeyboard';
 
 export function MobileBootstrap() {
+  useKeyboard();
+
   useEffect(() => {
     initMobile();
   }, []);

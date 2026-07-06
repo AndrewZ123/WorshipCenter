@@ -406,9 +406,14 @@ body.dragging-active {
   }
 }
 
+/* Prevent body scroll when keyboard is visible on web mobile */
+body.keyboard-visible {
+  overflow: hidden !important;
+}
+
 /* When keyboard is visible: shrink shell to free space above keyboard */
 body.keyboard-visible .shell-root {
-  height: calc(100dvh - var(--keyboard-height, 0px)) !important;
+  height: var(--viewport-height, calc(100dvh - var(--keyboard-height, 0px))) !important;
 }
 
 /* Hide bottom nav when keyboard is visible on mobile */
@@ -420,6 +425,18 @@ body.keyboard-visible .bottom-nav {
 body.keyboard-visible .chat-nav-area {
   display: none !important;
 }
+
+/* Remove bottom padding from main content and chat input when keyboard is visible —
+   safe-area-inset-bottom is irrelevant since the keyboard covers the home indicator area */
+body.keyboard-visible .main-content {
+  padding-bottom: 0 !important;
+}
+
+body.keyboard-visible .chat-input-area {
+  padding-bottom: 8px !important;
+}
+
+
 
 
 

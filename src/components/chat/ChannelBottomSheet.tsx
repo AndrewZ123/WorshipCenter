@@ -2,10 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import {
-  Box, VStack, HStack, Text, Input, Button, useColorModeValue,
-  Drawer, DrawerOverlay, DrawerContent, DrawerBody, Divider,
+  Box, VStack, HStack, Text, Input, Button, IconButton, useColorModeValue,
+  Divider, useBreakpointValue,
+  Drawer, DrawerOverlay, DrawerContent, DrawerBody,
 } from '@chakra-ui/react';
-import { Hash, Megaphone, Lock, Plus, Search, Check } from 'lucide-react';
+import { Hash, Megaphone, Lock, Plus, Search, Check, ChevronDown } from 'lucide-react';
 import type { ChatChannel } from '@/lib/types';
 
 interface ChannelBottomSheetProps {
@@ -30,6 +31,7 @@ export default function ChannelBottomSheet({
   const sectionColor = useColorModeValue('gray.500', 'gray.400');
   const inputBg = useColorModeValue('gray.50', 'gray.700');
   const inputBorder = useColorModeValue('gray.200', 'gray.600');
+  const dividerColor = useColorModeValue('gray.100', 'gray.700');
 
   const safe = useMemo(() => channels.filter(Boolean), [channels]);
 
@@ -80,6 +82,148 @@ export default function ChannelBottomSheet({
     );
   };
 
+  const isMobile = useBreakpointValue({ base: true, lg: false });
+
+  const content = (
+    <>
+      <Box p="4" pb="2" flexShrink={0}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb="3">
+          <Text fontWeight="700" fontSize="md">Channels</Text>
+          <IconButton
+            aria-label="Close"
+            icon={<ChevronDown size={22} />}
+            size="sm"
+            variant="ghost"
+            borderRadius="full"
+            onClick={() => { setQuery(''); onClose(); }}
+          />
+        </Box>
+        <Box position="relative">
+          <Input
+            placeholder="Search channels..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            size="md"
+            h="44px"
+            fontSize="sm"
+            bg={inputBg}
+            border="1px solid"
+            borderColor={inputBorder}
+            borderRadius="xl"
+            pl="10"
+            _placeholder={{ color: 'gray.400' }}
+            _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)' }}
+            autoFocus
+          />
+          <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color="gray.400">
+            <Search size={16} />
+          </Box>
+        </Box>
+      </Box>
+
+      <Box flex="1" overflowY="auto" pb="4">
+        {regularChannels.length > 0 && (
+          <>
+            <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="wide" color={sectionColor} px="6" mb="1">
+              Channels
+            </Text>
+            <VStack spacing="0.5" align="stretch">
+              {regularChannels.map(renderChannel)}
+            </VStack>
+          </>
+        )}
+
+        {announcementChannels.length > 0 && (
+          <>
+            <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="wide" color={sectionColor} px="6" mt="3" mb="1">
+              Announcements
+            </Text>
+            <VStack spacing="0.5" align="stretch">
+              {announcementChannels.map(renderChannel)}
+            </VStack>
+          </>
+        )}
+
+        {privateChannels.length > 0 && (
+          <>
+            <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="wide" color={sectionColor} px="6" mt="3" mb="1">
+              Private
+            </Text>
+            <VStack spacing="0.5" align="stretch">
+              {privateChannels.map(renderChannel)}
+            </VStack>
+          </>
+        )}
+
+        {filtered.length === 0 && (
+          <Text fontSize="sm" color={sectionColor} textAlign="center" py="8">
+            No channels found
+          </Text>
+        )}
+      </Box>
+
+      {canCreate && (
+        <>
+          <Divider borderColor={dividerColor} />
+          <Box px="4" py="3" flexShrink={0}>
+            <Button
+              leftIcon={<Plus size={16} />}
+              size="md"
+              variant="ghost"
+              w="full"
+              justifyContent="flex-start"
+              color={sectionColor}
+              _hover={{ color: 'teal.500', bg: hoverBg }}
+              onClick={() => { setQuery(''); onCreateClick(); onClose(); }}
+              fontWeight="500"
+              h="44px"
+              borderRadius="lg"
+            >
+              Create Channel
+            </Button>
+          </Box>
+        </>
+      )}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {isOpen && (
+          <Box
+            position="fixed"
+            inset={0}
+            bg="blackAlpha.400"
+            style={{ backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+            zIndex={1100}
+            onClick={() => { setQuery(''); onClose(); }}
+          />
+        )}
+        <Box
+          position="fixed"
+          left={0}
+          right={0}
+          bottom="var(--keyboard-height, 0px)"
+          zIndex={1101}
+          bg={bg}
+          borderTopRadius="2xl"
+          boxShadow="0 -4px 24px rgba(0,0,0,0.15)"
+          sx={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          transition="transform 0.3s ease, bottom 0.3s ease"
+          transform={isOpen ? 'translateY(0)' : 'translateY(100%)'}
+          pointerEvents={isOpen ? 'auto' : 'none'}
+          maxH="75vh"
+          overflow="hidden"
+          display="flex"
+          flexDir="column"
+        >
+          {content}
+        </Box>
+      </>
+    );
+  }
+
   return (
     <Drawer isOpen={isOpen} placement="bottom" onClose={() => { setQuery(''); onClose(); }}>
       <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
@@ -89,95 +233,7 @@ export default function ChannelBottomSheet({
         sx={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <DrawerBody p="0" display="flex" flexDir="column" maxH="80dvh">
-          <Box p="4" pb="2">
-            <HStack spacing="3">
-              <Box position="relative" flex="1">
-                <Input
-                  placeholder="Search channels..."
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  size="md"
-                  h="44px"
-                  fontSize="sm"
-                  bg={inputBg}
-                  border="1px solid"
-                  borderColor={inputBorder}
-                  borderRadius="xl"
-                  pl="10"
-                  _placeholder={{ color: 'gray.400' }}
-                  _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)' }}
-                  autoFocus
-                />
-                <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color="gray.400">
-                  <Search size={16} />
-                </Box>
-              </Box>
-            </HStack>
-          </Box>
-
-          <Box flex="1" overflowY="auto" pb="4">
-            {regularChannels.length > 0 && (
-              <>
-                <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="wide" color={sectionColor} px="6" mb="1">
-                  Channels
-                </Text>
-                <VStack spacing="0.5" align="stretch">
-                  {regularChannels.map(renderChannel)}
-                </VStack>
-              </>
-            )}
-
-            {announcementChannels.length > 0 && (
-              <>
-                <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="wide" color={sectionColor} px="6" mt="3" mb="1">
-                  Announcements
-                </Text>
-                <VStack spacing="0.5" align="stretch">
-                  {announcementChannels.map(renderChannel)}
-                </VStack>
-              </>
-            )}
-
-            {privateChannels.length > 0 && (
-              <>
-                <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="wide" color={sectionColor} px="6" mt="3" mb="1">
-                  Private
-                </Text>
-                <VStack spacing="0.5" align="stretch">
-                  {privateChannels.map(renderChannel)}
-                </VStack>
-              </>
-            )}
-
-            {filtered.length === 0 && (
-              <Text fontSize="sm" color={sectionColor} textAlign="center" py="8">
-                No channels found
-              </Text>
-            )}
-          </Box>
-
-          {canCreate && (
-            <>
-              <Divider borderColor={useColorModeValue('gray.100', 'gray.700')} />
-              <Box px="4" py="3">
-                <Button
-                  leftIcon={<Plus size={16} />}
-                  size="md"
-                  variant="ghost"
-                  w="full"
-                  justifyContent="flex-start"
-                  color={sectionColor}
-                  _hover={{ color: 'teal.500', bg: hoverBg }}
-                  onClick={() => { setQuery(''); onCreateClick(); onClose(); }}
-                  fontWeight="500"
-                  h="44px"
-                  borderRadius="lg"
-                >
-                  Create Channel
-                </Button>
-              </Box>
-            </>
-          )}
+          {content}
         </DrawerBody>
       </DrawerContent>
     </Drawer>
