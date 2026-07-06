@@ -2114,12 +2114,29 @@ export const db = {
       return (data || []) as ChatPoll[];
     },
     createPoll: async (channelId: string, userId: string, question: string, options: string[], isMultipleChoice: boolean) => {
-      const { data } = await supabase
+      // Create the poll record
+      const { data: poll } = await supabase
         .from('chat_polls')
         .insert({ channel_id: channelId, user_id: userId, question: sanitizeString(question), options, is_multiple_choice: isMultipleChoice })
         .select()
         .single();
-      return data as ChatPoll;
+      if (poll) {
+        // Also create a chat message announcing the poll so it appears in the feed
+        const { data: channel } = await supabase
+          .from('chat_channels')
+          .select('church_id')
+          .eq('id', channelId)
+          .single();
+        if (channel) {
+          const content = `📊 **${question}**\n${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n')}`;
+          await supabase
+            .from('chat_messages')
+            .insert({ channel_id: channelId, user_id: userId, church_id: channel.church_id, content })
+            .select('*, users!chat_messages_user_id_fkey(id, name, email, avatar_url)')
+            .single();
+        }
+      }
+      return poll as ChatPoll;
     },
     closePoll: async (pollId: string) => {
       const { error } = await supabase

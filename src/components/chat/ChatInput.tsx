@@ -230,9 +230,6 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
             onClick={handleSend}
           />
         </HStack>
-        <Text fontSize="xs" color="gray.400" mt="2" textAlign="center">
-          Press Enter to send · Use **bold**, *italic*, ~~strikethrough~~
-        </Text>
       </Box>
 
       <GifPicker
