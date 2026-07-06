@@ -113,4 +113,15 @@ export async function initMobile(): Promise<void> {
       window.dispatchEvent(new CustomEvent('mobile-resume'));
     }
   });
+
+  // ── Clear caches to prevent WKWebView serving stale JS ──
+  try {
+    if ('caches' in window) {
+      caches.keys().then((names) => {
+        names.forEach((name) => caches.delete(name));
+      });
+    }
+  } catch {
+    // Cache API may not be available
+  }
 }
