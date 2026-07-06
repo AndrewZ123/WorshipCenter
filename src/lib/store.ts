@@ -31,6 +31,13 @@ import type {
   TimingComparisonItem,
   DebriefTrends,
   ServiceLiveSession,
+  AdminPermission,
+  ChatPoll,
+  ChatPollVote,
+  ChatAttachment,
+  ChatReaction,
+  ChatMessageFull,
+  ChatChannelWithMeta,
 } from './types';
 
 // Helper to sanitize string fields in objects before database operations
@@ -1891,6 +1898,51 @@ export const db = {
     },
   },
 
+  // ─── Admin Permissions ─────────────────────────────────────────────
+  adminPermissions: {
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('admin_permissions')
+        .select('*, users(id, name, email, avatar_url, role)')
+        .eq('church_id', churchId);
+      return (data || []) as any[];
+    },
+    getByUser: async (userId: string) => {
+      const { data } = await supabase
+        .from('admin_permissions')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      return data as AdminPermission | null;
+    },
+    upsert: async (userId: string, churchId: string, perms: Partial<Omit<AdminPermission, 'user_id' | 'church_id' | 'created_at' | 'updated_at'>>) => {
+      const { data } = await supabase
+        .from('admin_permissions')
+        .upsert({ user_id: userId, church_id: churchId, ...perms, updated_at: new Date().toISOString() })
+        .select()
+        .single();
+      return data as AdminPermission;
+    },
+    promoteToAdmin: async (userId: string, churchId: string) => {
+      await supabase.from('users').update({ role: 'admin' }).eq('id', userId).eq('church_id', churchId);
+      const { data } = await supabase
+        .from('admin_permissions')
+        .upsert({ user_id: userId, church_id: churchId, updated_at: new Date().toISOString() })
+        .select()
+        .single();
+      return data as AdminPermission;
+    },
+    demoteFromAdmin: async (userId: string, churchId: string) => {
+      await supabase.from('users').update({ role: 'leader' }).eq('id', userId).eq('church_id', churchId);
+      const { error } = await supabase
+        .from('admin_permissions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('church_id', churchId);
+      return !error;
+    },
+  },
+
   // ─── Chat Channels ─────────────────────────────────────────────────
   channels: {
     getByChurch: async (churchId: string) => {
@@ -1899,7 +1951,7 @@ export const db = {
         .select('*')
         .eq('church_id', churchId)
         .order('created_at', { ascending: true });
-      return (data || []) as any[];
+      return (data || []) as ChatChannelWithMeta[];
     },
     getById: async (id: string, churchId: string) => {
       const { data } = await supabase
@@ -1910,14 +1962,30 @@ export const db = {
         .single();
       return data as any | null;
     },
-    create: async (c: { church_id: string; name: string; type?: string; role_scope?: string }) => {
+    create: async (c: { church_id: string; name: string; description?: string; type?: string; is_announcement?: boolean; is_private?: boolean }) => {
       const payload = {
         church_id: c.church_id,
         name: sanitizeString(c.name),
+        description: c.description ? sanitizeString(c.description) : null,
         type: c.type || 'channel',
-        role_scope: c.role_scope || null,
+        is_announcement: c.is_announcement || false,
+        is_private: c.is_private || false,
       };
       const { data } = await supabase.from('chat_channels').insert(payload).select().single();
+      return data as any;
+    },
+    update: async (id: string, churchId: string, updates: { name?: string; description?: string; is_announcement?: boolean }) => {
+      const sanitized: any = {};
+      if (updates.name) sanitized.name = sanitizeString(updates.name);
+      if (updates.description !== undefined) sanitized.description = updates.description ? sanitizeString(updates.description) : null;
+      if (updates.is_announcement !== undefined) sanitized.is_announcement = updates.is_announcement;
+      const { data } = await supabase
+        .from('chat_channels')
+        .update(sanitized)
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
       return data as any;
     },
     delete: async (id: string, churchId: string) => {
@@ -1928,12 +1996,27 @@ export const db = {
         .eq('church_id', churchId);
       return !error;
     },
+    getOrCreateGeneral: async (churchId: string) => {
+      const { data: existing } = await supabase
+        .from('chat_channels')
+        .select('*')
+        .eq('church_id', churchId)
+        .eq('name', 'General')
+        .maybeSingle();
+      if (existing) return existing as any;
+      const { data } = await supabase
+        .from('chat_channels')
+        .insert({ church_id: churchId, name: 'General', description: 'Main church-wide discussions', type: 'channel', is_announcement: false, is_private: false })
+        .select()
+        .single();
+      return data as any;
+    },
     getMembers: async (channelId: string) => {
       const { data } = await supabase
         .from('chat_channel_members')
         .select('user_id, joined_at')
         .eq('channel_id', channelId);
-      return (data || []) as any[];
+      return (data || []) as { user_id: string; joined_at: string }[];
     },
     addMember: async (channelId: string, userId: string) => {
       const { data } = await supabase
@@ -1943,13 +2026,126 @@ export const db = {
         .single();
       return data;
     },
-    getMessages: async (channelId: string) => {
+    removeMember: async (channelId: string, userId: string) => {
+      const { error } = await supabase
+        .from('chat_channel_members')
+        .delete()
+        .eq('channel_id', channelId)
+        .eq('user_id', userId);
+      return !error;
+    },
+    getMessages: async (channelId: string, limit = 100, offset = 0) => {
       const { data } = await supabase
         .from('chat_messages')
+        .select('*, users(id, name, email, avatar_url)')
+        .eq('channel_id', channelId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      return ((data || []) as any[]).reverse();
+    },
+    sendMessage: async (channelId: string, userId: string, content: string) => {
+      const { data } = await supabase
+        .from('chat_messages')
+        .insert({ channel_id: channelId, user_id: userId, content: sanitizeHtml(content) })
+        .select('*, users(id, name, email, avatar_url)')
+        .single();
+      return data as any;
+    },
+    pinMessage: async (messageId: string, isPinned: boolean) => {
+      const { error } = await supabase
+        .from('chat_messages')
+        .update({ is_pinned: isPinned })
+        .eq('id', messageId);
+      return !error;
+    },
+    getPolls: async (channelId: string) => {
+      const { data } = await supabase
+        .from('chat_polls')
         .select('*')
         .eq('channel_id', channelId)
-        .order('created_at', { ascending: true });
-      return (data || []) as any[];
+        .order('created_at', { ascending: false });
+      return (data || []) as ChatPoll[];
+    },
+    createPoll: async (channelId: string, userId: string, question: string, options: string[], isMultipleChoice: boolean) => {
+      const { data } = await supabase
+        .from('chat_polls')
+        .insert({ channel_id: channelId, user_id: userId, question: sanitizeString(question), options, is_multiple_choice: isMultipleChoice })
+        .select()
+        .single();
+      return data as ChatPoll;
+    },
+    closePoll: async (pollId: string) => {
+      const { error } = await supabase
+        .from('chat_polls')
+        .update({ is_closed: true })
+        .eq('id', pollId);
+      return !error;
+    },
+    votePoll: async (pollId: string, userId: string, optionIndex: number) => {
+      const { data } = await supabase
+        .from('chat_poll_votes')
+        .insert({ poll_id: pollId, user_id: userId, option_index: optionIndex })
+        .select()
+        .single();
+      return data as ChatPollVote;
+    },
+    getPollVotes: async (pollId: string) => {
+      const { data } = await supabase
+        .from('chat_poll_votes')
+        .select('*')
+        .eq('poll_id', pollId);
+      return (data || []) as ChatPollVote[];
+    },
+    addReaction: async (messageId: string, userId: string, emoji: string) => {
+      const { data } = await supabase
+        .from('chat_reactions')
+        .insert({ message_id: messageId, user_id: userId, emoji })
+        .select()
+        .single();
+      return data as ChatReaction;
+    },
+    removeReaction: async (messageId: string, userId: string, emoji: string) => {
+      const { error } = await supabase
+        .from('chat_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', userId)
+        .eq('emoji', emoji);
+      return !error;
+    },
+    subscribe: (channelId: string, callback: (message: any) => void, onError?: (error: Error) => void) => {
+      const channel = supabase
+        .channel(`channel-messages:${channelId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages',
+            filter: `channel_id=eq.${channelId}`,
+          },
+          async (payload) => {
+            try {
+              const { data: userData } = await supabase
+                .from('users')
+                .select('id, name, email, avatar_url')
+                .eq('id', payload.new.user_id)
+                .single();
+              callback({ ...payload.new, user: userData || { id: payload.new.user_id, name: 'Unknown' } });
+            } catch (error) {
+              if (onError) onError(error as Error);
+            }
+          }
+        )
+        .subscribe((status) => {
+          const s = String(status);
+          if (s === 'SUBSCRIPTION_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') {
+            if (onError) onError(new Error(`Subscription failed: ${s}`));
+          }
+        });
+      return () => {
+        try { supabase.removeChannel(channel); } catch {}
+      };
     },
   },
 

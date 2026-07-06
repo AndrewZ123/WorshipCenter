@@ -444,6 +444,7 @@ export interface ChatChannel {
   description: string | null;
   type: ChatChannelType;
   is_private: boolean;
+  is_announcement: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -454,12 +455,84 @@ export interface ChatChannelMessage {
   channel_id: string;
   user_id: string;
   content: string;
+  is_pinned: boolean;
   created_at: string;
 }
 
 export interface ChatChannelMessagePopulated extends ChatChannelMessage {
   user: ChatUserInfo;
 }
+
+// Extended channel with metadata for sidebar display
+export interface ChatChannelWithMeta extends ChatChannel {
+  lastMessage?: string;
+  lastMessageAt?: string;
+  unreadCount?: number;
+  memberCount?: number;
+}
+
+// Full message with attachments and reactions
+export interface ChatMessageFull extends ChatChannelMessagePopulated {
+  attachments: ChatAttachment[];
+  reactions: ChatReaction[];
+  is_pinned: boolean;
+}
+
+// Chat Poll Types
+export interface ChatPoll {
+  id: string;
+  channel_id: string;
+  user_id: string;
+  question: string;
+  options: string[];
+  is_multiple_choice: boolean;
+  is_closed: boolean;
+  created_at: string;
+}
+
+export interface ChatPollVote {
+  poll_id: string;
+  user_id: string;
+  option_index: number;
+  created_at: string;
+}
+
+export interface ChatAttachment {
+  id: string;
+  message_id: string;
+  file_url: string;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+}
+
+export interface ChatReaction {
+  message_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+}
+
+// Admin Permission Types
+export interface AdminPermission {
+  user_id: string;
+  church_id: string;
+  manage_services: boolean;
+  manage_songs: boolean;
+  manage_team: boolean;
+  manage_templates: boolean;
+  manage_settings: boolean;
+  manage_billing: boolean;
+  manage_chat: boolean;
+  manage_admins: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AdminScope = keyof Omit<AdminPermission, 'user_id' | 'church_id' | 'created_at' | 'updated_at'>;
 
 // ─── Rehearsal Tracking ─────────────────────────────────────────────
 

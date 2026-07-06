@@ -1,0 +1,127 @@
+'use client';
+
+import { useState, useCallback } from 'react';
+import {
+  Modal, ModalOverlay, ModalContent, ModalHeader, ModalCloseButton,
+  ModalBody, Input, SimpleGrid, Image, Box, Spinner, Text, VStack,
+  useColorModeValue, IconButton,
+} from '@chakra-ui/react';
+import { Search, X } from 'lucide-react';
+
+interface GifResult {
+  id: string;
+  title: string;
+  url: string;
+  previewUrl: string;
+}
+
+interface GifPickerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (url: string) => void;
+}
+
+export default function GifPicker({ isOpen, onClose, onSelect }: GifPickerProps) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<GifResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const hoverBg = useColorModeValue('gray.100', 'gray.600');
+
+  const search = useCallback(async (q: string) => {
+    if (!q.trim()) return;
+    setLoading(true);
+    setSearched(true);
+    try {
+      const res = await fetch(`/api/chat/giphy?q=${encodeURIComponent(q.trim())}`);
+      const data = await res.json();
+      setResults(data.results || []);
+    } catch (error) {
+      console.error('GIF search failed:', error);
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      search(query);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="lg" isCentered>
+      <ModalOverlay backdropBlur="sm" />
+      <ModalContent borderRadius="2xl" mx="4">
+        <ModalHeader fontWeight="700">Search GIFs</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody pb="4">
+          <Box position="relative" mb="4">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search GIPHY..."
+              borderRadius="lg"
+              size="md"
+              pr="10"
+              autoFocus
+            />
+            <IconButton
+              aria-label="Search"
+              icon={<Search size={18} />}
+              position="absolute"
+              right="1"
+              top="50%"
+              transform="translateY(-50%)"
+              variant="ghost"
+              size="sm"
+              onClick={() => search(query)}
+            />
+          </Box>
+
+          {loading && (
+            <Box textAlign="center" py="8">
+              <Spinner size="lg" color="teal.500" />
+            </Box>
+          )}
+
+          {!loading && searched && results.length === 0 && (
+            <VStack py="8" spacing="2">
+              <Text color="gray.400" fontSize="sm">No GIFs found</Text>
+            </VStack>
+          )}
+
+          {results.length > 0 && (
+            <SimpleGrid columns={2} spacing="2" maxH="400px" overflowY="auto">
+              {results.map((gif) => (
+                <Box
+                  key={gif.id}
+                  borderRadius="md"
+                  overflow="hidden"
+                  cursor="pointer"
+                  border="2px solid transparent"
+                  _hover={{ borderColor: 'teal.400' }}
+                  onClick={() => {
+                    onSelect(gif.url);
+                    onClose();
+                  }}
+                >
+                  <Image
+                    src={gif.previewUrl}
+                    alt={gif.title || 'GIF'}
+                    w="full"
+                    h="150px"
+                    objectFit="cover"
+                    fallback={<Box w="full" h="150px" bg="gray.100" />}
+                  />
+                </Box>
+              ))}
+            </SimpleGrid>
+          )}
+        </ModalBody>
+      </ModalContent>
+    </Modal>
+  );
+}

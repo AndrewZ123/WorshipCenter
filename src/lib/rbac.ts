@@ -1,6 +1,17 @@
 /**
  * Role-Based Access Control (RBAC) System for WorshipCenter
  * Defines permissions matrix and access control utilities
+ * 
+ * ─── Permission Model ─────────────────────────────────────────
+ * The base RBAC matrix (PERMISSIONS) defines what each role
+ * (admin, leader, team) can do with each resource.
+ * 
+ * For admin users, granular scopes from the admin_permissions
+ * table can further restrict access. hasScopePermission()
+ * checks both layers:
+ *   1. If role !== 'admin' → use base RBAC matrix only
+ *   2. If role === 'admin' → check admin_permissions scopes
+ *      (admins start with all scopes = TRUE by default)
  */
 
 // Role definitions
@@ -175,6 +186,52 @@ export function checkPermission(
   return { allowed: true };
 }
 
+/**
+ * Check if user has access to a specific admin scope.
+ * For admin users, this checks the admin_permissions table.
+ * For non-admin users, this falls back to the base RBAC matrix.
+ */
+export function hasScopePermission(
+  role: Role,
+  adminPermissions: Record<string, boolean> | null | undefined,
+  resource: Resource,
+  action: Action
+): boolean {
+  // Non-admin users use base RBAC only
+  if (role !== 'admin') {
+    return hasPermission(role, resource, action);
+  }
+
+  // Admin without permissions row → default full access
+  if (!adminPermissions) {
+    return hasPermission(role, resource, action);
+  }
+
+  // Map resource to permission scope key
+  const scopeMap: Partial<Record<Resource, string>> = {
+    services: 'manage_services',
+    songs: 'manage_songs',
+    team: 'manage_team',
+    templates: 'manage_templates',
+    settings: 'manage_settings',
+    billing: 'manage_billing',
+    chat: 'manage_chat',
+  };
+
+  const scope = scopeMap[resource];
+  if (!scope) {
+    // Unmapped resources (e.g., usage) — fall back to base RBAC
+    return hasPermission(role, resource, action);
+  }
+
+  // Check if the admin has this scope enabled
+  if (adminPermissions[scope] === false) {
+    return false;
+  }
+
+  return hasPermission(role, resource, action);
+}
+
 export default {
   hasPermission,
   getRolePermissions,
@@ -184,5 +241,6 @@ export default {
   getHighestRole,
   isValidRole,
   checkPermission,
+  hasScopePermission,
   PERMISSIONS,
 };

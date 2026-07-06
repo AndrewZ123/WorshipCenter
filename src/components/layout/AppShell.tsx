@@ -22,7 +22,7 @@ import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 import { 
   Calendar, Home, Music, Users, BarChart2, CreditCard,
   LogOut, Settings, Bell, Moon, Sun, Repeat, Church, MessageCircle, HelpCircle,
-  CheckSquare, FileBarChart, Sparkles
+  CheckSquare, FileBarChart, Sparkles, Shield
 } from 'lucide-react';
 
 interface NavItem {
@@ -41,6 +41,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Song Usage', href: '/usage', icon: BarChart2 },
   { label: 'Reports', href: '/reports', icon: FileBarChart },
 ];
+
+const ADMIN_NAV_ITEM: NavItem = { label: 'Admin', href: '/settings/admins', icon: Shield };
 
 // Nav items hidden from team members
 const TEAM_HIDDEN_ITEMS = ['/team', '/usage', '/reports'];
@@ -167,6 +169,33 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             </HStack>
           );
         })}
+
+        {/* Admin nav item - only for admins */}
+        {user?.role === 'admin' && (
+          <HStack
+            px="3"
+            py="2.5"
+            borderRadius="md"
+            cursor="pointer"
+            bg={pathname === ADMIN_NAV_ITEM.href ? activeNavBg : 'transparent'}
+            color={pathname === ADMIN_NAV_ITEM.href ? activeNavColor : textColor}
+            fontWeight={pathname === ADMIN_NAV_ITEM.href ? '600' : '500'}
+            borderLeft={pathname === ADMIN_NAV_ITEM.href ? '3px solid' : '3px solid transparent'}
+            borderColor={pathname === ADMIN_NAV_ITEM.href ? logoAccent : 'transparent'}
+            pl="calc(0.75rem + 3px)"
+            _hover={{ bg: pathname === ADMIN_NAV_ITEM.href ? activeNavBg : hoverBg, color: pathname === ADMIN_NAV_ITEM.href ? activeNavColor : logoColor }}
+            transition="all 0.15s ease"
+            onClick={() => handleNav(ADMIN_NAV_ITEM.href)}
+            role="button"
+            tabIndex={0}
+            mt="2"
+          >
+            <Box flexShrink={0}>
+              <Shield size={20} />
+            </Box>
+            <Text fontSize="sm" fontWeight="500">{ADMIN_NAV_ITEM.label}</Text>
+          </HStack>
+        )}
       </VStack>
 
       {/* Dark mode toggle */}

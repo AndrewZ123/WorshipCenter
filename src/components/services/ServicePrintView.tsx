@@ -29,7 +29,7 @@ function roleLabel(role: string): string {
   return ROLE_LABELS[role] || role.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
-export function generateServicePDF(data: PrintData): void {
+export async function generateServicePDF(data: PrintData): Promise<void> {
   const { service, items, assignments, teamMembers, churchName } = data;
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -160,5 +160,16 @@ export function generateServicePDF(data: PrintData): void {
   }
 
   const filename = `${churchName.replace(/[^a-zA-Z0-9]/g, '_')}_${service.title.replace(/[^a-zA-Z0-9]/g, '_')}_ServicePlan.pdf`;
+
+  try {
+    const pdfBlob = doc.output('blob');
+    const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
+    if (navigator.canShare?.({ files: [pdfFile] })) {
+      await navigator.share({ files: [pdfFile], title: filename });
+      return;
+    }
+  } catch {
+    // Web Share not supported or failed — fall through to download
+  }
   doc.save(filename);
 }

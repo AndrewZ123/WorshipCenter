@@ -739,6 +739,15 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       },
     },
 
+    // ─── Admin Permissions (demo stubs) ──────────────────────────────
+    adminPermissions: {
+      getByChurch: async (_churchId: string): Promise<any[]> => [],
+      getByUser: async (_userId: string): Promise<any> => null,
+      upsert: async (_userId: string, _churchId: string, _perms: any): Promise<any> => null,
+      promoteToAdmin: async (_userId: string, _churchId: string): Promise<any> => null,
+      demoteFromAdmin: async (_userId: string, _churchId: string): Promise<boolean> => true,
+    },
+
     // ─── Chat Channels (demo) ─────────────────────────────────────────
     channels: {
       getByChurch: async (churchId: string): Promise<any[]> => {
@@ -750,16 +759,69 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         return demo.chatChannels.find((c: any) => c.id === id) || null;
       },
       create: async (_c: any): Promise<any> => {
-        throw new Error('Channel creation not supported in demo');
+        const demo = getDemoContext();
+        const newChannel = { id: `demo-ch-${Date.now()}`, ..._c, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        demo.chatChannels.push(newChannel);
+        return newChannel;
       },
-      delete: async (_id: string, _churchId: string): Promise<boolean> => false,
-      getMembers: async (_channelId: string): Promise<any[]> => [],
+      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
+        const demo = getDemoContext();
+        const idx = demo.chatChannels.findIndex((c: any) => c.id === _id);
+        if (idx >= 0) { demo.chatChannels[idx] = { ...demo.chatChannels[idx], ..._updates }; return demo.chatChannels[idx]; }
+        return null;
+      },
+      delete: async (_id: string, _churchId: string): Promise<boolean> => {
+        const demo = getDemoContext();
+        const idx = demo.chatChannels.findIndex((c: any) => c.id === _id);
+        if (idx >= 0) { demo.chatChannels.splice(idx, 1); return true; }
+        return false;
+      },
+      getOrCreateGeneral: async (churchId: string): Promise<any> => {
+        const demo = getDemoContext();
+        let general = demo.chatChannels.find((c: any) => c.church_id === churchId && c.name === 'General');
+        if (!general) {
+          general = { id: `demo-ch-general-${churchId}`, church_id: churchId, name: 'General', description: 'Main church-wide discussions', type: 'channel', is_announcement: false, is_private: false, created_by: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+          demo.chatChannels.push(general);
+        }
+        return general;
+      },
+      getMembers: async (_channelId: string): Promise<any[]> => {
+        const demo = getDemoContext();
+        if (!demo.user) return [];
+        return [{ user_id: demo.user.id, joined_at: new Date().toISOString() }];
+      },
       addMember: async (_channelId: string, _userId: string): Promise<any> => null,
-      getMessages: async (_channelId: string): Promise<any[]> => {
+      removeMember: async (_channelId: string, _userId: string): Promise<boolean> => true,
+      getMessages: async (_channelId: string, _limit?: number, _offset?: number): Promise<any[]> => {
         const demo = getDemoContext();
         return demo.chatMessages
           .filter((m: any) => m.channel_id === _channelId || !m.channel_id)
           .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      },
+      sendMessage: async (_channelId: string, _userId: string, _content: string): Promise<any> => {
+        const demo = getDemoContext();
+        const msg = {
+          id: `demo-msg-${Date.now()}`,
+          channel_id: _channelId,
+          user_id: _userId,
+          content: _content,
+          is_pinned: false,
+          created_at: new Date().toISOString(),
+          user: demo.user ? { id: demo.user.id, name: demo.user.name, email: demo.user.email, avatar_url: demo.user.avatar_url } : { id: _userId, name: 'Unknown' },
+        };
+        demo.chatMessages.push(msg);
+        return msg;
+      },
+      pinMessage: async (_messageId: string, _isPinned: boolean): Promise<boolean> => true,
+      getPolls: async (_channelId: string): Promise<any[]> => [],
+      createPoll: async (_channelId: string, _userId: string, _question: string, _options: string[], _isMultipleChoice: boolean): Promise<any> => ({}),
+      closePoll: async (_pollId: string): Promise<boolean> => true,
+      votePoll: async (_pollId: string, _userId: string, _optionIndex: number): Promise<any> => ({}),
+      getPollVotes: async (_pollId: string): Promise<any[]> => [],
+      addReaction: async (_messageId: string, _userId: string, _emoji: string): Promise<any> => ({ message_id: _messageId, user_id: _userId, emoji: _emoji, created_at: new Date().toISOString() }),
+      removeReaction: async (_messageId: string, _userId: string, _emoji: string): Promise<boolean> => true,
+      subscribe: (_channelId: string, _callback: (message: any) => void, _onError?: (error: Error) => void) => {
+        return () => {};
       },
     },
 
