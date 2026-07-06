@@ -65,6 +65,7 @@ export default function MessageList({
   messages, reactions, currentUserId, isLoading, onReact, onEdit, onDelete, onVotePoll, onClosePoll, onUpdatePoll,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const isInitialLoadRef = useRef(true);
   const prevMessagesRef = useRef<any[]>([]);
@@ -75,9 +76,9 @@ export default function MessageList({
   const groups = useMemo(() => groupMessagesByDate(messages), [messages]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior });
+    const sentinel = bottomRef.current;
+    if (!sentinel) return;
+    sentinel.scrollIntoView({ block: 'end', behavior });
     atBottomRef.current = true;
   }, []);
 
@@ -173,6 +174,7 @@ export default function MessageList({
         </AnimatePresence>
       )}
 
+      <div ref={bottomRef} />
     </Box>
   );
 }
