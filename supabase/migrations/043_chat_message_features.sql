@@ -74,11 +74,13 @@ ALTER TABLE chat_attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_reactions ENABLE ROW LEVEL SECURITY;
 
 -- Polls: viewable by any user in the church
+DROP POLICY IF EXISTS "Users can view polls in accessible channels" ON chat_polls;
 CREATE POLICY "Users can view polls in accessible channels"
   ON chat_polls FOR SELECT
   USING (channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid())));
 
 -- Polls: users can create polls in channels they can access
+DROP POLICY IF EXISTS "Users can create polls in accessible channels" ON chat_polls;
 CREATE POLICY "Users can create polls in accessible channels"
   ON chat_polls FOR INSERT
   WITH CHECK (
@@ -87,31 +89,37 @@ CREATE POLICY "Users can create polls in accessible channels"
   );
 
 -- Voting: users can vote
+DROP POLICY IF EXISTS "Users can vote on polls" ON chat_poll_votes;
 CREATE POLICY "Users can vote on polls"
   ON chat_poll_votes FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
 -- Voting: users can view poll votes
+DROP POLICY IF EXISTS "Users can view poll votes" ON chat_poll_votes;
 CREATE POLICY "Users can view poll votes"
   ON chat_poll_votes FOR SELECT
   USING (user_id = auth.uid() OR poll_id IN (SELECT id FROM chat_polls WHERE channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid()))));
 
 -- Attachments: viewable by users who can access the message's channel
+DROP POLICY IF EXISTS "Users can view attachments in accessible messages" ON chat_attachments;
 CREATE POLICY "Users can view attachments in accessible messages"
   ON chat_attachments FOR SELECT
   USING (message_id IN (SELECT id FROM chat_messages WHERE channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid()))));
 
 -- Attachments: message author can create
+DROP POLICY IF EXISTS "Users can create attachments" ON chat_attachments;
 CREATE POLICY "Users can create attachments"
   ON chat_attachments FOR INSERT
   WITH CHECK (message_id IN (SELECT id FROM chat_messages WHERE user_id = auth.uid()));
 
 -- Reactions: viewable by users who can access the message's channel
+DROP POLICY IF EXISTS "Users can view reactions" ON chat_reactions;
 CREATE POLICY "Users can view reactions"
   ON chat_reactions FOR SELECT
   USING (message_id IN (SELECT id FROM chat_messages WHERE channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid()))));
 
 -- Reactions: users can manage their own
+DROP POLICY IF EXISTS "Users can manage their own reactions" ON chat_reactions;
 CREATE POLICY "Users can manage their own reactions"
   ON chat_reactions FOR ALL
   USING (user_id = auth.uid())
