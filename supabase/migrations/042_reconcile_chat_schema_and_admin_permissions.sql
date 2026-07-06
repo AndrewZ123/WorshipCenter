@@ -76,19 +76,34 @@ CREATE POLICY "Admins/leaders can delete channels"
     church_id IN (SELECT church_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader'))
   );
 
+DROP POLICY IF EXISTS "Users can view channel members" ON chat_channel_members;
+DROP POLICY IF EXISTS "Admins can manage channel members" ON chat_channel_members;
+DROP POLICY IF EXISTS "Admins can update channel members" ON chat_channel_members;
+DROP POLICY IF EXISTS "Admins can delete channel members" ON chat_channel_members;
 DROP POLICY IF EXISTS "Admins/leaders can manage channel members" ON chat_channel_members;
-CREATE POLICY "Admins/leaders can manage channel members"
-  ON chat_channel_members FOR ALL
+
+-- SELECT: users can see their own memberships; admins can see all
+-- IMPORTANT: Must NOT reference chat_channels in SELECT to avoid
+-- infinite recursion with chat_channels SELECT policy.
+CREATE POLICY "Users can view channel members"
+  ON chat_channel_members FOR SELECT
   USING (
-    channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (
-      SELECT church_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')
-    ))
-  )
-  WITH CHECK (
-    channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (
-      SELECT church_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')
-    ))
+    user_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader'))
   );
+
+-- INSERT/UPDATE/DELETE: only admins/leaders
+CREATE POLICY "Admins can manage channel members"
+  ON chat_channel_members FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')));
+
+CREATE POLICY "Admins can update channel members"
+  ON chat_channel_members FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')));
+
+CREATE POLICY "Admins can delete channel members"
+  ON chat_channel_members FOR DELETE
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')));
 
 -- Fix existing chat_messages RLS to handle both channel_id and
 -- church_id (for legacy messages with NULL channel_id).

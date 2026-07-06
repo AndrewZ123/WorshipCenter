@@ -69,15 +69,30 @@ CREATE POLICY "Admins/leaders can delete channels"
 
 -- =============================================================
 -- 4. chat_channel_members policies
+-- IMPORTANT: Must NOT reference chat_channels in SELECT to
+-- avoid infinite recursion (chat_channels SELECT also queries
+-- chat_channel_members).
 -- =============================================================
-CREATE POLICY "Admins/leaders can manage channel members"
-  ON chat_channel_members FOR ALL
-  USING (channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (
-    SELECT church_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')
-  )))
-  WITH CHECK (channel_id IN (SELECT id FROM chat_channels WHERE church_id IN (
-    SELECT church_id FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')
-  )));
+-- SELECT: users can see their own memberships; admins can see all
+CREATE POLICY "Users can view channel members"
+  ON chat_channel_members FOR SELECT
+  USING (
+    user_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader'))
+  );
+
+-- INSERT/UPDATE/DELETE: only admins/leaders can manage members
+CREATE POLICY "Admins can manage channel members"
+  ON chat_channel_members FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')));
+
+CREATE POLICY "Admins can update channel members"
+  ON chat_channel_members FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')));
+
+CREATE POLICY "Admins can delete channel members"
+  ON chat_channel_members FOR DELETE
+  USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader')));
 
 -- =============================================================
 -- 5. chat_messages policies
