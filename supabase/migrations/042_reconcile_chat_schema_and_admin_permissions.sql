@@ -87,10 +87,14 @@ CREATE POLICY "Admins/leaders can manage channel members"
   );
 
 -- Fix existing chat_messages RLS to handle both channel_id and
--- church_id (for legacy messages with NULL channel_id)
+-- church_id (for legacy messages with NULL channel_id).
+-- Drop ALL variants first (both old 024 names and any already-created
+-- 042/043 names) so this migration is idempotent regardless of run order.
 DROP POLICY IF EXISTS "Users can view messages in accessible channels" ON chat_messages;
 DROP POLICY IF EXISTS "Users can post messages to accessible channels" ON chat_messages;
 DROP POLICY IF EXISTS "Users can delete their own messages" ON chat_messages;
+DROP POLICY IF EXISTS "Users can post messages" ON chat_messages;
+DROP POLICY IF EXISTS "Users can view messages in accessible channels (1)" ON chat_messages;
 
 CREATE POLICY "Users can view messages in accessible channels"
   ON chat_messages FOR SELECT
