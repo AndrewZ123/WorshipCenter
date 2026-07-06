@@ -6,9 +6,7 @@ import {
   Box, Flex, VStack, Text, HStack, Menu, MenuButton,
   MenuList, MenuItem, Divider, useDisclosure, IconButton, Drawer,
   DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
-  useColorMode, useColorModeValue, Badge, Switch,
-  Popover, PopoverTrigger, PopoverContent, PopoverHeader, PopoverBody,
-  PopoverCloseButton,
+  useColorMode, useColorModeValue, Badge, Switch,   Portal,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/store';
@@ -54,6 +52,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { colorMode, toggleColorMode } = useColorMode();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const { start } = useTour();
   const [isMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -223,113 +222,137 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {user && (
         <Box px="3" py="2" borderTop="1px solid" borderColor={borderColor}>
           {/* Notification bell */}
-          <Popover placement="top-start">
-            <PopoverTrigger>
-              <HStack
-                spacing="2" px="2" py="2" borderRadius="md"
-                cursor="pointer" _hover={{ bg: hoverBg }} transition="all 0.15s ease"
-                mb="1" position="relative"
-                role="button"
-                tabIndex={0}
-                aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-              >
-                <Bell size={18} />
-                <Text fontSize="sm" color={textColor}>Notifications</Text>
-                {unreadCount > 0 && (
-                  <Badge
-                    colorScheme="red"
-                    variant="solid"
-                    borderRadius="full"
-                    fontSize="xs"
-                    ml="auto"
-                    aria-hidden="true"
+          <Box position="relative">
+            <HStack
+              spacing="2" px="2" py="2" borderRadius="md"
+              cursor="pointer" _hover={{ bg: hoverBg }} transition="all 0.15s ease"
+              mb="1"
+              role="button"
+              tabIndex={0}
+              onClick={() => setShowNotifications((s) => !s)}
+              aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+            >
+              <Bell size={18} />
+              <Text fontSize="sm" color={textColor}>Notifications</Text>
+              {unreadCount > 0 && (
+                <Badge
+                  colorScheme="red"
+                  variant="solid"
+                  borderRadius="full"
+                  fontSize="xs"
+                  ml="auto"
+                  aria-hidden="true"
+                >
+                  {unreadCount}
+                </Badge>
+              )}
+            </HStack>
+
+            {showNotifications && (
+              <>
+                <Box
+                  position="fixed"
+                  inset="0"
+                  zIndex={1799}
+                  onClick={() => setShowNotifications(false)}
+                />
+                <Portal>
+                  <Box
+                    position="fixed"
+                    left="270px"
+                    bottom="80px"
+                    w="360px"
+                    maxH="380px"
+                    bg={sidebarBg}
+                    borderRadius="xl"
+                    border="1px solid"
+                    borderColor={borderColor}
+                    boxShadow="0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)"
+                    zIndex={1800}
+                    display="flex"
+                    flexDir="column"
                   >
-                    {unreadCount}
-                  </Badge>
-                )}
-              </HStack>
-            </PopoverTrigger>
-            <PopoverContent borderRadius="xl" maxW="360px" zIndex={1800} boxShadow="0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)">
-              <PopoverCloseButton />
-              <PopoverHeader fontWeight="700" borderBottom="1px solid" borderColor={borderColor}>
-                <HStack justify="space-between" pr="8">
-                  <Text>Notifications</Text>
-                  <HStack spacing="3">
-                    {notifications.length > 0 && (
-                      <Text
-                        fontSize="xs" color="red.400" cursor="pointer"
-                        _hover={{ textDecoration: 'underline', color: 'red.500' }}
-                        onClick={async () => {
-                          await db.notifications.deleteAll(user.id);
-                          setNotifications([]);
-                          setUnreadCount(0);
-                        }}
-                      >
-                        Clear all
-                      </Text>
-                    )}
-                    {unreadCount > 0 && (
-                      <Text
-                        fontSize="xs" color={logoAccent} cursor="pointer"
-                        _hover={{ textDecoration: 'underline' }}
-                        onClick={handleMarkAllRead}
-                      >
-                        Mark all read
-                      </Text>
-                    )}
-                  </HStack>
-                </HStack>
-              </PopoverHeader>
-              <PopoverBody p="0" maxH="300px" overflowY="auto">
-                {notifications.length === 0 ? (
-                  <Text p="4" fontSize="sm" color={iconColor} textAlign="center">No notifications</Text>
-                ) : (
-                  notifications.map((n) => (
-                    <HStack
-                      key={n.id} px="4" py="2.5"
-                      bg={n.read ? 'transparent' : notificationBg}
-                      borderBottom="1px solid" borderColor={borderColor}
-                      cursor="pointer"
-                      _hover={{ bg: hoverBg }}
-                      spacing="2"
-                      align="start"
-                    >
-                      <Box
-                        flex="1"
-                        onClick={async () => {
-                          await db.notifications.markRead(n.id, user.id);
-                          setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
-                          setUnreadCount((c) => Math.max(0, c - (n.read ? 0 : 1)));
-                          if (n.service_id) router.push(`/services/${n.service_id}`);
-                        }}
-                      >
-                        <Text fontSize="sm" fontWeight={n.read ? '400' : '600'}>{n.title}</Text>
-                        <Text fontSize="xs" color={subtextColor} mt="0.5" noOfLines={2}>{n.message}</Text>
-                      </Box>
-                      <Text
-                        as="span"
-                        fontSize="xs"
-                        color="gray.400"
-                        cursor="pointer"
-                        flexShrink={0}
-                        mt="0.5"
-                        _hover={{ color: 'red.400' }}
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          await db.notifications.delete(n.id, user.id);
-                          setNotifications((prev) => prev.filter((x) => x.id !== n.id));
-                          if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
-                        }}
-                        aria-label="Delete notification"
-                      >
-                        ✕
-                      </Text>
+                    <HStack justify="space-between" px="4" py="3" borderBottom="1px solid" borderColor={borderColor}>
+                      <Text fontWeight="700" fontSize="sm">Notifications</Text>
+                      <HStack spacing="3">
+                        {notifications.length > 0 && (
+                          <Text
+                            fontSize="xs" color="red.400" cursor="pointer"
+                            _hover={{ textDecoration: 'underline', color: 'red.500' }}
+                            onClick={async () => {
+                              await db.notifications.deleteAll(user.id);
+                              setNotifications([]);
+                              setUnreadCount(0);
+                            }}
+                          >
+                            Clear all
+                          </Text>
+                        )}
+                        {unreadCount > 0 && (
+                          <Text
+                            fontSize="xs" color={logoAccent} cursor="pointer"
+                            _hover={{ textDecoration: 'underline' }}
+                            onClick={handleMarkAllRead}
+                          >
+                            Mark all read
+                          </Text>
+                        )}
+                        <Text fontSize="xs" color="gray.400" cursor="pointer" _hover={{ color: 'gray.600' }} onClick={() => setShowNotifications(false)}>✕</Text>
+                      </HStack>
                     </HStack>
-                  ))
-                )}
-              </PopoverBody>
-            </PopoverContent>
-          </Popover>
+                    <Box overflowY="auto" flex="1">
+                      {notifications.length === 0 ? (
+                        <Text p="4" fontSize="sm" color={iconColor} textAlign="center">No notifications</Text>
+                      ) : (
+                        notifications.map((n) => (
+                          <HStack
+                            key={n.id} px="4" py="2.5"
+                            bg={n.read ? 'transparent' : notificationBg}
+                            borderBottom="1px solid" borderColor={borderColor}
+                            cursor="pointer"
+                            _hover={{ bg: hoverBg }}
+                            spacing="2"
+                            align="start"
+                          >
+                            <Box
+                              flex="1"
+                              onClick={async () => {
+                                await db.notifications.markRead(n.id, user.id);
+                                setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
+                                setUnreadCount((c) => Math.max(0, c - (n.read ? 0 : 1)));
+                                if (n.service_id) router.push(`/services/${n.service_id}`);
+                              }}
+                            >
+                              <Text fontSize="sm" fontWeight={n.read ? '400' : '600'}>{n.title}</Text>
+                              <Text fontSize="xs" color={subtextColor} mt="0.5" noOfLines={2}>{n.message}</Text>
+                            </Box>
+                            <Text
+                              as="span"
+                              fontSize="xs"
+                              color="gray.400"
+                              cursor="pointer"
+                              flexShrink={0}
+                              mt="0.5"
+                              _hover={{ color: 'red.400' }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await db.notifications.delete(n.id, user.id);
+                                setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+                                if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
+                              }}
+                              aria-label="Delete notification"
+                            >
+                              ✕
+                            </Text>
+                          </HStack>
+                        ))
+                      )}
+                    </Box>
+                  </Box>
+                </Portal>
+              </>
+            )}
+          </Box>
 
           <Menu placement="top-start">
             <MenuButton w="full">
