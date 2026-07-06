@@ -450,7 +450,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <TourOverlay />
-      <Flex h="100dvh" overflow="hidden">
+      <Flex h="100dvh" overflow="hidden" className="shell-root">
       {/* Desktop sidebar */}
       <Box
         display={{ base: 'none', lg: 'block' }}

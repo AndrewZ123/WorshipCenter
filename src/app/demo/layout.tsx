@@ -311,7 +311,7 @@ function DemoShell({ children }: { children: React.ReactNode }) {
   }, [onOpen, onClose, setDrawerControls]);
 
   return (
-    <Flex h="100dvh" overflow="hidden" direction="column">
+    <Flex h="100dvh" overflow="hidden" direction="column" className="shell-root">
       <TourOverlay />
       <DemoBanner />
       

@@ -406,6 +406,11 @@ body.dragging-active {
   }
 }
 
+/* When keyboard is visible: shrink shell to free space above keyboard */
+body.keyboard-visible .shell-root {
+  height: calc(100dvh - var(--keyboard-height, 0px)) !important;
+}
+
 /* Hide bottom nav when keyboard is visible on mobile */
 body.keyboard-visible .bottom-nav {
   display: none !important;
