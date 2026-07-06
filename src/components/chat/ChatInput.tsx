@@ -174,6 +174,56 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
           </Tooltip>
         </HStack>
 
+        {/* Mobile compact toolbar - above input row */}
+        {isMobile && (
+          <HStack spacing="1" mb="1.5">
+            <IconButton
+              aria-label="Mention"
+              icon={<AtSign size={16} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'teal.500' }}
+              onClick={() => setInput((prev) => prev + '@')}
+              minW="44px"
+              h="36px"
+            />
+            <IconButton
+              aria-label="Upload Image"
+              icon={<ImagePlus size={16} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'teal.500' }}
+              onClick={handleImageUpload}
+              minW="44px"
+              h="36px"
+            />
+            <IconButton
+              aria-label="Add GIF"
+              icon={<Film size={16} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'teal.500' }}
+              onClick={onGifOpen}
+              minW="44px"
+              h="36px"
+            />
+            <IconButton
+              aria-label="Create Poll"
+              icon={<BarChart3 size={16} />}
+              size="xs"
+              variant="ghost"
+              color="gray.400"
+              _hover={{ color: 'teal.500' }}
+              onClick={onPollOpen}
+              minW="44px"
+              h="36px"
+            />
+          </HStack>
+        )}
+
         <HStack spacing="2" position="relative" align="end">
           <Box position="relative" flex="1">
             <Input
@@ -249,55 +299,6 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
           />
         </HStack>
 
-        {/* Mobile compact toolbar */}
-        {isMobile && (
-          <HStack spacing="1" mt="1">
-            <IconButton
-              aria-label="Mention"
-              icon={<AtSign size={16} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'teal.500' }}
-              onClick={() => setInput((prev) => prev + '@')}
-              minW="44px"
-              h="44px"
-            />
-            <IconButton
-              aria-label="Upload Image"
-              icon={<ImagePlus size={16} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'teal.500' }}
-              onClick={handleImageUpload}
-              minW="44px"
-              h="44px"
-            />
-            <IconButton
-              aria-label="Add GIF"
-              icon={<Film size={16} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'teal.500' }}
-              onClick={onGifOpen}
-              minW="44px"
-              h="44px"
-            />
-            <IconButton
-              aria-label="Create Poll"
-              icon={<BarChart3 size={16} />}
-              size="xs"
-              variant="ghost"
-              color="gray.400"
-              _hover={{ color: 'teal.500' }}
-              onClick={onPollOpen}
-              minW="44px"
-              h="44px"
-            />
-          </HStack>
-        )}
       </Box>
 
       <GifPicker
