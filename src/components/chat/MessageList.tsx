@@ -110,17 +110,22 @@ export default function MessageList({
     return () => el.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  // Re-scroll on viewport resize (keyboard open/close, orientation change)
-  // On Capacitor iOS, keyboard hide causes WebView resize → clientHeight changes →
-  // scrollTop gets clamped away from bottom. This listener restores it.
+  // Re-scroll when the container size changes (keyboard open/close, orientation
+  // change, parent layout shifts). Uses ResizeObserver instead of window.resize
+  // because Capacitor's resize:none mode drives keyboard-show/hide layout changes
+  // through CSS class toggles on .shell-root — those don't fire window.resize.
+  // The observer fires synchronously during the layout pass, before the next paint,
+  // so the scroll correction is invisible to the user.
   useEffect(() => {
-    const onResize = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
       if (atBottomRef.current) {
         scrollToBottom('auto');
       }
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [scrollToBottom]);
 
   // Keep the DOM stable during loading — only show messages when everything is ready

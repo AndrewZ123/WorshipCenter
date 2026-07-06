@@ -32,15 +32,12 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
   const inputBg = useColorModeValue('gray.50', 'gray.700');
   const inputBorder = useColorModeValue('gray.200', 'gray.600');
 
-  // Force keyboard closed on mount — WKWebView sometimes restores a keyboard
-  // session across page navigations in Capacitor.
+  // Dismiss any stale keyboard focus on mount — WKWebView sometimes restores
+  // a keyboard session across page navigations in Capacitor. Using blur()
+  // instead of Keyboard.hide() avoids triggering CSS-driven shell-root height
+  // changes that silently clamp scrollTop in the message list.
   useEffect(() => {
-    import('@/lib/api-base').then(({ isCapacitorNative }) => {
-      if (!isCapacitorNative()) return;
-      import('@capacitor/keyboard').then(({ Keyboard }) => {
-        Keyboard.hide();
-      }).catch(() => {});
-    });
+    inputRef.current?.blur();
   }, []);
 
   const wrapSelection = useCallback((before: string, after: string) => {
