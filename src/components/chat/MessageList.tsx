@@ -69,13 +69,17 @@ export default function MessageList({
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
+  const isInitialLoad = useRef(true);
+
   useEffect(() => {
     if (messages.length === 0 || isLoading) return;
     const scrollToBottom = () => {
-      if (!containerRef.current) return;
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      endRef.current?.scrollIntoView({ behavior: isInitialLoad.current ? 'instant' : 'smooth' });
     };
-    requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
+    scrollToBottom();
+    const id = requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
+    isInitialLoad.current = false;
+    return () => cancelAnimationFrame(id);
   }, [messages, isLoading]);
 
   if (isLoading) {
