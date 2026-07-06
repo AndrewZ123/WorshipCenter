@@ -24,6 +24,8 @@ import {
   Divider,
   Flex,
   Textarea,
+  SimpleGrid,
+  Switch,
 } from '@chakra-ui/react';
 import { FiCamera, FiUser, FiHome, FiHelpCircle, FiAlertTriangle } from 'react-icons/fi';
 import { useAuth } from '@/lib/auth';
@@ -31,10 +33,11 @@ import { supabase } from '@/lib/supabase';
 import { useStore } from '@/lib/StoreContext';
 import { useTour } from '@/lib/tour/TourContext';
 import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
-import { Sparkles, Calendar, Plus, Trash2 } from 'lucide-react';
+import { Sparkles, Calendar, Plus, Trash2, Shield, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
-import type { TeamMemberPreference, TeamMemberBlockoutDate } from '@/lib/types';
+import { db } from '@/lib/store';
+import type { TeamMemberPreference, TeamMemberBlockoutDate, AdminPermission, User } from '@/lib/types';
 
 export default function SettingsPage() {
   const { user, church, deleteAccount } = useAuth();
@@ -63,6 +66,27 @@ export default function SettingsPage() {
   const [newBlockoutReason, setNewBlockoutReason] = useState('');
   const [addingBlockout, setAddingBlockout] = useState(false);
   const [loadingPrefs, setLoadingPrefs] = useState(false);
+
+  // Admin management state
+  const [admins, setAdmins] = useState<(AdminPermission & { users?: Partial<User> })[]>([]);
+  const [churchUsers, setChurchUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [editingPerms, setEditingPerms] = useState<Record<string, boolean>>({});
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [savingAdmin, setSavingAdmin] = useState(false);
+  const [showAddAdmin, setShowAddAdmin] = useState(false);
+  const [deleteAdminId, setDeleteAdminId] = useState<string | null>(null);
+
+  const SCOPES: { key: string; label: string; desc: string }[] = [
+    { key: 'manage_services', label: 'Services', desc: 'Create, edit, and delete services' },
+    { key: 'manage_songs', label: 'Songs', desc: 'Add, edit, and remove songs from library' },
+    { key: 'manage_team', label: 'Team', desc: 'Manage team member roster and roles' },
+    { key: 'manage_templates', label: 'Templates', desc: 'Create and edit service templates' },
+    { key: 'manage_settings', label: 'Settings', desc: 'Change church name and settings' },
+    { key: 'manage_billing', label: 'Billing', desc: 'View and manage subscription billing' },
+    { key: 'manage_chat', label: 'Chat', desc: 'Create and manage chat channels' },
+    { key: 'manage_admins', label: 'Admin Management', desc: 'Add and remove other admins' },
+  ];
   
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -156,6 +180,73 @@ export default function SettingsPage() {
       console.error('Error deleting blockout:', error);
       toast({ title: 'Error removing blockout date', status: 'error', duration: 3000 });
     }
+  };
+
+  // ─── Admin Management ───────────────────────────────────────────────
+  const loadAdmins = async () => {
+    if (!church) return;
+    try {
+      setLoadingAdmins(true);
+      const data = await db.adminPermissions.getByChurch(church.id);
+      setAdmins(data || []);
+    } catch (error) {
+      console.error('Error loading admins:', error);
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
+
+  useEffect(() => {
+    if (church && user?.role === 'admin') loadAdmins();
+  }, [church, user?.role]);
+
+  useEffect(() => {
+    if (showAddAdmin && church) {
+      db.users.getByChurch(church.id).then(setChurchUsers);
+    }
+  }, [showAddAdmin, church]);
+
+  const handleAddAdmin = async () => {
+    if (!church || !selectedUserId) return;
+    setSavingAdmin(true);
+    try {
+      await db.adminPermissions.promoteToAdmin(selectedUserId, church.id);
+      setShowAddAdmin(false);
+      setSelectedUserId('');
+      await loadAdmins();
+    } catch (error) {
+      console.error('Error adding admin:', error);
+    } finally {
+      setSavingAdmin(false);
+    }
+  };
+
+  const handleRemoveAdmin = async () => {
+    if (!church || !deleteAdminId) return;
+    if (deleteAdminId === user?.id) { setDeleteAdminId(null); return; }
+    try {
+      await db.adminPermissions.demoteFromAdmin(deleteAdminId, church.id);
+      setDeleteAdminId(null);
+      await loadAdmins();
+    } catch (error) {
+      console.error('Error removing admin:', error);
+    }
+  };
+
+  const handleToggleScope = async (adminUserId: string, scope: string, value: boolean) => {
+    if (!church) return;
+    setEditingPerms(prev => ({ ...prev, [`${adminUserId}.${scope}`]: value }));
+    try {
+      await db.adminPermissions.upsert(adminUserId, church.id, { [scope]: value } as any);
+    } catch {
+      setEditingPerms(prev => ({ ...prev, [`${adminUserId}.${scope}`]: !value }));
+    }
+  };
+
+  const getScopeValue = (admin: any, scope: string): boolean => {
+    const key = `${admin.user_id}.${scope}`;
+    if (key in editingPerms) return editingPerms[key];
+    return admin[scope] ?? true;
   };
 
   const formatDateRange = (start: string, end: string) => {
@@ -455,6 +546,154 @@ export default function SettingsPage() {
           >
             Save Church Settings
           </Button>
+        </VStack>
+      </CardBody>
+    </Card>
+  )}
+
+  {/* Admin Management (admin only) */}
+  {user.role === 'admin' && church && (
+    <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
+      <CardBody>
+        <VStack align="stretch" spacing={6}>
+          <HStack spacing={4}>
+            <Box p="3" borderRadius="lg" bg="purple.50" color="purple.600" flexShrink={0}>
+              <Shield size={22} />
+            </Box>
+            <Box flex="1">
+              <Heading size="md" color={textColor}>Admin Management</Heading>
+              <Text fontSize="sm" color={subtextColor} mt="1">
+                Manage church administrators and their permissions
+              </Text>
+            </Box>
+            <Badge colorScheme="purple">Admin Only</Badge>
+          </HStack>
+
+          <Divider />
+
+          {loadingAdmins ? (
+            <Spinner size="sm" alignSelf="center" />
+          ) : admins.length === 0 ? (
+            <Text fontSize="sm" color="gray.400" fontStyle="italic">No admins yet. Add an admin to delegate management tasks.</Text>
+          ) : (
+            <VStack spacing="4" align="stretch">
+              {admins.map((admin) => {
+                const adminUser = (admin as any).users;
+                return (
+                  <Box
+                    key={admin.user_id}
+                    p="4"
+                    borderRadius="lg"
+                    border="1px solid"
+                    borderColor={borderColor}
+                  >
+                    <HStack justify="space-between" mb="3">
+                      <HStack spacing="3">
+                        <Box
+                          w="32px" h="32px" borderRadius="full"
+                          bg="purple.100" color="purple.600"
+                          display="flex" alignItems="center" justifyContent="center"
+                          fontWeight="700" fontSize="sm"
+                        >
+                          {(adminUser?.name || 'A')[0].toUpperCase()}
+                        </Box>
+                        <Box>
+                          <HStack spacing="2">
+                            <Text fontWeight="600" fontSize="sm" color={textColor}>
+                              {adminUser?.name || 'Unknown'}
+                            </Text>
+                            {admin.user_id === user?.id && (
+                              <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="full" px="2">You</Badge>
+                            )}
+                          </HStack>
+                          <Text fontSize="xs" color={subtextColor}>{adminUser?.email || ''}</Text>
+                        </Box>
+                      </HStack>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        color="red.400"
+                        _hover={{ bg: 'red.50' }}
+                        leftIcon={<Trash2 size={12} />}
+                        onClick={() => setDeleteAdminId(admin.user_id)}
+                        isDisabled={admin.user_id === user?.id}
+                      >
+                        Remove
+                      </Button>
+                    </HStack>
+
+                    <SimpleGrid columns={{ base: 1, sm: 2 }} spacing="2">
+                      {SCOPES.map((scope) => (
+                        <HStack key={scope.key} justify="space-between" p="2" borderRadius="md" _hover={{ bg: useColorModeValue('gray.50', 'gray.700') }}>
+                          <Box>
+                            <Text fontSize="sm" fontWeight="500" color={textColor}>{scope.label}</Text>
+                            <Text fontSize="xs" color={subtextColor}>{scope.desc}</Text>
+                          </Box>
+                          <Switch
+                            size="sm"
+                            colorScheme="teal"
+                            isChecked={getScopeValue(admin, scope.key)}
+                            onChange={(e) => handleToggleScope(admin.user_id, scope.key, e.target.checked)}
+                          />
+                        </HStack>
+                      ))}
+                    </SimpleGrid>
+                  </Box>
+                );
+              })}
+            </VStack>
+          )}
+
+          {/* Add Admin Section */}
+          <Box pt="2">
+            {showAddAdmin ? (
+              <VStack spacing="3" align="stretch" p="3" borderRadius="lg" border="1px dashed" borderColor={borderColor}>
+                <Text fontWeight="600" fontSize="sm" color={textColor}>Select a user to promote to admin</Text>
+                <Box maxH="200px" overflowY="auto">
+                  <VStack spacing="1" align="stretch">
+                    {(churchUsers || [])
+                      .filter((u: User) => u.role !== 'admin')
+                      .map((u: User) => (
+                        <HStack
+                          key={u.id}
+                          p="2"
+                          borderRadius="md"
+                          cursor="pointer"
+                          bg={selectedUserId === u.id ? 'teal.50' : 'transparent'}
+                          border="1px solid"
+                          borderColor={selectedUserId === u.id ? 'teal.200' : 'transparent'}
+                          onClick={() => setSelectedUserId(u.id)}
+                          _hover={{ bg: 'teal.50' }}
+                        >
+                          <Box flex="1">
+                            <Text fontSize="sm" fontWeight="500" color={textColor}>{u.name}</Text>
+                            <Text fontSize="xs" color={subtextColor}>{u.email}</Text>
+                          </Box>
+                          <Badge variant="subtle" colorScheme="gray" fontSize="xs">{u.role}</Badge>
+                        </HStack>
+                      ))}
+                  </VStack>
+                </Box>
+                <HStack spacing="2">
+                  <Button size="sm" variant="ghost" onClick={() => { setShowAddAdmin(false); setSelectedUserId(''); }}>Cancel</Button>
+                  <Button size="sm" colorScheme="teal" onClick={handleAddAdmin} isLoading={savingAdmin} isDisabled={!selectedUserId} fontWeight="600">
+                    Make Admin
+                  </Button>
+                </HStack>
+              </VStack>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                colorScheme="purple"
+                leftIcon={<UserPlus size={16} />}
+                onClick={() => setShowAddAdmin(true)}
+                fontWeight="600"
+              >
+                Add Admin
+              </Button>
+            )}
+          </Box>
         </VStack>
       </CardBody>
     </Card>
