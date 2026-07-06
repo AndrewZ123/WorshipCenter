@@ -13,7 +13,11 @@ interface MessageListProps {
   currentUserId: string;
   isLoading: boolean;
   onReact: (messageId: string, emoji: string) => Promise<void>;
+  onEdit?: (messageId: string, content: string) => Promise<void>;
+  onDelete?: (messageId: string) => Promise<void>;
   onVotePoll?: (pollId: string, userId: string, optionIndex: number) => Promise<any>;
+  onClosePoll?: (pollId: string) => Promise<void>;
+  onUpdatePoll?: (pollId: string, updates: { question?: string; options?: string[]; is_closed?: boolean }) => Promise<any>;
 }
 
 function groupMessagesByDate(messages: any[]) {
@@ -57,7 +61,9 @@ function DateSeparator({ date }: { date: string }) {
   );
 }
 
-export default function MessageList({ messages, reactions, currentUserId, isLoading, onReact, onVotePoll }: MessageListProps) {
+export default function MessageList({
+  messages, reactions, currentUserId, isLoading, onReact, onEdit, onDelete, onVotePoll, onClosePoll, onUpdatePoll,
+}: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const bgColor = useColorModeValue('gray.50', 'gray.800');
@@ -69,7 +75,6 @@ export default function MessageList({ messages, reactions, currentUserId, isLoad
       if (!containerRef.current) return;
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     };
-    // Double rAF to ensure flex layout has settled
     requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
   }, [messages, isLoading]);
 
@@ -120,7 +125,11 @@ export default function MessageList({ messages, reactions, currentUserId, isLoad
                   reactions={reactions[msg.id] || []}
                   currentUserId={currentUserId}
                   onReact={onReact}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
                   onVotePoll={onVotePoll}
+                  onClosePoll={onClosePoll}
+                  onUpdatePoll={onUpdatePoll}
                 />
               );
             })}

@@ -3,63 +3,50 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDemo } from '@/lib/demo/context';
 import Avatar from '@/components/ui/Avatar';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { formatRelativeDate, formatServiceDate } from '@/lib/formatDate';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Box, Text, HStack, VStack, Flex, Spinner, Center, IconButton,
-  Badge, useColorModeValue, Input
+  Badge, useColorModeValue, Input, Textarea, Button,
 } from '@chakra-ui/react';
-import { 
-  Send, MessageCircle, Smile, Hash, Users
+import {
+  Send, MessageCircle, Smile, Hash, Users, Pencil, Trash2, X, Check,
 } from 'lucide-react';
 import type { ChatMessagePopulated } from '@/lib/types';
 
-// Helper to group messages by date
 function groupMessagesByDate(messages: ChatMessagePopulated[]) {
   const groups: { date: string; messages: ChatMessagePopulated[] }[] = [];
-  
   messages.forEach((message) => {
     const messageDate = new Date(message.created_at).toDateString();
     const existingGroup = groups.find(g => g.date === messageDate);
-    
     if (existingGroup) {
       existingGroup.messages.push(message);
     } else {
       groups.push({ date: messageDate, messages: [message] });
     }
   });
-  
   return groups;
 }
 
-// Helper to format date header
 function formatDateHeader(dateString: string) {
   const date = new Date(dateString);
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  
-  if (date.toDateString() === today.toDateString()) {
-    return 'Today';
-  } else if (date.toDateString() === yesterday.toDateString()) {
-    return 'Yesterday';
-  } else {
-    return formatServiceDate(dateString);
-  }
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  else if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  else return formatServiceDate(dateString);
 }
 
-// Helper to check if messages should be grouped (same user within 2 minutes)
 function shouldGroupWithPrevious(current: ChatMessagePopulated, previous: ChatMessagePopulated | null) {
   if (!previous) return false;
   if (current.user.id !== previous.user.id) return false;
-  
   const currentTime = new Date(current.created_at).getTime();
   const previousTime = new Date(previous.created_at).getTime();
-  
-  return (currentTime - previousTime) < 2 * 60 * 1000; // 2 minutes
+  return (currentTime - previousTime) < 2 * 60 * 1000;
 }
 
-// Typing indicator dots animation component
 function TypingIndicator() {
   return (
     <HStack spacing="1" px="2">
@@ -82,22 +69,13 @@ function TypingIndicator() {
   );
 }
 
-// Date separator component
 function DateSeparator({ date }: { date: string }) {
   const bgColor = useColorModeValue('gray.100', 'gray.700');
   const textColor = useColorModeValue('gray.500', 'gray.400');
-  
   return (
     <Flex align="center" my="4">
       <Box flex="1" h="1px" bg={bgColor} />
-      <Text
-        fontSize="xs"
-        fontWeight="600"
-        color={textColor}
-        textTransform="uppercase"
-        letterSpacing="wide"
-        px="3"
-      >
+      <Text fontSize="xs" fontWeight="600" color={textColor} textTransform="uppercase" letterSpacing="wide" px="3">
         {formatDateHeader(date)}
       </Text>
       <Box flex="1" h="1px" bg={bgColor} />
@@ -105,27 +83,50 @@ function DateSeparator({ date }: { date: string }) {
   );
 }
 
-// Message bubble component
-function MessageBubble({ 
-  message, 
-  isOwn, 
-  showAvatar, 
-  showName,
-  isGrouped 
-}: { 
-  message: ChatMessagePopulated; 
+function MessageBubble({
+  message, isOwn, showAvatar, showName, isGrouped,
+  onEdit, onDelete,
+}: {
+  message: ChatMessagePopulated;
   isOwn: boolean;
   showAvatar: boolean;
   showName: boolean;
   isGrouped: boolean;
+  onEdit?: (id: string, content: string) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
   const ownBubbleBg = useColorModeValue('teal.500', 'teal.400');
   const otherBubbleBg = useColorModeValue('white', 'gray.700');
   const otherBubbleBorder = useColorModeValue('gray.200', 'gray.600');
   const ownTextColor = 'white';
   const otherTextColor = useColorModeValue('gray.800', 'white');
   const timeColor = useColorModeValue('gray.400', 'gray.500');
-  
+  const editBg = useColorModeValue('white', 'gray.700');
+  const editBorder = useColorModeValue('gray.300', 'gray.500');
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim() || !onEdit) return;
+    setIsSaving(true);
+    try {
+      await onEdit(message.id, editContent.trim());
+      setIsEditing(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditContent(message.content || '');
+    setIsEditing(false);
+  };
+
+  const hasBeenEdited = !!(message as any).updated_at;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -137,92 +138,171 @@ function MessageBubble({
         gap="2"
         flexDir={isOwn ? 'row-reverse' : 'row'}
         mt={isGrouped ? '1' : '3'}
+        pos="relative"
+        role="group"
       >
-        {/* Avatar space - show or keep space for alignment */}
         <Box w="28px" h="28px" flexShrink={0}>
           {showAvatar && (
-            <Avatar
-              name={message.user.name || 'Unknown'}
-              size="sm"
-            />
+            <Avatar name={message.user.name || 'Unknown'} size="sm" />
           )}
         </Box>
-        
-        <VStack 
-          align={isOwn ? 'flex-end' : 'flex-start'} 
+        <VStack
+          align={isOwn ? 'flex-end' : 'flex-start'}
           spacing="1"
           maxW={{ base: '75%', md: '65%' }}
           flex="1"
         >
-          {/* Name and time - only show if not grouped */}
           {showName && (
             <HStack spacing="2" px="1">
-              <Text 
-                fontSize="xs" 
-                fontWeight="600"
-                color={isOwn ? 'teal.600' : 'gray.600'}
-              >
+              <Text fontSize="xs" fontWeight="600" color={isOwn ? 'teal.600' : 'gray.600'}>
                 {message.user.name || 'Unknown'}
               </Text>
               <Text fontSize="10px" color={timeColor}>
                 {formatRelativeDate(message.created_at)}
               </Text>
+              {hasBeenEdited && (
+                <Text fontSize="10px" color={timeColor} fontStyle="italic">edited</Text>
+              )}
             </HStack>
           )}
-          
-          {/* Message bubble */}
-          <Box
-            px="4"
-            py="2.5"
-            borderRadius="2xl"
-            bg={isOwn ? ownBubbleBg : otherBubbleBg}
-            color={isOwn ? ownTextColor : otherTextColor}
-            borderBottomRightRadius={isOwn ? 'sm' : '2xl'}
-            borderBottomLeftRadius={isOwn ? '2xl' : 'sm'}
-            boxShadow={isOwn 
-              ? '0 2px 8px rgba(13, 148, 136, 0.25)' 
-              : '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)'
-            }
-            border={isOwn ? 'none' : '1px solid'}
-            borderColor={isOwn ? 'transparent' : otherBubbleBorder}
-            position="relative"
-            _hover={{
-              '& .timestamp': {
-                opacity: 1,
-              }
-            }}
-          >
-            <Text fontSize="sm" lineHeight="1.5" whiteSpace="pre-wrap" wordBreak="break-word">
-              {message.content}
-            </Text>
-            
-            {/* Hover timestamp */}
-            <Box
-              className="timestamp"
-              position="absolute"
-              {...(isOwn ? { left: '-50px' } : { right: '-50px' })}
-              bottom="50%"
-              transform="translateY(50%)"
-              opacity="0"
-              transition="opacity 0.15s"
-            >
-              <Text fontSize="10px" color={timeColor} whiteSpace="nowrap">
-                {new Date(message.created_at).toLocaleTimeString('en-US', { 
-                  hour: 'numeric', 
-                  minute: '2-digit',
-                  hour12: true 
-                })}
-              </Text>
+
+          {isEditing ? (
+            <Box w="full">
+              <Textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                bg={editBg}
+                border="1px solid"
+                borderColor={editBorder}
+                borderRadius="lg"
+                fontSize="sm"
+                minH="80px"
+                resize="vertical"
+                autoFocus
+              />
+              <HStack spacing="2" mt="2" justify="flex-end">
+                <Button size="xs" variant="ghost" leftIcon={<X size={14} />} onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+                <Button
+                  size="xs"
+                  colorScheme="teal"
+                  leftIcon={<Check size={14} />}
+                  onClick={handleSaveEdit}
+                  isLoading={isSaving}
+                  isDisabled={!editContent.trim()}
+                >
+                  Save
+                </Button>
+              </HStack>
             </Box>
-          </Box>
+          ) : (
+            <Box
+              px="4"
+              py="2.5"
+              borderRadius="2xl"
+              bg={isOwn ? ownBubbleBg : otherBubbleBg}
+              color={isOwn ? ownTextColor : otherTextColor}
+              borderBottomRightRadius={isOwn ? 'sm' : '2xl'}
+              borderBottomLeftRadius={isOwn ? '2xl' : 'sm'}
+              boxShadow={isOwn
+                ? '0 2px 8px rgba(13, 148, 136, 0.25)'
+                : '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)'
+              }
+              border={isOwn ? 'none' : '1px solid'}
+              borderColor={isOwn ? 'transparent' : otherBubbleBorder}
+              position="relative"
+              _groupHover={{}}
+            >
+              <Text fontSize="sm" lineHeight="1.5" whiteSpace="pre-wrap" wordBreak="break-word">
+                {message.content}
+              </Text>
+
+              {isOwn && (onEdit || onDelete) && (
+                <HStack
+                  spacing="1"
+                  position="absolute"
+                  top="2"
+                  {...(isOwn ? { left: '-44px' } : { right: '-44px' })}
+                  opacity="0"
+                  _groupHover={{ opacity: 1 }}
+                  transition="opacity 0.15s"
+                >
+                  {onEdit && (
+                    <IconButton
+                      aria-label="Edit message"
+                      icon={<Pencil size={14} />}
+                      size="xs"
+                      variant="ghost"
+                      colorScheme="gray"
+                      onClick={() => { setEditContent(message.content || ''); setIsEditing(true); }}
+                    />
+                  )}
+                  {onDelete && (
+                    <IconButton
+                      aria-label="Delete message"
+                      icon={<Trash2 size={14} />}
+                      size="xs"
+                      variant="ghost"
+                      colorScheme="red"
+                      onClick={() => setDeleteOpen(true)}
+                    />
+                  )}
+                </HStack>
+              )}
+
+              {hasBeenEdited && !showName && (
+                <Text
+                  fontSize="10px"
+                  color={isOwn ? 'whiteAlpha.600' : timeColor}
+                  fontStyle="italic"
+                  textAlign={isOwn ? 'right' : 'left'}
+                  mt="1"
+                >
+                  edited
+                </Text>
+              )}
+
+              <Box
+                className="timestamp"
+                position="absolute"
+                {...(isOwn ? { left: '-50px' } : { right: '-50px' })}
+                bottom="50%"
+                transform="translateY(50%)"
+                opacity="0"
+                transition="opacity 0.15s"
+              >
+                <Text fontSize="10px" color={timeColor} whiteSpace="nowrap">
+                  {new Date(message.created_at).toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                  })}
+                </Text>
+              </Box>
+            </Box>
+          )}
         </VStack>
       </Flex>
+
+      <ConfirmDialog
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={async () => {
+          if (!onDelete) return;
+          await onDelete(message.id);
+          setDeleteOpen(false);
+        }}
+        title="Delete Message"
+        message="Are you sure you want to delete this message? This cannot be undone."
+        confirmLabel="Delete"
+      />
     </motion.div>
   );
 }
 
 export default function DemoChatPage() {
-  const { user, church, chatMessages, createChatMessage } = useDemo();
+  const { user, church, chatMessages, createChatMessage, updateChatMessage, deleteChatMessage } = useDemo();
   const [messages, setMessages] = useState<ChatMessagePopulated[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -231,8 +311,7 @@ export default function DemoChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  
-  // Color mode values
+
   const bgColor = useColorModeValue('gray.50', 'gray.800');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -242,10 +321,8 @@ export default function DemoChatPage() {
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
 
-  // Load messages from context
   useEffect(() => {
     setIsLoading(true);
-    // Simulate a brief loading state
     const timer = setTimeout(() => {
       setMessages(chatMessages as ChatMessagePopulated[]);
       setIsLoading(false);
@@ -253,7 +330,6 @@ export default function DemoChatPage() {
     return () => clearTimeout(timer);
   }, [chatMessages]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -261,12 +337,8 @@ export default function DemoChatPage() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !user?.id || !church?.id || isSending) return;
-
     setIsSending(true);
-    
-    // Simulate typing indicator from "other users"
     setIsTyping(true);
-    
     try {
       createChatMessage({
         church_id: church.id,
@@ -279,12 +351,22 @@ export default function DemoChatPage() {
       console.error('Failed to send message:', error);
     } finally {
       setIsSending(false);
-      // Clear typing indicator after a moment
       setTimeout(() => setIsTyping(false), 1500);
     }
   };
 
-  // Handle Enter key to send
+  const handleEdit = async (id: string, content: string) => {
+    updateChatMessage(id, { content } as any);
+    setMessages((prev) => prev.map((m) =>
+      m.id === id ? { ...m, content, updated_at: new Date().toISOString() } as ChatMessagePopulated : m
+    ));
+  };
+
+  const handleDelete = async (id: string) => {
+    deleteChatMessage(id);
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+  };
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -292,24 +374,22 @@ export default function DemoChatPage() {
     }
   }, [input, isSending]);
 
-  // Group messages by date
   const messageGroups = groupMessagesByDate(messages);
 
   return (
-    <Box 
-      px={{ base: '0', md: '4' }} 
+    <Box
+      px={{ base: '0', md: '4' }}
       pt={{ base: '2', md: '8' }}
       pb={{ base: '0', md: '4' }}
-      maxW="900px" 
-      mx="auto" 
+      maxW="900px"
+      mx="auto"
       h={{ base: 'calc(100dvh - 48px - env(safe-area-inset-top) - 48px - env(safe-area-inset-bottom))', md: 'auto' }}
       display="flex"
       flexDirection="column"
     >
-      {/* Header */}
-      <Box 
-        bg={headerBg} 
-        borderBottom="1px solid" 
+      <Box
+        bg={headerBg}
+        borderBottom="1px solid"
         borderColor={borderColor}
         p={{ base: '4', md: '0' }}
         pb={{ base: '4', md: '6' }}
@@ -319,12 +399,7 @@ export default function DemoChatPage() {
       >
         <Flex justify="space-between" align="center">
           <HStack spacing="3">
-            <Box
-              p="2"
-              borderRadius="lg"
-              bg="teal.50"
-              color="teal.600"
-            >
+            <Box p="2" borderRadius="lg" bg="teal.50" color="teal.600">
               <Hash size={20} />
             </Box>
             <Box>
@@ -334,7 +409,7 @@ export default function DemoChatPage() {
               <HStack spacing="2">
                 <Box w="2" h="2" borderRadius="full" bg="green.400" />
                 <Text fontSize="sm" color={subtextColor}>
-                  {messages.length > 0 
+                  {messages.length > 0
                     ? `${messages.filter((m, i, arr) => arr.findIndex(x => x.user.id === m.user.id) === i).length} members`
                     : 'Coordinate with your worship team'
                   }
@@ -342,18 +417,8 @@ export default function DemoChatPage() {
               </HStack>
             </Box>
           </HStack>
-          
-          {/* Header actions */}
           <HStack spacing="2">
-            <Badge 
-              colorScheme="teal" 
-              variant="subtle" 
-              borderRadius="full"
-              px="3"
-              py="1"
-              fontSize="xs"
-              fontWeight="600"
-            >
+            <Badge colorScheme="teal" variant="subtle" borderRadius="full" px="3" py="1" fontSize="xs" fontWeight="600">
               <HStack spacing="1">
                 <Users size={12} />
                 <Text>Demo</Text>
@@ -363,39 +428,30 @@ export default function DemoChatPage() {
         </Flex>
       </Box>
 
-      {/* Chat Container */}
-      <Box 
-        bg={cardBg} 
+      <Box
+        bg={cardBg}
         borderRadius={{ base: '0', md: 'xl' }}
         border={{ base: 'none', md: '1px solid' }}
         borderColor={borderColor}
         boxShadow={{ base: 'none', md: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)' }}
-        overflow="hidden" 
-        display="flex" 
-        flexDirection="column" 
+        overflow="hidden"
+        display="flex"
+        flexDirection="column"
         flex="1"
         minH={{ base: 'auto', md: 'calc(100dvh - 280px)' }}
         maxH={{ base: 'none', md: 'calc(100dvh - 280px)' }}
       >
-        {/* Messages Area */}
-        <Box 
+        <Box
           ref={messagesContainerRef}
-          flex="1" 
-          overflowY="auto" 
+          flex="1"
+          overflowY="auto"
           p={{ base: '4', md: '6' }}
           pb="4"
           bg={bgColor}
           css={{
-            '::-webkit-scrollbar': {
-              width: '6px',
-            },
-            '::-webkit-scrollbar-track': {
-              background: 'transparent',
-            },
-            '::-webkit-scrollbar-thumb': {
-              background: '#d1d5db',
-              borderRadius: '3px',
-            },
+            '::-webkit-scrollbar': { width: '6px' },
+            '::-webkit-scrollbar-track': { background: 'transparent' },
+            '::-webkit-scrollbar-thumb': { background: '#d1d5db', borderRadius: '3px' },
           }}
         >
           {isLoading ? (
@@ -408,18 +464,11 @@ export default function DemoChatPage() {
           ) : messages.length === 0 ? (
             <Center h="full" minH="300px">
               <VStack spacing="4">
-                <Box
-                  p="4"
-                  borderRadius="full"
-                  bg="teal.50"
-                  color="teal.400"
-                >
+                <Box p="4" borderRadius="full" bg="teal.50" color="teal.400">
                   <MessageCircle size={48} />
                 </Box>
                 <VStack spacing="1">
-                  <Text fontSize="lg" fontWeight="600" color={textColor}>
-                    Start the conversation
-                  </Text>
+                  <Text fontSize="lg" fontWeight="600" color={textColor}>Start the conversation</Text>
                   <Text fontSize="sm" color={subtextColor} textAlign="center" maxW="280px">
                     Send a message to coordinate with your worship team in real-time
                   </Text>
@@ -432,17 +481,15 @@ export default function DemoChatPage() {
                 <Box key={group.date}>
                   <DateSeparator date={group.date} />
                   {group.messages.map((message, messageIndex) => {
-                    const prevMessage = messageIndex > 0 
-                      ? group.messages[messageIndex - 1] 
-                      : (groupIndex > 0 
+                    const prevMessage = messageIndex > 0
+                      ? group.messages[messageIndex - 1]
+                      : (groupIndex > 0
                         ? messageGroups[groupIndex - 1].messages[messageGroups[groupIndex - 1].messages.length - 1]
                         : null);
-                    
                     const isGrouped = shouldGroupWithPrevious(message, prevMessage);
                     const showAvatar = !isGrouped;
                     const showName = !isGrouped;
                     const isOwn = message.user.id === user?.id;
-                    
                     return (
                       <MessageBubble
                         key={message.id}
@@ -451,13 +498,13 @@ export default function DemoChatPage() {
                         showAvatar={showAvatar}
                         showName={showName}
                         isGrouped={isGrouped}
+                        onEdit={isOwn ? handleEdit : undefined}
+                        onDelete={isOwn ? handleDelete : undefined}
                       />
                     );
                   })}
                 </Box>
               ))}
-              
-              {/* Typing indicator */}
               {isTyping && (
                 <Flex align="end" gap="2" mt="2">
                   <Box w="28px" h="28px" flexShrink={0}>
@@ -477,18 +524,16 @@ export default function DemoChatPage() {
                   </Box>
                 </Flex>
               )}
-              
               <div ref={messagesEndRef} />
             </AnimatePresence>
           )}
         </Box>
 
-        {/* Input Area */}
-        <Box 
+        <Box
           as="form"
           onSubmit={handleSend}
-          borderTop="1px solid" 
-          borderColor={borderColor} 
+          borderTop="1px solid"
+          borderColor={borderColor}
           p={{ base: '3', md: '4' }}
           bg={cardBg}
         >
@@ -509,10 +554,7 @@ export default function DemoChatPage() {
                 borderRadius="xl"
                 pr="12"
                 _placeholder={{ color: 'gray.400' }}
-                _focus={{
-                  borderColor: 'teal.400',
-                  boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)',
-                }}
+                _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 3px rgba(13, 148, 136, 0.15)' }}
                 disabled={isSending}
               />
               <IconButton
@@ -528,7 +570,6 @@ export default function DemoChatPage() {
                 _hover={{ color: 'teal.500', bg: 'teal.50' }}
               />
             </Box>
-            
             <IconButton
               aria-label="Send message"
               type="submit"
@@ -539,17 +580,11 @@ export default function DemoChatPage() {
               borderRadius="xl"
               colorScheme="teal"
               disabled={!input.trim() || isSending}
-              _disabled={{
-                opacity: 0.5,
-                cursor: 'not-allowed',
-              }}
+              _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
               isLoading={isSending}
             />
           </HStack>
-          
-          <Text fontSize="xs" color="gray.400" mt="2" textAlign="center">
-            Press Enter to send
-          </Text>
+          <Text fontSize="xs" color="gray.400" mt="2" textAlign="center">Press Enter to send</Text>
         </Box>
       </Box>
     </Box>

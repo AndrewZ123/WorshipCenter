@@ -2098,6 +2098,26 @@ export const db = {
       }
       return db.normalizeChannelMessage(data);
     },
+    updateMessage: async (messageId: string, content: string) => {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .update({ content: sanitizeHtml(content), updated_at: new Date().toISOString() })
+        .eq('id', messageId)
+        .select('*, users!chat_messages_user_id_fkey(id, name, email, avatar_url)')
+        .single();
+      if (error || !data) {
+        console.warn('[Channels] Failed to update message:', error);
+        return null;
+      }
+      return db.normalizeChannelMessage(data);
+    },
+    deleteMessage: async (messageId: string) => {
+      const { error } = await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('id', messageId);
+      return !error;
+    },
     pinMessage: async (messageId: string, isPinned: boolean) => {
       const { error } = await supabase
         .from('chat_messages')
@@ -2150,6 +2170,23 @@ export const db = {
         .eq('poll_id', pollId);
       return { poll: poll as ChatPoll | null, votes: (votes || []) as ChatPollVote[] };
     },
+    updatePoll: async (pollId: string, updates: { question?: string; options?: string[]; is_closed?: boolean }) => {
+      const sanitized: any = {};
+      if (updates.question !== undefined) sanitized.question = sanitizeString(updates.question);
+      if (updates.options !== undefined) sanitized.options = updates.options;
+      if (updates.is_closed !== undefined) sanitized.is_closed = updates.is_closed;
+      const { data, error } = await supabase
+        .from('chat_polls')
+        .update(sanitized)
+        .eq('id', pollId)
+        .select()
+        .single();
+      if (error) {
+        console.warn('[Channels] Failed to update poll:', error);
+        return null;
+      }
+      return data as ChatPoll;
+    },
     closePoll: async (pollId: string) => {
       const { error } = await supabase
         .from('chat_polls')
@@ -2189,25 +2226,31 @@ export const db = {
         .eq('emoji', emoji);
       return !error;
     },
-    subscribe: (channelId: string, callback: (message: any) => void, onError?: (error: Error) => void) => {
+    subscribe: (channelId: string, callback: (message: any, event?: string) => void, onError?: (error: Error) => void) => {
       const channel = supabase
         .channel(`channel-messages:${channelId}`)
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
             table: 'chat_messages',
             filter: `channel_id=eq.${channelId}`,
           },
           async (payload) => {
             try {
-              const { data: userData } = await supabase
-                .from('users')
-                .select('id, name, email, avatar_url')
-                .eq('id', payload.new.user_id)
-                .single();
-              callback({ ...payload.new, user: userData || { id: payload.new.user_id, name: 'Unknown' } });
+              if (payload.eventType === 'INSERT') {
+                const { data: userData } = await supabase
+                  .from('users')
+                  .select('id, name, email, avatar_url')
+                  .eq('id', payload.new.user_id)
+                  .single();
+                callback({ ...payload.new, user: userData || { id: payload.new.user_id, name: 'Unknown' } }, 'INSERT');
+              } else if (payload.eventType === 'UPDATE') {
+                callback(payload.new, 'UPDATE');
+              } else if (payload.eventType === 'DELETE') {
+                callback({ id: payload.old.id }, 'DELETE');
+              }
             } catch (error) {
               if (onError) onError(error as Error);
             }

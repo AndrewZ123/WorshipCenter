@@ -76,6 +76,8 @@ interface DemoContextType {
   
   // Chat
   createChatMessage: (message: Omit<ChatMessage, 'id' | 'created_at'>) => ChatMessagePopulated;
+  updateChatMessage: (id: string, updates: Partial<ChatMessage>) => ChatMessagePopulated | null;
+  deleteChatMessage: (id: string) => boolean;
 
   // Task CRUD
   createTask: (t: Omit<ServiceTask, 'id' | 'created_at'>) => ServiceTask;
@@ -471,6 +473,23 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }, [services, createSongUsageForService]);
   
   // Chat
+  const updateChatMessage = useCallback((id: string, updates: Partial<ChatMessage>): ChatMessagePopulated | null => {
+    let updated: ChatMessagePopulated | null = null;
+    setChatMessages(prev => prev.map(m => {
+      if (m.id === id) {
+        updated = { ...m, ...updates, updated_at: new Date().toISOString() } as ChatMessagePopulated;
+        return updated;
+      }
+      return m;
+    }));
+    return updated;
+  }, []);
+
+  const deleteChatMessage = useCallback((id: string): boolean => {
+    setChatMessages(prev => prev.filter(m => m.id !== id));
+    return true;
+  }, []);
+
   const createChatMessage = useCallback((message: Omit<ChatMessage, 'id' | 'created_at'>): ChatMessagePopulated => {
     const newMessage: ChatMessagePopulated = {
       ...message,
@@ -786,6 +805,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     createServiceFromTemplate,
     completeService,
     createChatMessage,
+    updateChatMessage,
+    deleteChatMessage,
     createTask,
     updateTask,
     deleteTask,

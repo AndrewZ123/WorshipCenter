@@ -139,12 +139,18 @@ export default function ChatPage() {
     let timeoutId: NodeJS.Timeout | null = null;
     const unsub = db.channels.subscribe(
       activeChannel.id,
-      (newMessage) => {
-        setMessages((prev) => {
-          const exists = prev.some((m) => m.id === newMessage.id);
-          if (exists) return prev;
-          return [...prev, newMessage];
-        });
+      (payload, event) => {
+        if (event === 'INSERT') {
+          setMessages((prev) => {
+            const exists = prev.some((m) => m.id === payload.id);
+            if (exists) return prev;
+            return [...prev, payload];
+          });
+        } else if (event === 'UPDATE') {
+          setMessages((prev) => prev.map((m) => m.id === payload.id ? { ...m, content: payload.content, updated_at: payload.updated_at } : m));
+        } else if (event === 'DELETE') {
+          setMessages((prev) => prev.filter((m) => m.id !== payload.id));
+        }
       },
       () => {
         setChannelError(true);
@@ -173,6 +179,20 @@ export default function ChatPage() {
     if (!activeChannel || !user?.id) return;
     const newMsg = await db.channels.sendMessage(activeChannel.id, user.id, content);
     setMessages((prev) => [...prev, newMsg]);
+  };
+
+  const handleEdit = async (messageId: string, content: string) => {
+    const updated = await db.channels.updateMessage(messageId, content);
+    if (updated) {
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: updated.content, updated_at: updated.updated_at } : m)));
+    }
+  };
+
+  const handleDelete = async (messageId: string) => {
+    const ok = await db.channels.deleteMessage(messageId);
+    if (ok) {
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    }
   };
 
   const handleReact = async (messageId: string, emoji: string) => {
@@ -205,6 +225,14 @@ export default function ChatPage() {
 
   const handleVotePoll = async (pollId: string, userId: string, optionIndex: number) => {
     return db.channels.votePoll(pollId, userId, optionIndex);
+  };
+
+  const handleClosePoll = async (pollId: string) => {
+    await db.channels.closePoll(pollId);
+  };
+
+  const handleUpdatePoll = async (pollId: string, updates: { question?: string; options?: string[]; is_closed?: boolean }) => {
+    return db.channels.updatePoll(pollId, updates);
   };
 
   const handleChannelCreated = async () => {
@@ -311,7 +339,11 @@ export default function ChatPage() {
                 currentUserId={user?.id || ''}
                 isLoading={isLoadingMessages}
                 onReact={handleReact}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
                 onVotePoll={handleVotePoll}
+                onClosePoll={handleClosePoll}
+                onUpdatePoll={handleUpdatePoll}
               />
               <ChatInput
                 channelId={activeChannel.id}
@@ -331,6 +363,25 @@ export default function ChatPage() {
             channel={activeChannel}
             members={channelMembers}
             isAdmin={isAdmin}
+            onUpdateChannel={(id, updates) => {
+              if (!church?.id) return;
+              db.channels.update(id, church.id, updates).then((updated) => {
+                if (updated) {
+                  setChannels((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
+                  setActiveChannel((prev) => (prev?.id === id ? { ...prev, ...updated } : prev));
+                }
+              });
+            }}
+            onDeleteChannel={(id) => {
+              if (!church?.id) return;
+              db.channels.delete(id, church.id).then((ok) => {
+                if (ok) {
+                  setChannels((prev) => prev.filter((c) => c.id !== id));
+                  setActiveChannel((prev) => (prev?.id === id ? channels.find((c) => c.id !== id) || null : prev));
+                }
+              });
+            }}
+            channels={channels}
           />
         )}
       </Box>
