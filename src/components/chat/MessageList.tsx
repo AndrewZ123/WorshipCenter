@@ -66,6 +66,8 @@ export default function MessageList({
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const contentWrapperRef = useRef<HTMLDivElement>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const atBottomRef = useRef(true);
   const isInitialLoadRef = useRef(true);
   const prevMessagesRef = useRef<any[]>([]);
@@ -99,6 +101,9 @@ export default function MessageList({
     isInitialLoadRef.current = false;
     prevMessagesRef.current = messages;
 
+    const el = containerRef.current;
+    console.log(`[ChatScroll] auto-scroll behavior=${behavior} scrollH=${el?.scrollHeight} clientH=${el?.clientHeight} scrollT=${el?.scrollTop}`);
+
     scrollToBottom(behavior);
   }, [messages, isLoading, scrollToBottom]);
 
@@ -110,23 +115,53 @@ export default function MessageList({
     return () => el.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  // Re-scroll when the container size changes (keyboard open/close, orientation
-  // change, parent layout shifts). Uses ResizeObserver instead of window.resize
-  // because Capacitor's resize:none mode drives keyboard-show/hide layout changes
-  // through CSS class toggles on .shell-root — those don't fire window.resize.
-  // The observer fires synchronously during the layout pass, before the next paint,
-  // so the scroll correction is invisible to the user.
-  useEffect(() => {
-    const el = containerRef.current;
+  // Container ResizeObserver — set up during commit (before paint) so it catches
+  // CSS-driven container size changes (keyboard show/hide via body.keyboard-visible
+  // on .shell-root) that fire asynchronously after the first paint.
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      const el = containerRef.current;
+      console.log(`[ChatScroll] container-resize scrollH=${el?.scrollHeight} clientH=${el?.clientHeight} scrollT=${el?.scrollTop} atBottom=${atBottomRef.current}`);
+      if (atBottomRef.current) {
+        scrollToBottom('auto');
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scrollToBottom]);
+
+  // Content wrapper callback ref — fires when the wrapper mounts/unmounts.
+  // Observes the wrapper so image/poll loading (which grows scrollHeight) is
+  // caught and scroll is corrected.
+  const setContentWrapperRef = useCallback((el: HTMLDivElement | null) => {
+    contentWrapperRef.current = el;
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
     if (!el) return;
     const observer = new ResizeObserver(() => {
+      const c = containerRef.current;
+      console.log(`[ChatScroll] wrapper-resize scrollH=${c?.scrollHeight} clientH=${c?.clientHeight} scrollT=${c?.scrollTop} atBottom=${atBottomRef.current}`);
       if (atBottomRef.current) {
         scrollToBottom('auto');
       }
     });
     observer.observe(el);
-    return () => observer.disconnect();
+    resizeObserverRef.current = observer;
   }, [scrollToBottom]);
+
+  // Clean up wrapper observer on unmount
+  useEffect(() => {
+    return () => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+    };
+  }, []);
 
   // Keep the DOM stable during loading — only show messages when everything is ready
   const showSpinner = isLoading;
@@ -159,40 +194,45 @@ export default function MessageList({
         </Center>
       )}
 
-      {/* Messages */}
+      {/* Messages — wrapped in content wrapper so ResizeObserver catches
+          content-height changes from async image/GIF/poll loading */}
       {showMessages && (
-        <AnimatePresence initial={false}>
-          {groups.map((group, gi) => (
-            <Box key={group.date}>
-              <DateSeparator date={group.date} />
-              {group.messages.map((msg, mi) => {
-                const prev = mi > 0 ? group.messages[mi - 1] : (gi > 0 ? groups[gi - 1].messages[groups[gi - 1].messages.length - 1] : null);
-                const grouped = shouldGroupWithPrevious(msg, prev);
-                return (
-                  <MessageBubble
-                    key={msg.id}
-                    message={msg}
-                    isOwn={msg.user?.id === currentUserId}
-                    showAvatar={!grouped}
-                    showName={!grouped}
-                    isGrouped={grouped}
-                    reactions={reactions[msg.id] || []}
-                    currentUserId={currentUserId}
-                    onReact={onReact}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onVotePoll={onVotePoll}
-                    onClosePoll={onClosePoll}
-                    onUpdatePoll={onUpdatePoll}
-                  />
-                );
-              })}
-            </Box>
-          ))}
-        </AnimatePresence>
+        <Box ref={setContentWrapperRef}>
+          <AnimatePresence initial={false}>
+            {groups.map((group, gi) => (
+              <Box key={group.date}>
+                <DateSeparator date={group.date} />
+                {group.messages.map((msg, mi) => {
+                  const prev = mi > 0 ? group.messages[mi - 1] : (gi > 0 ? groups[gi - 1].messages[groups[gi - 1].messages.length - 1] : null);
+                  const grouped = shouldGroupWithPrevious(msg, prev);
+                  return (
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg}
+                      isOwn={msg.user?.id === currentUserId}
+                      showAvatar={!grouped}
+                      showName={!grouped}
+                      isGrouped={grouped}
+                      reactions={reactions[msg.id] || []}
+                      currentUserId={currentUserId}
+                      onReact={onReact}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      onVotePoll={onVotePoll}
+                      onClosePoll={onClosePoll}
+                      onUpdatePoll={onUpdatePoll}
+                    />
+                  );
+                })}
+              </Box>
+            ))}
+          </AnimatePresence>
+          <div ref={bottomRef} />
+        </Box>
       )}
 
-      <div ref={bottomRef} />
+      {/* Sentinel outside wrapper when messages aren't showing */}
+      {!showMessages && <div ref={bottomRef} />}
     </Box>
   );
 }
