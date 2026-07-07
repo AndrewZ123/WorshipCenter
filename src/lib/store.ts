@@ -232,6 +232,27 @@ export const db = {
 
       return newService as Service;
     },
+    enableShare: async (id: string, churchId: string) => {
+      const shareToken = crypto.randomUUID();
+      const { data } = await supabase
+        .from('services')
+        .update({ share_token: shareToken, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
+      return data as Service | null;
+    },
+    disableShare: async (id: string, churchId: string) => {
+      const { data } = await supabase
+        .from('services')
+        .update({ share_token: null, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
+      return data as Service | null;
+    },
   },
 
   // Service Items

@@ -16,7 +16,8 @@ import Avatar from '@/components/ui/Avatar';
 import { formatShortDate, formatRelativeDate } from '@/lib/formatDate';
 import {
   ArrowLeft, Trash2, Copy, Calendar, Clock, Users, ListMusic, MessageCircle,
-  CheckSquare, Star, Music, CheckCheck, Send, ChevronUp, ChevronDown
+  CheckSquare, Star, Music, CheckCheck, Send, ChevronUp, ChevronDown,
+  Share2, Link2, Link2Off
 } from 'lucide-react';
 
 const formatDate = (dateStr: string) => {
@@ -62,6 +63,11 @@ export default function DemoServiceDetailClient() {
   const [itemDuration, setItemDuration] = useState('');
   const [itemKey, setItemKey] = useState('');
   const [itemSongId, setItemSongId] = useState<string | null>(null);
+
+  // Share state
+  const shareDisclosure = useDisclosure();
+  const [shareLink, setShareLink] = useState('');
+  const [sharingEnabled, setSharingEnabled] = useState(false);
 
   // Chat state
   const [chatInput, setChatInput] = useState('');
@@ -131,6 +137,47 @@ export default function DemoServiceDetailClient() {
     const ns = duplicateService(serviceId, today);
     if (ns) router.push(`/demo/services/${ns.id}`);
     else toast({ title: 'Error duplicating service', status: 'error', duration: 3000 });
+  };
+
+  const handleOpenShare = useCallback(() => {
+    if (service?.share_token) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      setShareLink(`${origin}/share/${service.share_token}`);
+      setSharingEnabled(true);
+    } else {
+      setShareLink('');
+      setSharingEnabled(false);
+    }
+    shareDisclosure.onOpen();
+  }, [service, shareDisclosure]);
+
+  const handleEnableShare = () => {
+    if (!service) return;
+    const token = `demo-${serviceId}`;
+    updateService(serviceId, { share_token: token });
+    setService(prev => prev ? { ...prev, share_token: token } : prev);
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    setShareLink(`${origin}/share/${token}`);
+    setSharingEnabled(true);
+    toast({ title: 'Share link enabled (demo)', status: 'success', duration: 2000 });
+  };
+
+  const handleDisableShare = () => {
+    if (!service) return;
+    updateService(serviceId, { share_token: null });
+    setService(prev => prev ? { ...prev, share_token: null } : prev);
+    setSharingEnabled(false);
+    setShareLink('');
+    toast({ title: 'Share link disabled', status: 'info', duration: 2000 });
+  };
+
+  const handleCopyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      toast({ title: 'Link copied!', status: 'success', duration: 2000 });
+    } catch {
+      toast({ title: 'Failed to copy', status: 'error', duration: 2000 });
+    }
   };
 
   const openEditItem = (item: ServiceItem) => {
@@ -233,6 +280,15 @@ export default function DemoServiceDetailClient() {
           </Box>
         </HStack>
         <HStack spacing="2">
+          <IconButton
+            aria-label="Share service"
+            icon={<Share2 size={16} />}
+            variant="ghost"
+            onClick={handleOpenShare}
+            color={service?.share_token ? 'teal.500' : 'gray.400'}
+            _hover={{ color: service?.share_token ? 'teal.600' : 'gray.600', bg: 'gray.100' }}
+            size="sm"
+          />
           <Button size="sm" variant="outline" leftIcon={<Copy size={14} />} onClick={handleDuplicateService}>Duplicate</Button>
           <Button size="sm" variant="outline" onClick={() => setEditing(!editing)}>{editing ? 'Cancel' : 'Edit'}</Button>
           <Button size="sm" variant="ghost" colorScheme="red" onClick={handleDelete}>Delete</Button>
@@ -557,6 +613,74 @@ export default function DemoServiceDetailClient() {
             </VStack>
           </ModalBody>
           <ModalFooter><Button variant="ghost" mr="3" onClick={assignModal.onClose}>Cancel</Button><Button onClick={handleAssignTeamMember} isDisabled={!assignMemberId || !assignRole}>Assign</Button></ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Share Modal */}
+      <Modal isOpen={shareDisclosure.isOpen} onClose={shareDisclosure.onClose} isCentered size="sm">
+        <ModalOverlay />
+        <ModalContent borderRadius="2xl" mx="4">
+          <ModalHeader fontWeight="700">Share Service</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb="6">
+            <VStack spacing="4" align="stretch">
+              <Text fontSize="sm" color={subtextColor}>
+                Anyone with the link can view this service and its plan. No login required.
+              </Text>
+              {sharingEnabled ? (
+                <>
+                  <HStack
+                    spacing="3"
+                    bg={itemBg}
+                    borderRadius="lg"
+                    p="3"
+                    border="1px solid"
+                    borderColor={borderColor}
+                  >
+                    <Link2 size={18} color="teal" />
+                    <Text fontSize="sm" color={headingColor} flex="1" noOfLines={1} wordBreak="break-all">
+                      {shareLink}
+                    </Text>
+                  </HStack>
+                  <Button
+                    size="sm"
+                    colorScheme="teal"
+                    leftIcon={<Copy size={16} />}
+                    onClick={handleCopyShareLink}
+                    w="full"
+                    fontWeight="600"
+                  >
+                    Copy Link
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    colorScheme="red"
+                    leftIcon={<Link2Off size={16} />}
+                    onClick={handleDisableShare}
+                    w="full"
+                    fontWeight="600"
+                  >
+                    Disable Sharing
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  colorScheme="teal"
+                  leftIcon={<Share2 size={16} />}
+                  onClick={handleEnableShare}
+                  w="full"
+                  fontWeight="600"
+                >
+                  Enable Share Link
+                </Button>
+              )}
+              <Text fontSize="xs" color={subtextColor} textAlign="center">
+                This is a demo preview. Share links work with real services in the full app.
+              </Text>
+            </VStack>
+          </ModalBody>
         </ModalContent>
       </Modal>
     </Box>

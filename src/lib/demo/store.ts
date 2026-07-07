@@ -225,6 +225,15 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         const demo = getDemoContext();
         return demo.duplicateService(sourceId, newDate, newTitle);
       },
+      enableShare: async (id: string): Promise<Service | null> => {
+        const demo = getDemoContext();
+        const shareToken = crypto.randomUUID();
+        return demo.updateService(id, { share_token: shareToken });
+      },
+      disableShare: async (id: string): Promise<Service | null> => {
+        const demo = getDemoContext();
+        return demo.updateService(id, { share_token: null });
+      },
     },
     
     serviceItems: {

@@ -102,6 +102,7 @@ export interface Service {
   notes: string;
   created_at: string;
   updated_at: string;
+  share_token?: string | null;
 }
 
 export interface ServiceItem {
