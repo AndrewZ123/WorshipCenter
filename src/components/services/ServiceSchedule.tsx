@@ -541,7 +541,7 @@ export default function ServiceSchedule({
                       />
                     </HStack>
                     <Text fontSize="xs" color={subTextColor} isTruncated>
-                      {assignment.role}
+                      {assignment.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
                     </Text>
                     {highlighted && (
                       <Text fontSize="xs" color="blue.600" fontWeight="500" mt="0.5">

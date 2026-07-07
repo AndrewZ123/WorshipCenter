@@ -22,9 +22,10 @@ const ROLE_OPTIONS = [
 interface Props {
   serviceId: string;
   churchId: string;
+  onSignupChange?: () => void;
 }
 
-export default function SignupManagement({ serviceId, churchId }: Props) {
+export default function SignupManagement({ serviceId, churchId, onSignupChange }: Props) {
   const store = useStore();
   const toast = useToast();
   const addModal = useDisclosure();
@@ -130,6 +131,7 @@ export default function SignupManagement({ serviceId, churchId }: Props) {
 
       toast({ title: 'Signup approved!', description: 'Assignment created.', status: 'success', duration: 3000 });
       await loadData();
+      onSignupChange?.();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, status: 'error', duration: 3000 });
     } finally {

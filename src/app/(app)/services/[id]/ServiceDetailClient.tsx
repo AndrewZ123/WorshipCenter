@@ -1780,6 +1780,12 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       <SignupManagement
                         serviceId={serviceId}
                         churchId={church.id}
+                        onSignupChange={async () => {
+                          try {
+                            const data = await store.assignments.getByService(serviceId, church.id);
+                            setAssignments(data);
+                          } catch {}
+                        }}
                       />
                     )}
                   </TabPanel>
