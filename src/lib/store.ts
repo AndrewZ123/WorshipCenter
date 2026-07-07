@@ -38,6 +38,9 @@ import type {
   ChatReaction,
   ChatMessageFull,
   ChatChannelWithMeta,
+  ServiceRolePosition,
+  SignupRequest,
+  SignupRequestPopulated,
 } from './types';
 
 // Helper to sanitize string fields in objects before database operations
@@ -2793,6 +2796,190 @@ export const db = {
         .eq('service_id', serviceId)
         .eq('church_id', churchId)
         .eq('is_live', true);
+      return !error;
+    },
+  },
+
+  // ─── Volunteer Self-Signup: Role Positions ───────────────────────
+
+  rolePositions: {
+    getByService: async (serviceId: string, churchId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+
+      if (!service || service.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('service_role_positions')
+        .select('*')
+        .eq('service_id', serviceId);
+      return (data || []) as ServiceRolePosition[];
+    },
+
+    getOpenForChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('service_role_positions')
+        .select('*, services!inner(id, title, date, time, status)')
+        .eq('church_id', churchId)
+        .eq('signup_enabled', true)
+        .gte('services.date', new Date().toISOString().split('T')[0])
+        .in('services.status', ['draft', 'finalized'])
+        .order('services.date', { ascending: true });
+      return (data || []) as (ServiceRolePosition & { services: Service })[];
+    },
+
+    create: async (rp: Omit<ServiceRolePosition, 'id' | 'created_at'>) => {
+      const { data } = await supabase
+        .from('service_role_positions')
+        .insert(rp)
+        .select()
+        .single();
+      return data as ServiceRolePosition;
+    },
+
+    update: async (id: string, churchId: string, updates: Partial<ServiceRolePosition>) => {
+      const { data } = await supabase
+        .from('service_role_positions')
+        .update(updates)
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
+      return data as ServiceRolePosition | null;
+    },
+
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('service_role_positions')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
+      return !error;
+    },
+
+    getFilledCount: async (serviceId: string, role: string) => {
+      const { count } = await supabase
+        .from('service_assignments')
+        .select('*', { count: 'exact', head: true })
+        .eq('service_id', serviceId)
+        .eq('role', role);
+      return count || 0;
+    },
+  },
+
+  // ─── Volunteer Self-Signup: Signup Requests ──────────────────────
+
+  signupRequests: {
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('signup_requests')
+        .select('*, team_members(*), services(id, title, date, time)')
+        .eq('church_id', churchId)
+        .order('created_at', { ascending: false });
+      return (data || []).map((r: any) => ({
+        ...r,
+        team_member: r.team_members || undefined,
+        service: r.services || undefined,
+      })) as SignupRequestPopulated[];
+    },
+
+    getByService: async (serviceId: string, churchId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+
+      if (!service || service.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('signup_requests')
+        .select('*, team_members(*)')
+        .eq('service_id', serviceId)
+        .order('created_at', { ascending: false });
+      return (data || []).map((r: any) => ({
+        ...r,
+        team_member: r.team_members || undefined,
+      })) as SignupRequestPopulated[];
+    },
+
+    getByTeamMember: async (teamMemberId: string, churchId: string) => {
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('church_id')
+        .eq('id', teamMemberId)
+        .single();
+
+      if (!member || member.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('signup_requests')
+        .select('*, services(id, title, date, time)')
+        .eq('team_member_id', teamMemberId)
+        .order('created_at', { ascending: false });
+      return (data || []).map((r: any) => ({
+        ...r,
+        service: r.services || undefined,
+      })) as SignupRequestPopulated[];
+    },
+
+    getPendingCountForRole: async (serviceId: string, role: string) => {
+      const { count } = await supabase
+        .from('signup_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('service_id', serviceId)
+        .eq('role', role)
+        .eq('status', 'pending');
+      return count || 0;
+    },
+
+    getExistingForMember: async (serviceId: string, teamMemberId: string, churchId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('church_id')
+        .eq('id', serviceId)
+        .single();
+
+      if (!service || service.church_id !== churchId) return null;
+
+      const { data } = await supabase
+        .from('signup_requests')
+        .select('*')
+        .eq('service_id', serviceId)
+        .eq('team_member_id', teamMemberId)
+        .maybeSingle();
+      return data as SignupRequest | null;
+    },
+
+    create: async (sr: Omit<SignupRequest, 'id' | 'created_at'>) => {
+      const { data } = await supabase
+        .from('signup_requests')
+        .insert(sr)
+        .select()
+        .single();
+      return data as SignupRequest;
+    },
+
+    update: async (id: string, churchId: string, updates: Partial<SignupRequest>) => {
+      const { data } = await supabase
+        .from('signup_requests')
+        .update(updates)
+        .eq('id', id)
+        .eq('church_id', churchId)
+        .select()
+        .single();
+      return data as SignupRequest | null;
+    },
+
+    delete: async (id: string, churchId: string) => {
+      const { error } = await supabase
+        .from('signup_requests')
+        .delete()
+        .eq('id', id)
+        .eq('church_id', churchId);
       return !error;
     },
   },

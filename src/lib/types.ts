@@ -8,6 +8,7 @@ export type TaskRecurrence = 'one_off' | 'per_service' | 'weekly';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ServiceItemType = 'song' | 'segment';
 export type AssignmentStatus = 'pending' | 'confirmed' | 'declined';
+export type SignupRequestStatus = 'pending' | 'approved' | 'declined';
 export type SongFileType = 'chord_chart' | 'lyrics' | 'lead_sheet' | 'audio' | 'pdf' | 'image' | 'other';
 
 export interface Church {
@@ -208,7 +209,7 @@ export interface Notification {
   id: string;
   church_id: string;
   user_id: string;
-  type: 'invitation' | 'status_change' | 'service_reminder' | 'general' | 'assignment_created' | 'assignment_reminder' | 'assignment_changed' | 'assignment_declined' | 'initial_reminder' | 'pre_rehearsal_reminder' | 'pre_service_reminder' | 'escalation' | 'debrief_request' | 'plan_change';
+  type: 'invitation' | 'status_change' | 'service_reminder' | 'general' | 'assignment_created' | 'assignment_reminder' | 'assignment_changed' | 'assignment_declined' | 'initial_reminder' | 'pre_rehearsal_reminder' | 'pre_service_reminder' | 'escalation' | 'debrief_request' | 'plan_change' | 'signup_request' | 'signup_request_response';
   title: string;
   message: string;
   read: boolean;
@@ -244,6 +245,36 @@ export interface ServiceItemPopulated extends ServiceItem {
 
 export interface ServiceAssignmentPopulated extends ServiceAssignment {
   team_member?: TeamMember;
+}
+
+// ─── Volunteer Self-Signup ────────────────────────────────────────────
+
+export interface ServiceRolePosition {
+  id: string;
+  service_id: string;
+  role: string;
+  max_volunteers: number;
+  signup_enabled: boolean;
+  church_id: string;
+  created_at: string;
+}
+
+export interface SignupRequest {
+  id: string;
+  service_id: string;
+  role: string;
+  team_member_id: string | null;
+  name: string;
+  email: string;
+  phone: string;
+  status: SignupRequestStatus;
+  church_id: string;
+  created_at: string;
+}
+
+export interface SignupRequestPopulated extends SignupRequest {
+  team_member?: TeamMember;
+  service?: Service;
 }
 
 export interface SongWithUsage extends Song {

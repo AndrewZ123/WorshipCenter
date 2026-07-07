@@ -29,6 +29,7 @@ import ServiceMode from '@/components/services/ServiceMode';
 import ServiceMobileView from '@/components/services/ServiceMobileView';
 import RehearsalTab from '@/components/services/RehearsalTab';
 import ServiceDebriefForm from '@/components/services/ServiceDebriefForm';
+import SignupManagement from '@/components/services/SignupManagement';
 import { generateServicePDF } from '@/components/services/ServicePrintView';
 import type { PlanChange } from '@/lib/planChanges';
 import { computeKeyChange, computeItemAdded, computeItemRemoved, formatChangesSummary } from '@/lib/planChanges';
@@ -39,7 +40,8 @@ import {
   Music, AlignLeft, Send, CheckCircle, Calendar, Clock, 
   BookOpen, UserCheck, MessageSquare, Calendar as CalendarIcon,
   ListMusic, Users, ListChecks, Monitor, Printer, CheckSquare,
-  Star
+  Star,
+  UserPlus
 } from 'lucide-react';
 
 // dnd-kit imports
@@ -1171,6 +1173,28 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                         <span>Debrief ({isReadOnly ? debriefEntries.filter(e => e.user_id === user?.id).length : debriefEntries.length})</span>
                       </HStack>
                     </Box>
+                    {!isReadOnly && (
+                      <Box
+                        as="button"
+                        flexShrink={0}
+                        fontSize="sm"
+                        fontWeight={activeTab === 7 ? '600' : '500'}
+                        pb={3}
+                        pt={2}
+                        px={3}
+                        color={activeTab === 7 ? 'teal.600' : subtextColor}
+                        borderBottom="2px solid"
+                        borderBottomColor={activeTab === 7 ? 'teal.600' : 'transparent'}
+                        onClick={() => setActiveTab(7)}
+                        _hover={{ color: 'teal.500' }}
+                        transition="all 0.15s"
+                      >
+                        <HStack spacing={1.5}>
+                          <UserPlus size={14} />
+                          <span>Signups</span>
+                        </HStack>
+                      </Box>
+                    )}
                   </Flex>
                 )}
 
@@ -1748,6 +1772,18 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                     </Box>
                   )}
                 </TabPanel>
+
+                {/* Signups Tab */}
+                {activeTab === 7 && (
+                  <TabPanel p="6">
+                    {church && (
+                      <SignupManagement
+                        serviceId={serviceId}
+                        churchId={church.id}
+                      />
+                    )}
+                  </TabPanel>
+                )}
               </TabPanels>
             </Tabs>
           </Card>

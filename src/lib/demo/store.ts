@@ -159,22 +159,12 @@ function createDemoServiceChat(getDemoContext: () => DemoContextType) {
           avatar_url: demo.user?.avatar_url,
         },
       };
-      demoServiceMessages[serviceId].push(message);
       return message;
     },
-    subscribe: (_serviceId: string, _churchId: string, _callback: (message: any) => void) => {
+    subscribe: (_serviceId: string, _churchId: string, _callback: (msg: any) => void): (() => void) => {
       return () => {};
     },
-    markAsRead: async (serviceId: string, _churchId: string, userId: string): Promise<void> => {
-      const msgs = demoServiceMessages[serviceId];
-      if (msgs) {
-        msgs.forEach((m) => {
-          if (m.sender_user_id !== userId && !m.read_at) {
-            m.read_at = new Date().toISOString();
-          }
-        });
-      }
-    },
+    markAsRead: async (_serviceId: string, _churchId: string, _userId: string): Promise<void> => {},
   };
 }
 
@@ -1096,6 +1086,54 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
           total_debriefs: churchDebriefs.length,
           period,
         }];
+      },
+    },
+
+    // Volunteer Self-Signup
+    rolePositions: {
+      getByService: async (_serviceId: string, _churchId: string): Promise<any[]> => {
+        return [];
+      },
+      getOpenForChurch: async (_churchId: string): Promise<any[]> => {
+        return [];
+      },
+      create: async (rp: any): Promise<any> => {
+        return { ...rp, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+      },
+      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
+        return null;
+      },
+      delete: async (_id: string, _churchId: string): Promise<boolean> => {
+        return true;
+      },
+      getFilledCount: async (_serviceId: string, _role: string): Promise<number> => {
+        return 0;
+      },
+    },
+    signupRequests: {
+      getByChurch: async (_churchId: string): Promise<any[]> => {
+        return [];
+      },
+      getByService: async (_serviceId: string, _churchId: string): Promise<any[]> => {
+        return [];
+      },
+      getByTeamMember: async (_teamMemberId: string, _churchId: string): Promise<any[]> => {
+        return [];
+      },
+      getPendingCountForRole: async (_serviceId: string, _role: string): Promise<number> => {
+        return 0;
+      },
+      getExistingForMember: async (_serviceId: string, _teamMemberId: string, _churchId: string): Promise<any> => {
+        return null;
+      },
+      create: async (sr: any): Promise<any> => {
+        return { ...sr, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+      },
+      update: async (_id: string, _churchId: string, _updates: any): Promise<any> => {
+        return null;
+      },
+      delete: async (_id: string, _churchId: string): Promise<boolean> => {
+        return true;
       },
     },
   };
