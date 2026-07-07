@@ -20,9 +20,40 @@ export interface UseSubscriptionReturn {
 const SubscriptionContext = createContext<UseSubscriptionReturn | null>(null);
 
 const STALE_MS = 5 * 60 * 1000; // refetch at most every 5 minutes
+const CACHE_KEY = 'wc_subscription_cache';
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function isOnline(): boolean {
+  return typeof navigator !== 'undefined' ? navigator.onLine : true;
+}
+
+function readCachedSubscription(): { subscription: Subscription | null; fetchedAt: number } | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedSubscription(subscription: Subscription | null): void {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ subscription, fetchedAt: Date.now() }));
+  } catch {
+    // localStorage may be full or unavailable
+  }
+}
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(() => {
+    // Initialise from cache on mount so offline users have immediate access
+    const cached = readCachedSubscription();
+    if (cached && Date.now() - cached.fetchedAt < CACHE_MAX_AGE_MS) {
+      return cached.subscription;
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const lastFetchRef = useRef<number>(0);
@@ -40,9 +71,6 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     if (inFlightRef.current) return inFlightRef.current;
 
     // Throttle: don't refetch more than once per STALE_MS window.
-    // Uses a ref instead of state in the dep array so the callback identity
-    // stays stable and the mount effect below doesn't re-fire on every
-    // state change.
     const now = Date.now();
     if (lastFetchRef.current && now - lastFetchRef.current < STALE_MS && subscriptionRef.current !== null) {
       return;
@@ -52,52 +80,71 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       setLoading(true);
       setError(null);
 
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-          setError('Not authenticated');
-          return;
-        }
-
-        const { data: profile, error: profileError } = await supabase
-          .from('users')
-          .select('church_id')
-          .eq('id', session.user.id)
-          .single();
-
-        if (profileError || !profile?.church_id) {
-          setError('Church not found');
-          return;
-        }
-
-        const { data: sub, error: subError } = await supabase
-          .from('subscriptions')
-          .select('*')
-          .eq('church_id', profile.church_id)
-          .maybeSingle();
-
-        if (subError) {
-          setError(subError.message || 'Failed to load subscription');
-          return;
-        }
-
-        const subVal = (sub as Subscription) ?? null;
-        // Only update if JSON actually changed (prevents spurious re-renders)
-        setSubscription(prev => {
-          try {
-            return JSON.stringify(prev) === JSON.stringify(subVal) ? prev : subVal;
-          } catch {
-            return subVal;
+      // Try Supabase fetch
+      if (isOnline()) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) {
+            setError('Not authenticated');
+            setLoading(false);
+            inFlightRef.current = null;
+            return;
           }
-        });
-        lastFetchRef.current = Date.now();
-      } catch (err: any) {
-        console.error('[SubscriptionProvider] Error:', err);
-        setError(err.message || 'Failed to load subscription');
-      } finally {
-        setLoading(false);
-        inFlightRef.current = null;
+
+          const { data: profile, error: profileError } = await supabase
+            .from('users')
+            .select('church_id')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profileError || !profile?.church_id) {
+            setError('Church not found');
+            setLoading(false);
+            inFlightRef.current = null;
+            return;
+          }
+
+          const { data: sub, error: subError } = await supabase
+            .from('subscriptions')
+            .select('*')
+            .eq('church_id', profile.church_id)
+            .maybeSingle();
+
+          if (subError) {
+            setError(subError.message || 'Failed to load subscription');
+            setLoading(false);
+            inFlightRef.current = null;
+            return;
+          }
+
+          const subVal = (sub as Subscription) ?? null;
+          setSubscription(prev => {
+            try {
+              return JSON.stringify(prev) === JSON.stringify(subVal) ? prev : subVal;
+            } catch {
+              return subVal;
+            }
+          });
+          writeCachedSubscription(subVal);
+          lastFetchRef.current = Date.now();
+          setLoading(false);
+          inFlightRef.current = null;
+          return;
+        } catch (err: any) {
+          console.error('[SubscriptionProvider] Network error:', err);
+        }
       }
+
+      // Offline or fetch failed — fall back to cache
+      const cached = readCachedSubscription();
+      if (cached && Date.now() - cached.fetchedAt < CACHE_MAX_AGE_MS) {
+        setSubscription(cached.subscription);
+        setError(null);
+      } else {
+        setError(isOnline() ? 'Failed to load subscription' : 'No internet — subscription status unavailable');
+      }
+      setLoading(false);
+      inFlightRef.current = null;
     })();
 
     inFlightRef.current = promise;

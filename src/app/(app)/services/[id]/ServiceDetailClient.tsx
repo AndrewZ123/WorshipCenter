@@ -1348,7 +1348,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       {assignments.length > 0 && (
                         <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
                           <CardBody px="5" py="4">
-                            <HStack mb="4" spacing="2">
+                            <HStack mb="4" spacing="2" wrap="wrap">
                               <Users size={16} />
                               <Text fontSize="sm" fontWeight="600" color={headingColor}>Schedule ({assignments.length})</Text>
                               <Text fontSize="xs" color={subtextColor}>·</Text>
@@ -1375,6 +1375,47 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                   <StatusBadge status={a.status} size="sm" />
                                 </HStack>
                               ))}
+                            </VStack>
+                          </CardBody>
+                        </Card>
+                      )}
+
+                      {/* Role Distribution */}
+                      {assignments.length > 0 && (
+                        <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" boxShadow="none">
+                          <CardBody px="5" py="4">
+                            <HStack mb="3" spacing="2">
+                              <Users size={16} />
+                              <Text fontSize="sm" fontWeight="600" color={headingColor}>Role Distribution</Text>
+                            </HStack>
+                            <VStack spacing="2" align="stretch">
+                              {(() => {
+                                const roleCounts = new Map<string, { total: number; confirmed: number }>();
+                                for (const a of assignments) {
+                                  const r = a.role || 'Unspecified';
+                                  const cur = roleCounts.get(r) || { total: 0, confirmed: 0 };
+                                  cur.total++;
+                                  if (a.status === 'confirmed') cur.confirmed++;
+                                  roleCounts.set(r, cur);
+                                }
+                                return Array.from(roleCounts.entries()).sort().map(([role, counts]) => (
+                                  <HStack key={role} spacing="2" py="1" justify="space-between">
+                                    <Text fontSize="sm" fontWeight="500" color={headingColor}>
+                                      {role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                                    </Text>
+                                    <HStack spacing="1">
+                                      <Badge
+                                        borderRadius="full"
+                                        px="2"
+                                        fontSize="xs"
+                                        colorScheme={counts.confirmed === counts.total ? 'green' : 'yellow'}
+                                      >
+                                        {counts.confirmed}/{counts.total} confirmed
+                                      </Badge>
+                                    </HStack>
+                                  </HStack>
+                                ));
+                              })()}
                             </VStack>
                           </CardBody>
                         </Card>

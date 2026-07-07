@@ -28,6 +28,18 @@ if [ -f "$MW_FILE" ]; then
   echo "📦 Temporarily excluded $MW_FILE"
 fi
 
+# ── Exclude share page ──────────────────────────────────────
+# The /share/[token] page requires a server to resolve the share token
+# and can't be statically pre-rendered. Mobile uses the deployed web app URL.
+SHARE_DIR="src/app/share"
+SHARE_BACKUP=".mobile-backup-share"
+
+if [ -d "$SHARE_DIR" ]; then
+  rm -rf "$SHARE_BACKUP"
+  mv "$SHARE_DIR" "$SHARE_BACKUP"
+  echo "📦 Temporarily excluded $SHARE_DIR for static export"
+fi
+
 # ── Build ───────────────────────────────────────────────────
 # Restore everything even if the build fails
 cleanup() {
@@ -39,6 +51,11 @@ cleanup() {
   if [ -f "$MW_BACKUP" ]; then
     mv "$MW_BACKUP" "$MW_FILE"
     echo "♻️  Restored $MW_FILE"
+  fi
+  if [ -d "$SHARE_BACKUP" ]; then
+    rm -rf "$SHARE_DIR"
+    mv "$SHARE_BACKUP" "$SHARE_DIR"
+    echo "♻️  Restored $SHARE_DIR"
   fi
 }
 trap cleanup EXIT

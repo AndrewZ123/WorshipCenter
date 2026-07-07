@@ -1,7 +1,7 @@
 'use client';
 
 import { Box, Container, VStack, Text, Button, Icon, Badge, HStack, useColorModeValue } from '@chakra-ui/react';
-import { FiLock, FiArrowRight, FiCreditCard } from 'react-icons/fi';
+import { FiLock, FiArrowRight, FiCreditCard, FiWifi } from 'react-icons/fi';
 import { useSubscription } from '@/lib/useSubscription';
 import { useAuth } from '@/lib/auth';
 import NextLink from 'next/link';
@@ -10,16 +10,21 @@ interface SubscriptionGateProps {
   children: React.ReactNode;
 }
 
+function isOnline(): boolean {
+  return typeof navigator !== 'undefined' ? navigator.onLine : true;
+}
+
 export function SubscriptionGate({ children }: SubscriptionGateProps) {
   const { isActive, isTrialing, isPastDue, loading } = useSubscription();
   const hasAccess = isActive || isTrialing;
   const { user } = useAuth();
+  const offline = !isOnline();
   
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   
-  // Show loading state
+  // Show loading state (brief, only on first mount)
   if (loading) {
     return (
       <Box w="full" h="100dvh" display="flex" alignItems="center" justifyContent="center" bg={bgColor}>
@@ -32,8 +37,49 @@ export function SubscriptionGate({ children }: SubscriptionGateProps) {
   if (hasAccess) {
     return <>{children}</>;
   }
+
+  // Offline with no cached subscription data — show a distinct offline message
+  if (offline) {
+    return (
+      <Box w="full" minH="100dvh" display="flex" alignItems="center" justifyContent="center" bg={bgColor} p={4}>
+        <Container maxW="md">
+          <VStack
+            bg={cardBg}
+            borderRadius="2xl"
+            borderWidth="1px"
+            borderColor={borderColor}
+            p={8}
+            spacing={6}
+            shadow="xl"
+            textAlign="center"
+          >
+            <Box
+              w="16"
+              h="16"
+              borderRadius="full"
+              bg="blue.100"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+            >
+              <Icon as={FiWifi} boxSize={8} color="blue.500" />
+            </Box>
+            
+            <VStack spacing={2}>
+              <Text fontSize="xl" fontWeight="700">
+                No Internet Connection
+              </Text>
+              <Text color="gray.500" fontSize="sm">
+                Connect to the internet to verify your subscription. Cached content will be available once your subscription is confirmed.
+              </Text>
+            </VStack>
+          </VStack>
+        </Container>
+      </Box>
+    );
+  }
   
-  // User doesn't have access - show subscription required screen
+  // User doesn't have access — show subscription required screen
   return (
     <Box w="full" minH="100dvh" display="flex" alignItems="center" justifyContent="center" bg={bgColor} p={4}>
       <Container maxW="md">

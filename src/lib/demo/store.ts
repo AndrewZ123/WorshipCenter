@@ -26,6 +26,7 @@ import type {
   MemberGroup,
   MemberGroupMember,
   TeamMemberNote,
+  SchedulingConflict,
 } from '@/lib/types';
 
 // Get the demo context type from the context file
@@ -435,6 +436,20 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       ): Promise<ServiceAssignment[]> => {
         const demo = getDemoContext();
         return assignments.map(a => demo.createAssignment({ ...a, status: 'pending' }));
+      },
+      getByDate: async (date: string, _churchId: string): Promise<ServiceAssignment[]> => {
+        const demo = getDemoContext();
+        const serviceIds = new Set(
+          demo.services.filter(s => s.date === date).map(s => s.id)
+        );
+        return demo.assignments.filter(a => serviceIds.has(a.service_id));
+      },
+      getConflicts: async (): Promise<SchedulingConflict[]> => {
+        return [];
+      },
+      getByTeamMemberWithService: async (teamMemberId: string, _churchId: string): Promise<ServiceAssignment[]> => {
+        const demo = getDemoContext();
+        return demo.assignments.filter(a => a.team_member_id === teamMemberId);
       },
     },
     

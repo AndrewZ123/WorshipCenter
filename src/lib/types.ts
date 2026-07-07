@@ -246,6 +246,33 @@ export interface ServiceItemPopulated extends ServiceItem {
 
 export interface ServiceAssignmentPopulated extends ServiceAssignment {
   team_member?: TeamMember;
+  services?: { id: string; title: string; date: string; time: string; church_id: string };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+export interface ServiceAssignmentWithService extends ServiceAssignmentPopulated {
+  service: { id: string; title: string; date: string; time: string; };
+}
+
+// ─── Scheduling Intelligence ─────────────────────────────────────────
+
+export interface SchedulingConflict {
+  type: 'double_booking' | 'blockout' | 'frequency';
+  message: string;
+  severity: 'warning' | 'error';
+  conflictingService?: { id: string; title: string; date: string; time: string };
+  blockoutDate?: TeamMemberBlockoutDate;
+}
+
+export interface SuggestedAssignment {
+  teamMemberId: string;
+  name: string;
+  avatar_url?: string;
+  role: string;
+  score: number;
+  reasons: string[];
+  conflicts: SchedulingConflict[];
 }
 
 // ─── Volunteer Self-Signup ────────────────────────────────────────────

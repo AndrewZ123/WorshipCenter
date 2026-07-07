@@ -2,6 +2,10 @@ import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase';
 import type { Service, Church, ServiceItem, Song, ServiceAssignment, TeamMember } from '@/lib/types';
 import ShareView from './ShareView';
 
+export function generateStaticParams() {
+  return [{ token: 'placeholder' }];
+}
+
 interface PageProps {
   params: Promise<{ token: string }>;
   searchParams: Promise<{ demo?: string }>;

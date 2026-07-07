@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   VStack,
   HStack,
@@ -13,17 +13,22 @@ import {
   useColorModeValue,
   Tooltip,
   Badge,
+  Switch,
 } from '@chakra-ui/react';
-import { X, UserPlus, Users, Calendar } from 'lucide-react';
+import { X, UserPlus, Users, Calendar, AlertTriangle } from 'lucide-react';
 import { apiUrl } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
-import type { Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate } from '@/lib/types';
+import type {
+  Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate,
+  SchedulingConflict,
+} from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import StatusBadge, { mapAssignmentStatus } from '@/components/ui/StatusBadge';
 import { Skeleton } from '@/components/ui/Skeleton';
+import SchedulingSuggestions from './SchedulingSuggestions';
 
 interface ServiceScheduleProps {
   service: Service;
@@ -32,6 +37,13 @@ interface ServiceScheduleProps {
   highlightedAssignmentId?: string | null;
   onAssignmentsChange?: (count: number) => void;
   readOnly?: boolean;
+}
+
+interface MemberConflictInfo {
+  memberId: string;
+  conflicts: SchedulingConflict[];
+  isBlocked: boolean;
+  hasWarning: boolean;
 }
 
 export default function ServiceSchedule({
@@ -57,8 +69,16 @@ export default function ServiceSchedule({
   const [bulkRole, setBulkRole] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
 
-  // Blockout date conflict checking
+  // Conflict detection
   const [blockoutDates, setBlockoutDates] = useState<TeamMemberBlockoutDate[]>([]);
+  const [memberConflicts, setMemberConflicts] = useState<Map<string, SchedulingConflict[]>>(new Map());
+  const [conflictChecked, setConflictChecked] = useState(false);
+  const [showUnavailable, setShowUnavailable] = useState(true);
+  const [conflictAssignConfirm, setConflictAssignConfirm] = useState<{
+    open: boolean;
+    memberIds: string[];
+    conflictCount: number;
+  }>({ open: false, memberIds: [], conflictCount: 0 });
 
   // Fetch blockout dates for the church
   useEffect(() => {
@@ -218,26 +238,83 @@ export default function ServiceSchedule({
     }
   };
 
+  // ─── Conflict Detection ──────────────────────────────────────────
+
+  const computeConflicts = async (members: TeamMember[]) => {
+    const conflictMap = new Map<string, SchedulingConflict[]>();
+    if (!service.date) return conflictMap;
+
+    try {
+      const sameDayAssignments = await db.assignments.getByDate(service.date, churchId);
+
+      for (const member of members) {
+        const conflicts: SchedulingConflict[] = [];
+
+        const existing = sameDayAssignments.filter(
+          (a) => a.team_member_id === member.id && a.service_id !== service.id
+        );
+        for (const ea of existing) {
+          const svc = ea.services || { id: ea.service_id, title: 'Service', date: service.date, time: '' };
+          conflicts.push({
+            type: 'double_booking',
+            message: `Already assigned to "${svc.title}" role on ${svc.date}`,
+            severity: 'warning',
+            conflictingService: {
+              id: svc.id,
+              title: svc.title,
+              date: svc.date,
+              time: svc.time,
+            },
+          });
+        }
+
+        const blockout = isBlockedOut(member.id);
+        if (blockout) {
+          conflicts.push({
+            type: 'blockout',
+            message: `Blocked out ${blockout.start_date} – ${blockout.end_date}${blockout.reason ? ` (${blockout.reason})` : ''}`,
+            severity: 'error',
+            blockoutDate: blockout,
+          });
+        }
+
+        if (conflicts.length > 0) {
+          conflictMap.set(member.id, conflicts);
+        }
+      }
+    } catch (error) {
+      console.error('[ServiceSchedule] Conflict detection error:', error);
+    }
+
+    return conflictMap;
+  };
+
+  const getMemberConflictInfo = (memberId: string): MemberConflictInfo | null => {
+    const conflicts = memberConflicts.get(memberId);
+    if (!conflicts) return null;
+    return {
+      memberId,
+      conflicts,
+      isBlocked: conflicts.some((c) => c.type === 'blockout'),
+      hasWarning: conflicts.some((c) => c.type === 'double_booking'),
+    };
+  };
+
   const loadTeamMembersForBulk = async () => {
     try {
       const members = await db.teamMembers.getByChurch(churchId);
       const assignedIds = new Set(assignments.map((a) => a.team_member_id));
-      setTeamMembers(members.filter((m) => !assignedIds.has(m.id)));
+      const available = members.filter((m) => !assignedIds.has(m.id));
+      setTeamMembers(available);
+      setConflictChecked(false);
+      setSelectedMembers(new Set());
+
+      const conflicts = await computeConflicts(available);
+      setMemberConflicts(conflicts);
+      setConflictChecked(true);
     } catch (error) {
       console.error('[ServiceSchedule] Failed to load team members:', error);
     }
-  };
-
-  const toggleMemberSelection = (memberId: string) => {
-    setSelectedMembers((prev) => {
-      const next = new Set(prev);
-      if (next.has(memberId)) {
-        next.delete(memberId);
-      } else {
-        next.add(memberId);
-      }
-      return next;
-    });
   };
 
   const handleBulkAssign = async () => {
@@ -250,6 +327,23 @@ export default function ServiceSchedule({
       return;
     }
 
+    const conflictedSelected = Array.from(selectedMembers).filter(
+      (id) => memberConflicts.has(id)
+    );
+
+    if (conflictedSelected.length > 0) {
+      setConflictAssignConfirm({
+        open: true,
+        memberIds: conflictedSelected,
+        conflictCount: conflictedSelected.length,
+      });
+      return;
+    }
+
+    await doBulkAssign(Array.from(selectedMembers));
+  };
+
+  const doBulkAssign = async (memberIds: string[]) => {
     try {
       setBulkSaving(true);
 
@@ -264,7 +358,7 @@ export default function ServiceSchedule({
         headers,
         body: JSON.stringify({
           serviceId: service.id,
-          assignments: Array.from(selectedMembers).map((memberId) => ({
+          assignments: memberIds.map((memberId) => ({
             team_member_id: memberId,
             role: bulkRole.trim() || 'Team Member',
           })),
@@ -297,10 +391,16 @@ export default function ServiceSchedule({
     }
   };
 
+  const handleForceBulkAssign = async () => {
+    setConflictAssignConfirm({ open: false, memberIds: [], conflictCount: 0 });
+    await doBulkAssign(Array.from(selectedMembers));
+  };
+
   const resetBulkAdd = () => {
     setShowBulkAdd(false);
     setSelectedMembers(new Set());
     setBulkRole('');
+    setShowUnavailable(true);
   };
 
   const startBulkAdd = () => {
@@ -308,12 +408,58 @@ export default function ServiceSchedule({
     loadTeamMembersForBulk();
   };
 
+  const toggleMemberSelection = (memberId: string) => {
+    setSelectedMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(memberId)) {
+        next.delete(memberId);
+      } else {
+        next.add(memberId);
+      }
+      return next;
+    });
+  };
+
   const isOwnAssignment = (assignment: ServiceAssignmentPopulated) => {
     if (!assignment.team_member?.user_id) return false;
     return assignment.team_member.user_id === currentUserId;
   };
 
-  // ─── Loading State ───────────────────────────────────────────────────
+  // ─── Role-based suggestions logic ────────────────────────────────
+
+  const rolesWithAssignments = useMemo(() => {
+    const roleMap = new Map<string, number>();
+    for (const a of assignments) {
+      const role = a.role || 'Unspecified';
+      roleMap.set(role, (roleMap.get(role) || 0) + 1);
+    }
+    return roleMap;
+  }, [assignments]);
+
+  const handleSuggestAssign = async (memberId: string) => {
+    try {
+      await doBulkAssign([memberId]);
+    } catch {
+      // Toast already shown in doBulkAssign
+    }
+  };
+
+  // ─── Assignment list helpers ─────────────────────────────────────
+
+  const sortedAssignments = useMemo(() => {
+    return [...assignments].sort((a, b) => {
+      const aRole = a.role || '';
+      const bRole = b.role || '';
+      if (aRole !== bRole) return aRole.localeCompare(bRole);
+      const aName = a.team_member?.name || '';
+      const bName = b.team_member?.name || '';
+      return aName.localeCompare(bName);
+    });
+  }, [assignments]);
+
+  const isConflicted = (memberId: string) => memberConflicts.has(memberId);
+
+  // ─── Loading State ──────────────────────────────────────────────────
   if (loading) {
     return (
       <VStack spacing="3" align="stretch" p="6">
@@ -330,7 +476,7 @@ export default function ServiceSchedule({
     );
   }
 
-  // ─── Main Content ────────────────────────────────────────────────────
+  // ─── Main Content ───────────────────────────────────────────────────
   return (
     <Box p="6">
       {/* Toolbar */}
@@ -338,16 +484,18 @@ export default function ServiceSchedule({
         <Text fontSize="sm" color={subTextColor}>
           {assignments.length} {assignments.length === 1 ? 'person' : 'people'} scheduled
         </Text>
-        {!showBulkAdd && !readOnly && (
-          <Button
-            variant="secondary"
-            size="sm"
-            leftIcon={UserPlus}
-            onClick={startBulkAdd}
-          >
-            Add Members
-          </Button>
-        )}
+        <HStack spacing="2">
+          {!showBulkAdd && !readOnly && (
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={UserPlus}
+              onClick={startBulkAdd}
+            >
+              Add Members
+            </Button>
+          )}
+        </HStack>
       </HStack>
 
       {/* Bulk Add Panel */}
@@ -364,13 +512,25 @@ export default function ServiceSchedule({
             <Text fontWeight="600" color={headingColor} fontSize="sm">
               Add Team Members
             </Text>
-            <IconButton
-              aria-label="Close"
-              icon={<X size={16} />}
-              size="sm"
-              variant="ghost"
-              onClick={resetBulkAdd}
-            />
+            <HStack spacing="2">
+              {conflictChecked && (
+                <HStack spacing="1">
+                  <Text fontSize="xs" color={subTextColor}>Show unavailable</Text>
+                  <Switch
+                    size="sm"
+                    isChecked={showUnavailable}
+                    onChange={(e) => setShowUnavailable(e.target.checked)}
+                  />
+                </HStack>
+              )}
+              <IconButton
+                aria-label="Close"
+                icon={<X size={16} />}
+                size="sm"
+                variant="ghost"
+                onClick={resetBulkAdd}
+              />
+            </HStack>
           </HStack>
 
           <VStack spacing="4" align="stretch">
@@ -379,14 +539,28 @@ export default function ServiceSchedule({
               <Text fontSize="xs" fontWeight="500" color={roleTextColor} mb="1.5">
                 ROLE / POSITION
               </Text>
-              <Input
-                size="sm"
-                borderRadius="md"
-                value={bulkRole}
-                onChange={(e) => setBulkRole(e.target.value)}
-                placeholder="e.g., Worship Leader, Guitar, Vocals... (optional)"
-                bg={cardBg}
-              />
+              <HStack spacing="2">
+                <Input
+                  size="sm"
+                  borderRadius="md"
+                  value={bulkRole}
+                  onChange={(e) => setBulkRole(e.target.value)}
+                  placeholder="e.g., Worship Leader, Guitar, Vocals..."
+                  bg={cardBg}
+                  flex="1"
+                />
+                {bulkRole.trim() && (
+                  <SchedulingSuggestions
+                    role={bulkRole.trim()}
+                    teamMembers={teamMembers}
+                    assignments={assignments}
+                    blockoutDates={blockoutDates}
+                    serviceDate={service.date || ''}
+                    onAssign={handleSuggestAssign}
+                    isDisabled={bulkSaving}
+                  />
+                )}
+              </HStack>
             </Box>
 
             {/* Member selection */}
@@ -396,7 +570,7 @@ export default function ServiceSchedule({
               </Text>
               {teamMembers.length === 0 ? (
                 <Text fontSize="sm" color={subTextColor} py="2">
-                  No available team members.
+                  No team members available.
                 </Text>
               ) : (
                 <Box
@@ -408,28 +582,46 @@ export default function ServiceSchedule({
                   borderRadius="md"
                   p="2"
                 >
-                    {teamMembers.map((member) => {
+                  {teamMembers
+                    .filter((m) => showUnavailable || !isConflicted(m.id))
+                    .map((member) => {
                     const isOwn = member.user_id === currentUserId;
                     const blockout = isBlockedOut(member.id);
+                    const conflictInfo = getMemberConflictInfo(member.id);
+                    const hasConflict = conflictInfo !== null;
                     return (
                     <HStack
                       key={member.id}
                       spacing="3"
                       p="2"
                       borderRadius="md"
-                      cursor="pointer"
-                      _hover={{ bg: subtleBg }}
-                      onClick={() => toggleMemberSelection(member.id)}
+                      cursor={hasConflict ? 'default' : 'pointer'}
+                      bg={hasConflict ? 'orange.50' : 'transparent'}
+                      _hover={!hasConflict ? { bg: subtleBg } : undefined}
+                      onClick={() => !hasConflict && toggleMemberSelection(member.id)}
                     >
                       <Checkbox
                         isChecked={selectedMembers.has(member.id)}
                         onChange={() => toggleMemberSelection(member.id)}
                         size="sm"
+                        isDisabled={hasConflict}
                       />
-                      <Avatar name={member.name} src={member.avatar_url} size="sm" />
+                      <Box opacity={hasConflict ? 0.5 : 1}>
+                        <Avatar
+                          name={member.name}
+                          src={member.avatar_url}
+                          size="sm"
+                        />
+                      </Box>
                       <Box flex="1" minW="0">
-                        <HStack spacing="2">
-                          <Text fontSize="sm" fontWeight="500" color={headingColor} noOfLines={1}>
+                        <HStack spacing="1" wrap="wrap">
+                          <Text
+                            fontSize="sm"
+                            fontWeight="500"
+                            color={hasConflict ? subTextColor : headingColor}
+                            noOfLines={1}
+                            textDecoration={hasConflict ? 'line-through' : 'none'}
+                          >
                             {isOwn ? 'You' : member.name}
                           </Text>
                           {blockout && (
@@ -437,6 +629,14 @@ export default function ServiceSchedule({
                               <Badge variant="subtle" colorScheme="orange" fontSize="xs" borderRadius="full" px="1.5" whiteSpace="nowrap">
                                 <Calendar size={10} style={{ display: 'inline', marginRight: 2 }} />
                                 Blocked
+                              </Badge>
+                            </Tooltip>
+                          )}
+                          {conflictInfo?.hasWarning && !blockout && (
+                            <Tooltip label={conflictInfo.conflicts.map(c => c.message).join('; ')}>
+                              <Badge variant="subtle" colorScheme="yellow" fontSize="xs" borderRadius="full" px="1.5" whiteSpace="nowrap">
+                                <AlertTriangle size={10} style={{ display: 'inline', marginRight: 2 }} />
+                                Conflict
                               </Badge>
                             </Tooltip>
                           )}
@@ -450,6 +650,13 @@ export default function ServiceSchedule({
               )}
             </Box>
 
+            {/* Conflict info */}
+            {conflictChecked && !showUnavailable && (
+              <Text fontSize="xs" color={subTextColor} fontStyle="italic">
+                Hiding {teamMembers.filter(m => isConflicted(m.id)).length} unavailable member(s).
+              </Text>
+            )}
+
             {/* Actions */}
             <HStack justify="flex-end" spacing="2" pt="1">
               <Button variant="ghost" size="sm" onClick={resetBulkAdd}>
@@ -460,6 +667,7 @@ export default function ServiceSchedule({
                 size="sm"
                 onClick={handleBulkAssign}
                 isDisabled={bulkSaving || selectedMembers.size === 0}
+                isLoading={bulkSaving}
               >
                 {bulkSaving
                   ? 'Adding...'
@@ -468,6 +676,25 @@ export default function ServiceSchedule({
             </HStack>
           </VStack>
         </Box>
+      )}
+
+      {/* Role Summary */}
+      {rolesWithAssignments.size > 0 && !showBulkAdd && (
+        <HStack spacing="2" mb="3" wrap="wrap">
+          {Array.from(rolesWithAssignments.entries()).map(([role, count]) => (
+            <Badge
+              key={role}
+              variant="subtle"
+              colorScheme="gray"
+              borderRadius="full"
+              px="2"
+              py="0.5"
+              fontSize="xs"
+            >
+              {role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}: {count}
+            </Badge>
+          ))}
+        </HStack>
       )}
 
       {/* Assignment List */}
@@ -496,7 +723,7 @@ export default function ServiceSchedule({
         </Box>
       ) : (
         <VStack spacing="2" align="stretch">
-          {assignments.map((assignment) => {
+          {sortedAssignments.map((assignment) => {
             const highlighted = assignment.id === highlightedAssignmentId;
             const isOwn = isOwnAssignment(assignment);
             const showActions = isOwn && assignment.status === 'pending';
@@ -518,11 +745,13 @@ export default function ServiceSchedule({
               <HStack spacing="3" align="center" justify="space-between">
                 {/* Left: Avatar + Info */}
                 <HStack spacing="3" flex="1" minW="0">
-                  <Avatar
-                    name={assignment.team_member?.name || 'Unknown'}
-                    src={assignment.team_member?.avatar_url}
-                    size="sm"
-                  />
+                  <Box opacity={blockout ? 0.5 : 1}>
+                    <Avatar
+                      name={assignment.team_member?.name || 'Unknown'}
+                      src={assignment.team_member?.avatar_url}
+                      size="sm"
+                    />
+                  </Box>
                   <VStack align="start" spacing="0" flex="1" minW="0">
                     <HStack spacing="2" wrap="wrap">
                       <Text fontWeight="600" color={headingColor} fontSize="sm" isTruncated>
@@ -531,6 +760,7 @@ export default function ServiceSchedule({
                       {blockout && (
                         <Tooltip label={`Blocked out ${new Date(blockout.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(blockout.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${blockout.reason ? ` (${blockout.reason})` : ''}`}>
                           <Badge variant="subtle" colorScheme="orange" fontSize="xs" borderRadius="full" px="1.5">
+                            <Calendar size={10} style={{ display: 'inline', marginRight: 2 }} />
                             Blocked
                           </Badge>
                         </Tooltip>
@@ -603,6 +833,17 @@ export default function ServiceSchedule({
         message={`Are you sure you want to remove ${removeTargetName === 'You' ? 'yourself' : removeTargetName} from this service?`}
         confirmLabel="Remove"
         variant="destructive"
+      />
+
+      {/* Conflict Assign Confirmation */}
+      <ConfirmDialog
+        isOpen={conflictAssignConfirm.open}
+        onClose={() => setConflictAssignConfirm({ open: false, memberIds: [], conflictCount: 0 })}
+        onConfirm={handleForceBulkAssign}
+        title="Assign Despite Conflicts?"
+        message={`${conflictAssignConfirm.conflictCount} selected member(s) have scheduling conflicts (blocked out dates or double-booking). Assign them anyway? They will be notified as usual.`}
+        confirmLabel="Assign Anyway"
+        variant="warning"
       />
     </Box>
   );

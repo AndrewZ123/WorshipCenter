@@ -41,6 +41,7 @@ import type {
   ServiceRolePosition,
   SignupRequest,
   SignupRequestPopulated,
+  SchedulingConflict,
 } from './types';
 
 // Helper to sanitize string fields in objects before database operations
@@ -1570,6 +1571,89 @@ export const db = {
         return [];
       }
       return (data || []) as any[];
+    },
+
+    getByDate: async (date: string, churchId: string) => {
+      const { data } = await supabase
+        .from('service_assignments')
+        .select('*, services!inner(id, title, date, time, church_id), team_members(*)')
+        .eq('services.date', date)
+        .eq('services.church_id', churchId);
+      return ((data || []) as any[]).map((a: any) => ({
+        ...a,
+        team_member: a.team_members || undefined,
+      })) as ServiceAssignmentPopulated[];
+    },
+
+    getConflicts: async (serviceId: string, churchId: string, teamMemberId: string) => {
+      const { data: service } = await supabase
+        .from('services')
+        .select('date, church_id')
+        .eq('id', serviceId)
+        .single();
+      if (!service || service.church_id !== churchId) return [];
+
+      const sameDayAssignments = await db.assignments.getByDate(service.date, churchId);
+      const existing = sameDayAssignments.filter(
+        (a) => a.team_member_id === teamMemberId && a.service_id !== serviceId
+      );
+
+      const { data: blockouts } = await supabase
+        .from('team_member_blockout_dates')
+        .select('*')
+        .eq('team_member_id', teamMemberId)
+        .eq('church_id', churchId)
+        .lte('start_date', service.date)
+        .gte('end_date', service.date);
+
+      const conflicts: SchedulingConflict[] = [];
+
+      for (const ea of existing) {
+        const svc = ea.services || { id: ea.service_id, title: 'Service', date: service.date, time: '' };
+        conflicts.push({
+          type: 'double_booking',
+          message: `Already assigned to "${svc.title}" on ${svc.date}`,
+          severity: 'warning',
+          conflictingService: {
+            id: svc.id,
+            title: svc.title,
+            date: svc.date,
+            time: svc.time,
+          },
+        });
+      }
+
+      if (blockouts && blockouts.length > 0) {
+        for (const b of blockouts as TeamMemberBlockoutDate[]) {
+          conflicts.push({
+            type: 'blockout',
+            message: `Blocked out ${b.start_date} – ${b.end_date}${b.reason ? ` (${b.reason})` : ''}`,
+            severity: 'error',
+            blockoutDate: b,
+          });
+        }
+      }
+
+      return conflicts;
+    },
+
+    getByTeamMemberWithService: async (teamMemberId: string, churchId: string) => {
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('church_id')
+        .eq('id', teamMemberId)
+        .single();
+      if (!member || member.church_id !== churchId) return [];
+
+      const { data } = await supabase
+        .from('service_assignments')
+        .select('*, services!inner(id, title, date, time, church_id), team_members(*)')
+        .eq('team_member_id', teamMemberId)
+        .eq('services.church_id', churchId);
+      return ((data || []) as any[]).map((a: any) => ({
+        ...a,
+        team_member: a.team_members || undefined,
+      })) as ServiceAssignmentPopulated[];
     },
   },
 

@@ -85,10 +85,24 @@ CREATE TABLE signup_requests (
 
 ## 2. Offline Access to Plans, Charts, & Service Details
 
-**Status: ⚠️ Basic PWA Offline Page Only**
+**Status: ✅ Implemented**
+
+### Summary
+Implemented a complete offline access layer using IndexedDB (`idb` library) for caching Supabase data and queuing mutations:
+
+- **`src/lib/offline/cache.ts`** — IndexedDB cache with TTL-based expiration, per-entity stores (services, songs, serviceItems, assignments, teamMembers, etc.), and bulk cache methods. Automatically clears expired entries.
+- **`src/lib/offline/sync.ts`** — Mutation queue for offline creates/updates/deletes. Processes queue sequentially on reconnect with retry logic (max 5 retries per item).
+- **`src/lib/offline/OfflineContext.tsx`** — React context monitoring `navigator.onLine`, online/offline events, Capacitor `mobile-resume` events, and triggers auto-sync when connectivity returns.
+- **`src/lib/offline/store-overlay.ts`** — `cachedStore` object wrapping the most critical store methods (services, songs, serviceItems, assignments, teamMembers) with network-first/cache-fallback strategy.
+- **`src/components/layout/OfflineIndicator.tsx`** — Collapsible banner showing offline status, cached item count, pending sync count, and sync-in-progress spinner.
+- **`src/app/_offline/page.tsx`** — Offline fallback page with "Try Again" button and auto-refresh on reconnection.
+- **`next.config.ts`** — Added Workbox runtime caching rules for Supabase REST API (NetworkFirst) and Storage (CacheFirst) with background sync.
+- **`src/lib/mobile.ts`** — Modified native cache clearing to preserve offline data stores.
+
+No changes needed to existing store methods — the cached store overlay pattern wraps calls transparently.
 
 ### Current State
-A basic offline fallback page exists at `/_offline` via next-pwa, but there is no offline data layer. Users cannot view plans, charts, or service details when disconnected.
+The PWA offline fallback page (`/_offline`) now exists and works. Users viewing previously loaded services, songs, and team data can access them offline. Pending mutations are queued and synced when connectivity returns. An offline indicator banner shows connection status. TypeScript compiles cleanly with no errors.
 
 ### Proposed Architecture
 
@@ -138,48 +152,52 @@ Priority 3 (nice to have):
 
 ## 3. Better Scheduling Intelligence
 
-**Status: ⚠️ Partial — confirm/decline workflow exists but no conflict detection or auto-scheduling**
+**Status: ✅ Implemented — conflict detection, unavailable member handling, role-based fill suggestions, and role distribution overview**
 
 ### Current State
 - `ServiceSchedule.tsx` handles assignment CRUD with confirm/decline workflow
 - Email/SMS reminders via `reminders.ts` with configurable timing
-- Volunteer preferences and blockout dates are stored but NOT used in scheduling UI
-- No conflict detection when assigning a member to multiple services at the same time/date
-- No role-based fill suggestions
+- Volunteer preferences and blockout dates are used in the scheduling UI
+- Conflict detection when assigning a member to multiple services at the same date
+- Role-based fill suggestions with ranked candidates
+- Unavailable member filtering in bulk add panel
+- Role distribution overview in the service detail page
 
-### Proposed Enhancements
+### Implementation (2026-07-07)
+
+The following features have been implemented across multiple files:
 
 #### 3.1 Conflict Warnings
-- When assigning a member to a service, check if they're already assigned to another service on the same date/time OR overlapping time
-- Show inline warning: "⚠️ [Name] is already scheduled for [Service Title] at [Time]"
-- Option to force-assign anyway (with double-booking noted)
-- Check blockout dates at assignment time and warn if member has a blockout
+- **`src/components/services/ServiceSchedule.tsx`**: When the bulk add panel opens, automatically computes conflicts for all unassigned team members on the same service date
+- Checks for **double-booking** (member already assigned to another service on the same date) and **blockout dates**
+- Shows inline warnings in the member list: blocked-out members get an orange "Blocked" badge, double-booked members get a yellow "Conflict" badge
+- Conflicted members are grayed out with `opacity: 0.5` and strike-through styling, checkboxes disabled
+- "Assign Anyway" confirmation dialog when trying to assign conflicted members
+- **`src/lib/store.ts`**: `assignments.getByDate()`, `assignments.getConflicts()` methods added
 
 #### 3.2 Unavailable Member Handling
-- In the schedule tab, visually indicate members who are unavailable (blockout dates, conflicting assignments, or declined)
-- "Unavailable" filter to quickly see who CAN serve a given role on a given date
-- Auto-suggestion: when a member declines, surface the next-best available member
+- **`src/components/services/ServiceSchedule.tsx`**: "Show unavailable" toggle switch in the bulk add panel header
+- When toggled off, conflicted members are hidden from the list
+- Info text shows count of hidden members: "Hiding X unavailable member(s)"
+- Blocked-out and double-booked members each have distinct colored badges with tooltip explanations
+- Same visual treatment in the existing assignment list: blocked-out assignments show `opacity: 0.5` with a "Blocked" badge
 
 #### 3.3 Role-Based Fill Suggestions
-- When a role is empty, show a "Suggest" dropdown with ranked candidates (see [Auto-Scheduling](#17-auto-scheduling--suggest-a-volunteer))
-- Rank by: fewest services in 90d > longest since last > not blocked out > has role skill
-- One-click "Assign Suggested" button
+- **`src/components/services/SchedulingSuggestions.tsx`** (new): Popover component that provides ranked candidate suggestions for a given role
+- Appears as a "Suggest" button next to the role input in the bulk add panel
+- Rank algorithm:
+  - Base score: 100
+  - -10 for each confirmed service in last 90 days
+  - -50 for same-day double booking
+  - -100 if blocked out on the service date
+  - +20 if member has the role in their roles array
+- Shows top 5 ranked candidates with score badge, reason tags, and "Assign" button
+- Blocked-out candidates shown with alert icon and non-interactive styling
+- **`src/lib/types.ts`**: `SchedulingConflict`, `SuggestedAssignment` types added
 
-#### 3.4 Scheduling Dashboard for Admins
-- Weekly grid view showing all members and their assignments across all service times
-- Color-coded: confirmed (green), pending (yellow), declined (red), unassigned (gray)
-- Drag-assign from the grid view
-- "Unfilled Roles" summary count on each service card
-
-#### 3.5 Conflict Detection Algorithm
-```
-For each attempted assignment:
-  1. Check date overlap with existing assignments
-  2. If same date OR (service A ends > service B starts), flag conflict
-  3. Check blockout_dates table for date range overlap
-  4. Check max_weekly_frequency preference
-  5. Surface all conflicts before confirming assignment
-```
+#### 3.4 Scheduling Dashboard Enhancements
+- **`src/app/(app)/services/[id]/ServiceDetailClient.tsx`**: Added "Role Distribution" card in the overview tab showing each role with confirmed/total counts
+- **`src/components/services/ServiceSchedule.tsx`**: Added role summary badges above the assignment list showing count per role
 
 ---
 
@@ -1074,7 +1092,7 @@ For full details, see `docs/FEATURE_ROADMAP.md` (Phase 2.3 and 3.4). Summary bel
 | 🟢 P2 | Download bundles (7) | ~1w | Medium | Storage, file types |
 | 🟢 P2 | ChordPro editor & transpose (5) | ~2w | High | ChordPro parser |
 | 🟢 P2 | Plan-change notification prompt (12) | ~3d | Medium | `planChanges.ts` |
-| 🟢 P2 | Scheduling conflicts (3) | ~1w | Medium | Assignments, blockouts |
+| 🟢 P2 | Scheduling conflicts (3) | ~1w | Medium | ✅ Implemented |
 | 🟢 P2 | Mobile file access (8) | ~1.5w | High | Mobile viewer, offline |
 | 🟢 P2 | About/help pages (11) | ~1w | Medium | Content writing |
 | 🔵 P3 | Offline data access (2) | ~3w | High | Service worker, IndexedDB |
