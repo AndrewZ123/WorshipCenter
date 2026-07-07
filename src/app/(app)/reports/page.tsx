@@ -9,7 +9,8 @@ import {
   Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Spinner, Center,
   useColorModeValue, Card, CardBody, CardHeader,
 } from '@chakra-ui/react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare, BarChart3 } from 'lucide-react';
+import SongUsageSection from '@/components/reports/SongUsageSection';
 
 interface MemberStat {
   name: string;
@@ -364,6 +365,11 @@ export default function ReportsPage() {
           </CardBody>
         </Card>
       </SimpleGrid>
+
+      {/* Song Usage Section */}
+      <Box mt="10" pt="6" borderTop="1px solid" borderColor={borderColor}>
+        <SongUsageSection />
+      </Box>
     </Box>
   );
 }

@@ -15,8 +15,10 @@ import { formatShortDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  Calendar, Music, Users, Plus, BarChart2, Sparkles, Clock, ChevronRight, ChevronDown, CheckSquare
+  Calendar, Music, Users, Plus, BarChart2, Sparkles, Clock, ChevronRight, ChevronDown, CheckSquare,
+  UserPlus
 } from 'lucide-react';
+import ServeSection from '@/components/serve/ServeSection';
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -306,6 +308,11 @@ export default function DemoDashboardPage() {
         )}
       </Box>
 
+      {/* Serve Section */}
+      <Box mb="8">
+        <ServeSection />
+      </Box>
+
       {/* Quick Actions */}
       <SimpleGrid columns={{ base: 2, md: 4 }} spacing="3" mb="8">
         <Button 
@@ -358,14 +365,14 @@ export default function DemoDashboardPage() {
           size="lg" 
           h="auto" 
           py="4" 
-          onClick={() => router.push('/demo/usage')}
+          onClick={() => router.push('/demo/reports')}
           borderColor="gray.200"
           _hover={{ borderColor: 'teal.300', bg: 'teal.50' }}
           borderRadius="xl"
         >
           <VStack spacing="1">
             <BarChart2 size={20} color="var(--chakra-colors-teal-600)" />
-            <Text fontSize="sm" color="gray.600">Song Usage</Text>
+            <Text fontSize="sm" color="gray.600">Reports</Text>
           </VStack>
         </Button>
       </SimpleGrid>

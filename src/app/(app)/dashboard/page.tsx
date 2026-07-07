@@ -19,8 +19,10 @@ import ServiceDetailClient from '@/app/(app)/services/[id]/ServiceDetailClient';
 // Lucide icons
 import { 
   Calendar, Music, Users, Plus, Sparkles, BarChart2,
-  Clock, ChevronRight, CheckSquare, ChevronDown, ChevronRight as ChevronRightIcon
+  Clock, ChevronRight, CheckSquare, ChevronDown, ChevronRight as ChevronRightIcon,
+  UserPlus
 } from 'lucide-react';
+import ServeSection from '@/components/serve/ServeSection';
 
   // --- Helper Component to load async stats for each service ---
   function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
@@ -435,6 +437,11 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* Serve Section - All users */}
+      <Box mb="8">
+        <ServeSection />
+      </Box>
+
       {/* Quick Actions - Admin only */}
       {!permissions.isVolunteer && (
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing="3" mb="8">
@@ -487,11 +494,11 @@ export default function DashboardPage() {
             py="4"
             borderColor="gray.200"
             _hover={{ borderColor: 'teal.300', bg: 'gray.50' }}
-            onClick={() => router.push('/usage')}
+            onClick={() => router.push('/reports')}
           >
             <VStack spacing="1">
               <BarChart2 size={24} color="var(--chakra-colors-teal-600)" />
-              <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>Song Usage</Text>
+              <Text fontSize="sm" color={useColorModeValue('gray.700', 'gray.200')}>Reports</Text>
             </VStack>
           </Button>
         </SimpleGrid>

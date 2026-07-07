@@ -1,14 +1,19 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useDemo } from '@/lib/demo/context';
 import {
   Box, VStack, HStack, Text, Heading, Select, SimpleGrid,
   Stat, StatLabel, StatNumber, StatHelpText, Progress,
-  Table, Thead, Tbody, Tr, Th, Td, Badge,
-  useColorModeValue, Card, CardBody, CardHeader,
+  Table, Thead, Tbody, Tr, Th, Td, Badge, Button, Input, Flex,
+  useColorModeValue, Card, CardBody, CardHeader, Divider, Tooltip, useToast,
+  Spinner, Center,
 } from '@chakra-ui/react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare } from 'lucide-react';
+import type { SongUsage, ServiceItem } from '@/lib/types';
+import EmptyState from '@/components/ui/EmptyState';
+import { formatShortDate } from '@/lib/formatDate';
+import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare, Download, BarChart2, Music, X } from 'lucide-react';
 
 interface MemberStat {
   name: string;
@@ -301,6 +306,235 @@ export default function DemoReportsPage() {
           </CardBody>
         </Card>
       </SimpleGrid>
+
+      {/* Song Usage Section */}
+      <DemoSongUsageSection />
+    </Box>
+  );
+}
+
+function DemoSongUsageSection() {
+  const { songs, services, songUsage, serviceItems } = useDemo();
+  const router = useRouter();
+  const toast = useToast();
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const textColor = useColorModeValue('gray.900', 'white');
+  const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const headerBg = useColorModeValue('gray.50', 'gray.700');
+  const hoverBg = useColorModeValue('gray.50', 'gray.700');
+
+  const rows = useMemo(() => {
+    let filtered = songUsage;
+    if (dateFrom) filtered = filtered.filter((u: SongUsage) => u.date >= dateFrom);
+    if (dateTo) filtered = filtered.filter((u: SongUsage) => u.date <= dateTo);
+
+    return filtered
+      .map((u: SongUsage) => {
+        const song = songs.find((s) => s.id === u.song_id);
+        const service = services.find((s) => s.id === u.service_id);
+        const serviceItem = serviceItems.find(
+          (si: ServiceItem) => si.service_id === u.service_id && si.song_id === u.song_id && si.type === 'song'
+        );
+        const keyUsed = serviceItem?.key || song?.default_key || '';
+        return {
+          date: u.date,
+          serviceTitle: service?.title || 'Unknown',
+          serviceId: u.service_id,
+          songTitle: song?.title || 'Unknown',
+          ccliNumber: song?.ccli_number || '',
+          key: keyUsed,
+        };
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [songUsage, songs, services, serviceItems, dateFrom, dateTo]);
+
+  const handleExportCSV = () => {
+    if (rows.length === 0) {
+      toast({ title: 'No data to export', status: 'warning', duration: 2000 });
+      return;
+    }
+
+    const header = 'Date,Service,Song Title,CCLI Number,Key\n';
+    const csv = header + rows.map((r) =>
+      `"${r.date}","${r.serviceTitle}","${r.songTitle}","${r.ccliNumber}","${r.key}"`
+    ).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `song-usage-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({ title: 'CSV exported', status: 'success', duration: 2000 });
+  };
+
+  const setPreset = (preset: '6months' | 'year' | 'clear') => {
+    if (preset === 'clear') {
+      setDateFrom('');
+      setDateTo('');
+      return;
+    }
+    const now = new Date();
+    const to = now.toISOString().split('T')[0];
+    let from: string;
+    if (preset === '6months') {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 6);
+      from = d.toISOString().split('T')[0];
+    } else {
+      from = `${now.getFullYear()}-01-01`;
+    }
+    setDateFrom(from);
+    setDateTo(to);
+  };
+
+  return (
+    <Box mt="10" pt="6" borderTop="1px solid" borderColor={borderColor}>
+      <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} mb="4" flexWrap="wrap" gap="2">
+        <Box>
+          <Text fontSize="lg" fontWeight="600" color={textColor}>Song Usage</Text>
+          <Text color={subtextColor} fontSize="sm" mt="0.5">Track usage for CCLI reporting</Text>
+        </Box>
+        <Tooltip label={rows.length === 0 ? 'No data to export' : ''} isDisabled={rows.length > 0}>
+          <Button
+            onClick={handleExportCSV}
+            variant="outline"
+            size="sm"
+            borderColor="teal.300"
+            color="teal.600"
+            _hover={{ bg: 'teal.50', borderColor: 'teal.400' }}
+            isDisabled={rows.length === 0}
+            leftIcon={<Download size={16} />}
+            fontWeight="600"
+          >
+            Export CSV
+          </Button>
+        </Tooltip>
+      </Flex>
+
+      <Divider mb="4" borderColor={borderColor} />
+
+      <Box bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} p="4" mb="6" boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
+        <VStack spacing="4" align="stretch">
+          <HStack spacing="4" flexWrap="wrap">
+            <Box flex="1" minW="140px">
+              <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" mb="2">From</Text>
+              <HStack>
+                <Calendar size={16} color="var(--chakra-colors-gray-400)" />
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  bg="gray.50"
+                  size="sm"
+                  borderRadius="lg"
+                  border="1px solid"
+                  borderColor="gray.200"
+                  _focus={{ borderColor: 'teal.400', ring: '2px', ringColor: 'teal.100' }}
+                />
+              </HStack>
+            </Box>
+            <Box flex="1" minW="140px">
+              <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" mb="2">To</Text>
+              <HStack>
+                <Calendar size={16} color="var(--chakra-colors-gray-400)" />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  bg="gray.50"
+                  size="sm"
+                  borderRadius="lg"
+                  border="1px solid"
+                  borderColor="gray.200"
+                  _focus={{ borderColor: 'teal.400', ring: '2px', ringColor: 'teal.100' }}
+                />
+              </HStack>
+            </Box>
+          </HStack>
+
+          <HStack spacing="2" flexWrap="wrap">
+            <Text fontSize="xs" color="gray.400">Quick filters:</Text>
+            <Button size="xs" variant="ghost" onClick={() => setPreset('6months')} color="gray.500" _hover={{ bg: 'gray.100', color: 'gray.700' }} borderRadius="lg">Last 6 months</Button>
+            <Button size="xs" variant="ghost" onClick={() => setPreset('year')} color="gray.500" _hover={{ bg: 'gray.100', color: 'gray.700' }} borderRadius="lg">This year</Button>
+            {(dateFrom || dateTo) && (
+              <Button size="xs" variant="ghost" onClick={() => setPreset('clear')} color="gray.400" _hover={{ bg: 'gray.100', color: 'gray.600' }} borderRadius="lg" leftIcon={<X size={12} />}>Clear</Button>
+            )}
+          </HStack>
+        </VStack>
+      </Box>
+
+      {rows.length === 0 ? (
+        <EmptyState
+          icon="bar-chart"
+          title="No usage logged yet"
+          description="Mark a service as Completed to automatically log its songs."
+          ctaLabel="Go to Services"
+          ctaOnClick={() => router.push('/demo/services')}
+        />
+      ) : (
+        <>
+          <Box display={{ base: 'none', md: 'block' }} bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} overflow="hidden" boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
+            <Table variant="simple">
+              <Thead bg={headerBg}>
+                <Tr>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Date</Th>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Service</Th>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Song Title</Th>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Key</Th>
+                  <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">CCLI #</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {rows.map((row, i) => (
+                  <Tr key={i} _hover={{ bg: hoverBg }} transition="all 0.15s" borderLeft="3px solid transparent" sx={{ '&:hover': { borderLeftColor: 'teal.500' } }}>
+                    <Td fontSize="sm">{formatShortDate(row.date)}</Td>
+                    <Td fontSize="sm">
+                      <Text fontWeight="500" color="teal.600" cursor="pointer" _hover={{ textDecoration: 'underline' }} onClick={() => router.push(`/demo/services/${row.serviceId}`)}>{row.serviceTitle}</Text>
+                    </Td>
+                    <Td fontSize="sm" fontWeight="500" color={textColor}>{row.songTitle}</Td>
+                    <Td fontSize="sm">
+                      {row.key ? (
+                        <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="full" px="2">{row.key}</Badge>
+                      ) : <Text color="gray.400">—</Text>}
+                    </Td>
+                    <Td fontSize="sm" color={subtextColor}>{row.ccliNumber || '—'}</Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+
+          <VStack display={{ base: 'flex', md: 'none' }} spacing="3" align="stretch">
+            {rows.map((row, i) => (
+              <Box key={i} bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} p="4" boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)" borderLeft="3px solid" borderLeftColor="teal.500">
+                <HStack justify="space-between" mb="2">
+                  <HStack spacing="2">
+                    <Music size={14} color="var(--chakra-colors-teal-500)" />
+                    <Text fontWeight="600" color={textColor}>{row.songTitle}</Text>
+                  </HStack>
+                  <Text fontSize="sm" color={subtextColor}>{formatShortDate(row.date)}</Text>
+                </HStack>
+                <HStack spacing="3" flexWrap="wrap">
+                  <Text fontSize="sm" color="teal.600" cursor="pointer" _hover={{ textDecoration: 'underline' }} onClick={() => router.push(`/demo/services/${row.serviceId}`)}>{row.serviceTitle}</Text>
+                  {row.key && <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="full" px="2">{row.key}</Badge>}
+                  {row.ccliNumber && <Text fontSize="xs" color="gray.400">CCLI: {row.ccliNumber}</Text>}
+                </HStack>
+              </Box>
+            ))}
+          </VStack>
+
+          <Text mt="4" fontSize="sm" color={subtextColor} textAlign="center">
+            Showing {rows.length} record{rows.length !== 1 ? 's' : ''}
+          </Text>
+        </>
+      )}
     </Box>
   );
 }

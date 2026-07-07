@@ -21,9 +21,9 @@ import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 
 // Lucide icons
 import { 
-  Calendar, Home, Music, Users, BarChart2, CreditCard, Menu as MenuIcon,
-  RefreshCw, ExternalLink, Moon, Repeat, Building2, PieChart, MessageSquare, CheckSquare, Sparkles,
-  Settings, FileBarChart, MessageCircle
+  Calendar, Home, Music, Users, CreditCard, Menu as MenuIcon,
+  RefreshCw, ExternalLink, Moon, Repeat, Building2, PieChart, CheckSquare, Sparkles,
+  Settings, MessageCircle
 } from 'lucide-react';
 
 
@@ -40,7 +40,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Team', href: '/demo/team', icon: Users },
   { label: 'Tasks', href: '/demo/tasks', icon: CheckSquare },
   { label: 'Templates', href: '/demo/templates', icon: Repeat },
-  { label: 'Song Usage', href: '/demo/usage', icon: BarChart2 },
   { label: 'Reports', href: '/demo/reports', icon: PieChart },
   { label: 'Team Chat', href: '/demo/chat', icon: MessageCircle },
 ];

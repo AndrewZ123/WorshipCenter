@@ -21,9 +21,9 @@ import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 
 // Lucide icons
 import { 
-  Calendar, Home, Music, Users, BarChart2, CreditCard,
-  LogOut, Settings, Bell, Moon, Sun, Repeat, Church, MessageCircle, HelpCircle,
-  CheckSquare, FileBarChart, Sparkles, UserPlus
+  Calendar, Home, Music, Users, CreditCard,
+  LogOut, Settings, Bell, Moon, Sun, Church, MessageCircle, HelpCircle,
+  CheckSquare, FileBarChart, Sparkles
 } from 'lucide-react';
 
 interface NavItem {
@@ -38,14 +38,12 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'My Tasks', href: '/tasks', icon: CheckSquare },
   { label: 'Songs', href: '/songs', icon: Music },
   { label: 'Team', href: '/team', icon: Users },
-  { label: 'Serve', href: '/serve', icon: UserPlus },
   { label: 'Team Chat', href: '/chat', icon: MessageCircle },
-  { label: 'Song Usage', href: '/usage', icon: BarChart2 },
   { label: 'Reports', href: '/reports', icon: FileBarChart },
 ];
 
 // Allowed nav items for non-admin users
-const VOLUNTEER_NAV_ITEMS = ['/dashboard', '/services', '/tasks', '/songs', '/serve', '/chat'];
+const VOLUNTEER_NAV_ITEMS = ['/dashboard', '/services', '/tasks', '/songs', '/chat'];
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
