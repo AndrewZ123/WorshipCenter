@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Verify user belongs to this church
     const { data: userData } = await supabaseAdmin
       .from('users')
-      .select('church_id')
+      .select('church_id, email')
       .eq('id', user.id)
       .single();
 
@@ -35,13 +35,25 @@ export async function POST(request: NextRequest) {
     // Auto-resolve team_member_id from the signing user if not provided
     let resolvedTeamMemberId = teamMemberId;
     if (!resolvedTeamMemberId) {
-      const { data: tm } = await supabaseAdmin
+      // Try by user_id first (team_members.user_id column)
+      const { data: tmByUser } = await supabaseAdmin
         .from('team_members')
         .select('id')
         .eq('user_id', user.id)
         .eq('church_id', churchId)
         .maybeSingle();
-      if (tm) resolvedTeamMemberId = tm.id;
+      if (tmByUser) {
+        resolvedTeamMemberId = tmByUser.id;
+      } else {
+        // Fallback: match by email
+        const { data: tmByEmail } = await supabaseAdmin
+          .from('team_members')
+          .select('id')
+          .eq('email', userData.email || user.email)
+          .eq('church_id', churchId)
+          .maybeSingle();
+        if (tmByEmail) resolvedTeamMemberId = tmByEmail.id;
+      }
     }
 
     // Verify the service exists and belongs to this church
