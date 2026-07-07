@@ -19,9 +19,10 @@ export async function POST(
 
     const { id } = await params;
 
+    // Fetch the signup request
     const { data: signupRequest, error: fetchError } = await supabaseAdmin
       .from('signup_requests')
-      .select('*, services!inner(id, title, date, church_id)')
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -29,7 +30,18 @@ export async function POST(
       return NextResponse.json({ error: 'Signup request not found' }, { status: 404 });
     }
 
-    const churchId = signupRequest.services.church_id;
+    // Fetch the service
+    const { data: service, error: serviceError } = await supabaseAdmin
+      .from('services')
+      .select('id, title, date, church_id')
+      .eq('id', signupRequest.service_id)
+      .single();
+
+    if (serviceError || !service) {
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+    }
+
+    const churchId = service.church_id;
 
     const { data: currentUser } = await supabaseAdmin
       .from('users')
@@ -58,21 +70,20 @@ export async function POST(
 
     // Notify the volunteer
     if (signupRequest.team_member_id) {
-      const { data: volunteerUser } = await supabaseAdmin
-        .from('users')
-        .select('id')
-        .eq('church_id', churchId)
-        .eq('team_member_id', signupRequest.team_member_id)
-        .maybeSingle();
+      const { data: teamMember } = await supabaseAdmin
+        .from('team_members')
+        .select('user_id')
+        .eq('id', signupRequest.team_member_id)
+        .single();
 
-      if (volunteerUser) {
+      if (teamMember?.user_id) {
         try {
           await supabaseAdmin.from('notifications').insert({
             church_id: churchId,
-            user_id: volunteerUser.id,
+            user_id: teamMember.user_id,
             type: 'signup_request_response',
             title: 'Signup declined',
-            message: `Your request for ${signupRequest.role} on ${signupRequest.services.title} (${signupRequest.services.date}) was declined.`,
+            message: `Your request for ${signupRequest.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())} on ${service.title} (${service.date}) was declined.`,
             service_id: signupRequest.service_id,
             link_url: `/services/${signupRequest.service_id}`,
             read: false,

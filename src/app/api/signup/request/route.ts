@@ -32,6 +32,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Auto-resolve team_member_id from the signing user if not provided
+    let resolvedTeamMemberId = teamMemberId;
+    if (!resolvedTeamMemberId) {
+      const { data: tm } = await supabaseAdmin
+        .from('team_members')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('church_id', churchId)
+        .maybeSingle();
+      if (tm) resolvedTeamMemberId = tm.id;
+    }
+
     // Verify the service exists and belongs to this church
     const { data: service } = await supabaseAdmin
       .from('services')
@@ -81,13 +93,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if the user already has a pending signup for this service/role
-    if (teamMemberId) {
+    if (resolvedTeamMemberId) {
       const { data: existing } = await supabaseAdmin
         .from('signup_requests')
         .select('id')
         .eq('service_id', serviceId)
         .eq('role', role)
-        .eq('team_member_id', teamMemberId)
+        .eq('team_member_id', resolvedTeamMemberId)
         .neq('status', 'declined')
         .maybeSingle();
 
@@ -100,7 +112,7 @@ export async function POST(request: NextRequest) {
         .from('service_assignments')
         .select('id')
         .eq('service_id', serviceId)
-        .eq('team_member_id', teamMemberId)
+        .eq('team_member_id', resolvedTeamMemberId)
         .eq('role', role)
         .maybeSingle();
 
@@ -115,7 +127,7 @@ export async function POST(request: NextRequest) {
       .insert({
         service_id: serviceId,
         role,
-        team_member_id: teamMemberId || null,
+        team_member_id: resolvedTeamMemberId || null,
         name: name || '',
         email: email || '',
         phone: phone || '',
@@ -146,7 +158,7 @@ export async function POST(request: NextRequest) {
           user_id: admin.id,
           type: 'signup_request',
           title: `New signup request`,
-          message: `${requesterName} wants to sign up as ${role} for ${service.title} on ${service.date}.`,
+          message: `${requesterName} wants to sign up as ${role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())} for ${service.title} on ${service.date}.`,
           service_id: serviceId,
           link_url: `/services/${serviceId}`,
           read: false,

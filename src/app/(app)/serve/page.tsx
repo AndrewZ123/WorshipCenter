@@ -182,7 +182,7 @@ export default function ServePage() {
                       {req.status === 'declined' && <XCircle size={18} color="var(--chakra-colors-red-500)" />}
                       <Box>
                         <Text fontWeight="600" fontSize="sm" color={textColor}>
-                          {req.role} — {req.service?.title || 'Service'}
+                          {req.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())} — {req.service?.title || 'Service'}
                         </Text>
                         <Text fontSize="xs" color={subtextColor}>
                           {req.service?.date}

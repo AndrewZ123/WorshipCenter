@@ -19,10 +19,10 @@ export async function POST(
 
     const { id } = await params;
 
-    // Fetch the signup request with related data
+    // Fetch the signup request
     const { data: signupRequest, error: fetchError } = await supabaseAdmin
       .from('signup_requests')
-      .select('*, services!inner(id, title, date, time, church_id)')
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -30,7 +30,18 @@ export async function POST(
       return NextResponse.json({ error: 'Signup request not found' }, { status: 404 });
     }
 
-    const churchId = signupRequest.services.church_id;
+    // Fetch the service separately
+    const { data: service, error: serviceError } = await supabaseAdmin
+      .from('services')
+      .select('id, title, date, time, church_id')
+      .eq('id', signupRequest.service_id)
+      .single();
+
+    if (serviceError || !service) {
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+    }
+
+    const churchId = service.church_id;
 
     // Verify the current user is an admin/leader of this church
     const { data: currentUser } = await supabaseAdmin
@@ -72,22 +83,44 @@ export async function POST(
       teamMemberId = newMember.id;
     }
 
-    // Create the service assignment
-    const { data: assignment, error: assignError } = await supabaseAdmin
+    // Check for existing assignment to avoid UNIQUE constraint violation
+    const { data: existingAssignment } = await supabaseAdmin
       .from('service_assignments')
-      .insert({
-        service_id: signupRequest.service_id,
-        team_member_id: teamMemberId,
-        role: signupRequest.role,
-        status: 'confirmed',
-        confirmed_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+      .select('id')
+      .eq('service_id', signupRequest.service_id)
+      .eq('team_member_id', teamMemberId)
+      .eq('role', signupRequest.role)
+      .maybeSingle();
 
-    if (assignError) {
-      console.error('[Signup Approve] Failed to create assignment:', assignError);
-      return NextResponse.json({ error: 'Failed to create assignment' }, { status: 500 });
+    let assignment;
+    if (existingAssignment) {
+      // Update existing assignment to confirmed
+      const { data: updated } = await supabaseAdmin
+        .from('service_assignments')
+        .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
+        .eq('id', existingAssignment.id)
+        .select()
+        .single();
+      assignment = updated;
+    } else {
+      // Create the service assignment
+      const { data: created, error: assignError } = await supabaseAdmin
+        .from('service_assignments')
+        .insert({
+          service_id: signupRequest.service_id,
+          team_member_id: teamMemberId,
+          role: signupRequest.role,
+          status: 'confirmed',
+          confirmed_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (assignError) {
+        console.error('[Signup Approve] Failed to create assignment:', assignError);
+        return NextResponse.json({ error: `Failed to create assignment: ${assignError.message}` }, { status: 500 });
+      }
+      assignment = created;
     }
 
     // Update signup request status to approved
@@ -101,37 +134,34 @@ export async function POST(
     }
 
     // Update team member's roles if the role isn't already in their list
-    if (signupRequest.team_member_id) {
-      const { data: member } = await supabaseAdmin
-        .from('team_members')
-        .select('roles')
-        .eq('id', teamMemberId)
-        .single();
+    const { data: member } = await supabaseAdmin
+      .from('team_members')
+      .select('roles')
+      .eq('id', teamMemberId)
+      .single();
 
-      if (member && !member.roles.includes(signupRequest.role)) {
-        await supabaseAdmin
-          .from('team_members')
-          .update({ roles: [...member.roles, signupRequest.role] })
-          .eq('id', teamMemberId);
-      }
+    if (member && !member.roles.includes(signupRequest.role)) {
+      await supabaseAdmin
+        .from('team_members')
+        .update({ roles: [...member.roles, signupRequest.role] })
+        .eq('id', teamMemberId);
     }
 
-    // Notify the volunteer that they've been approved
-    const { data: volunteerUser } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .eq('church_id', churchId)
-      .eq('team_member_id', teamMemberId)
-      .maybeSingle();
+    // Notify the volunteer — query team_members for user_id (the relationship is team_members.user_id -> auth.users)
+    const { data: teamMember } = await supabaseAdmin
+      .from('team_members')
+      .select('user_id')
+      .eq('id', teamMemberId)
+      .single();
 
-    if (volunteerUser) {
+    if (teamMember?.user_id) {
       try {
         await supabaseAdmin.from('notifications').insert({
           church_id: churchId,
-          user_id: volunteerUser.id,
+          user_id: teamMember.user_id,
           type: 'signup_request_response',
           title: 'Signup approved!',
-          message: `You've been approved for ${signupRequest.role} on ${signupRequest.services.title} (${signupRequest.services.date}).`,
+          message: `You've been approved for ${signupRequest.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())} on ${service.title} (${service.date}).`,
           service_id: signupRequest.service_id,
           link_url: `/services/${signupRequest.service_id}`,
           read: false,
