@@ -32,6 +32,8 @@ interface OpenPosition extends ServiceRolePosition {
   pending: number;
 }
 
+type RawOpenPosition = Omit<OpenPosition, 'filled' | 'pending'>;
+
 export default function ServePage() {
   const { user, church } = useAuth();
   const store = useStore();
@@ -62,7 +64,7 @@ export default function ServePage() {
     if (!church) return;
     try {
       setLoading(true);
-      const rawPositions = await store.rolePositions.getOpenForChurch(church.id);
+      const rawPositions = await store.rolePositions.getOpenForChurch(church.id) as RawOpenPosition[];
       const enriched: OpenPosition[] = await Promise.all(
         rawPositions.map(async (pos) => {
           const filled = await store.rolePositions.getFilledCount(pos.service_id, pos.role);

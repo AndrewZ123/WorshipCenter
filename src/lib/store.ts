@@ -2820,15 +2820,37 @@ export const db = {
     },
 
     getOpenForChurch: async (churchId: string) => {
-      const { data } = await supabase
+      const { data: positions, error } = await supabase
         .from('service_role_positions')
-        .select('*, services!inner(id, title, date, time, status)')
+        .select('*')
         .eq('church_id', churchId)
-        .eq('signup_enabled', true)
-        .gte('services.date', new Date().toISOString().split('T')[0])
-        .in('services.status', ['draft', 'finalized'])
-        .order('services.date', { ascending: true });
-      return (data || []) as (ServiceRolePosition & { services: Service })[];
+        .eq('signup_enabled', true);
+
+      if (error) {
+        console.error('[RolePositions] getOpenForChurch error:', error);
+        return [];
+      }
+
+      if (!positions || positions.length === 0) return [];
+
+      const serviceIds = [...new Set(positions.map(p => p.service_id))];
+      const { data: services } = await supabase
+        .from('services')
+        .select('id, title, date, time, status')
+        .in('id', serviceIds)
+        .in('status', ['draft', 'finalized']);
+
+      const today = new Date().toISOString().split('T')[0];
+      const validServices = (services || []).filter(s => s.date >= today);
+      const validServiceIds = new Set(validServices.map(s => s.id));
+
+      return positions
+        .filter(p => validServiceIds.has(p.service_id))
+        .map(p => ({
+          ...p,
+          services: validServices.find(s => s.id === p.service_id)!,
+        }))
+        .sort((a, b) => a.services.date.localeCompare(b.services.date)) as any;
     },
 
     create: async (rp: Omit<ServiceRolePosition, 'id' | 'created_at'>) => {
