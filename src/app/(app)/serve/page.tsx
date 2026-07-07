@@ -5,14 +5,14 @@ import {
   Box, Text, VStack, HStack, Button, useToast, Spinner, Center,
   Card, CardBody, useColorModeValue, Select, Flex, Tag, TagLabel,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
-  ModalCloseButton, ModalFooter, FormControl, FormLabel, Input,
-  useDisclosure, SimpleGrid, Badge,
+  ModalCloseButton, ModalFooter,
+  useDisclosure, Badge,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
 import { supabase } from '@/lib/supabase';
 import { apiUrl } from '@/lib/api-base';
-import type { ServiceRolePosition, SignupRequest, SignupRequestPopulated } from '@/lib/types';
+import type { ServiceRolePosition, SignupRequestPopulated } from '@/lib/types';
 import { Calendar, Clock, Users, UserPlus, CheckCircle, AlertCircle, XCircle, Filter } from 'lucide-react';
 
 const ROLE_OPTIONS = [
@@ -45,10 +45,6 @@ export default function ServePage() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [signingUp, setSigningUp] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<OpenPosition | null>(null);
-
-  const [newName, setNewName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPhone, setNewPhone] = useState('');
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -100,14 +96,12 @@ export default function ServePage() {
         serviceId: position.service_id,
         role: position.role,
         churchId: church.id,
+        name: user.name,
+        email: user.email,
       };
 
       if (user.team_member_id) {
         body.teamMemberId = user.team_member_id;
-      } else {
-        body.name = newName || user.name;
-        body.email = newEmail || user.email;
-        body.phone = newPhone || '';
       }
 
       const response = await fetch(apiUrl('/api/signup/request'), {
@@ -143,11 +137,6 @@ export default function ServePage() {
 
   const openSignupModal = (position: OpenPosition) => {
     setSelectedPosition(position);
-    if (!user?.team_member_id) {
-      setNewName(user?.name || '');
-      setNewEmail(user?.email || '');
-      setNewPhone('');
-    }
     signupModal.onOpen();
   };
 
@@ -313,7 +302,7 @@ export default function ServePage() {
           <ModalHeader fontWeight="700">Sign Up for Position</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            {selectedPosition && (
+            {selectedPosition && user && (
               <VStack spacing="4" align="stretch">
                 <Box bg="teal.50" borderRadius="lg" p="4" border="1px solid" borderColor="teal.100">
                   <Text fontWeight="600" fontSize="sm" color="teal.800">
@@ -327,30 +316,9 @@ export default function ServePage() {
                     <Text>{selectedPosition.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</Text>
                   </HStack>
                 </Box>
-
-                {!user?.team_member_id ? (
-                  <>
-                    <Text fontSize="sm" color={subtextColor}>
-                      Please provide your contact information to sign up.
-                    </Text>
-                    <FormControl isRequired>
-                      <FormLabel fontWeight="600" fontSize="sm">Name</FormLabel>
-                      <Input value={newName} onChange={(e) => setNewName(e.target.value)} borderRadius="lg" />
-                    </FormControl>
-                    <FormControl isRequired>
-                      <FormLabel fontWeight="600" fontSize="sm">Email</FormLabel>
-                      <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} borderRadius="lg" />
-                    </FormControl>
-                    <FormControl>
-                      <FormLabel fontWeight="600" fontSize="sm">Phone</FormLabel>
-                      <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} borderRadius="lg" placeholder="Optional" />
-                    </FormControl>
-                  </>
-                ) : (
-                  <Text fontSize="sm" color={subtextColor}>
-                    You are signing up as <strong>{user.name}</strong>. An admin will review and confirm your request.
-                  </Text>
-                )}
+                <Text fontSize="sm" color={subtextColor}>
+                  Signing up as <strong>{user.name}</strong> ({user.email}). An admin will review and confirm your request.
+                </Text>
               </VStack>
             )}
           </ModalBody>
@@ -360,7 +328,7 @@ export default function ServePage() {
               colorScheme="teal"
               onClick={() => selectedPosition && handleSignup(selectedPosition)}
               isLoading={signingUp !== null}
-              isDisabled={!selectedPosition || (!user?.team_member_id && (!newName || !newEmail))}
+              isDisabled={!selectedPosition}
               fontWeight="600"
             >
               Submit Request
