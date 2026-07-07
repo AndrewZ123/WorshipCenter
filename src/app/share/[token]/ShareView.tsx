@@ -2,7 +2,7 @@
 
 import { Box, Text, VStack, HStack, Badge, useColorModeValue } from '@chakra-ui/react';
 import type { Service, Church, ServiceItem, Song, ServiceAssignment, TeamMember } from '@/lib/types';
-import { Calendar, Clock, Music, Users } from 'lucide-react';
+import { Calendar, Clock, Music, FileText, Users } from 'lucide-react';
 
 interface ShareData {
   service: Service;
@@ -130,9 +130,9 @@ export default function ShareView({ data, isDemo }: { data: ShareData | null; is
                   <Box key={item.id} bg={cardBg} borderRadius="lg" border="1px solid" borderColor={borderColor} p="3.5">
                     <HStack justify="space-between" align="flex-start" gap="2">
                       <HStack spacing="3" align="flex-start" minW="0" flex="1">
-                        <Text fontSize="sm" fontWeight="700" color={subtextColor} minW="24px" pt="1px">
-                          {i + 1}
-                        </Text>
+                        <Box minW="24px" pt="1px" color={subtextColor}>
+                          {item.type === 'song' ? <Music size={16} /> : <FileText size={16} />}
+                        </Box>
                         <Box minW="0" flex="1">
                           <Text fontWeight="600" fontSize="sm" color={headingColor}>
                             {item.type === 'song' && song ? song.title : item.title}
