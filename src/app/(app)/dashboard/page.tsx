@@ -8,6 +8,7 @@ import {
   Tag, TagLabel, Collapse,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/PermissionsContext';
 import { useStore } from '@/lib/StoreContext';
 import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment, ServiceTask, RehearsalStats } from '@/lib/types';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -27,7 +28,8 @@ import {
     const [rehearsalStats, setRehearsalStats] = useState<RehearsalStats[]>([]);
     const [showRehearsal, setShowRehearsal] = useState(false);
     const store = useStore();
-    const { church, user } = useAuth();
+    const { church } = useAuth();
+    const permissions = usePermissions();
     const cardBg = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.100', 'gray.700');
     const textColor = useColorModeValue('gray.800', 'white');
@@ -55,7 +57,7 @@ import {
   // Load rehearsal stats for leaders
   useEffect(() => {
     async function loadRehearsalStats() {
-      if (!church || user?.role === 'team') return;
+      if (!church || permissions.isVolunteer) return;
       try {
         const s = await store.rehearsals.getStatsByService(svc.id, church.id);
         setRehearsalStats(s);
@@ -66,7 +68,7 @@ import {
     if (stats.songs > 0) {
       loadRehearsalStats();
     }
-  }, [svc.id, church, user, stats.songs]);
+  }, [svc.id, church, permissions.isVolunteer, stats.songs]);
 
   return (
     <Card
@@ -180,6 +182,7 @@ function StatBox({ icon: Icon, label, value }: { icon: React.ComponentType<{ siz
 
 export default function DashboardPage() {
   const { user, church } = useAuth();
+  const permissions = usePermissions();
   const store = useStore();
   const router = useRouter();
   const toast = useToast();
@@ -207,10 +210,30 @@ export default function DashboardPage() {
 
       try {
         setLoading(true);
-        const svcs = await store.services.getByChurch(church.id);
+        let svcs: Service[];
+
+        if (permissions.isVolunteer) {
+          // Volunteers only see services they have assignments or tasks for
+          svcs = [];
+          if (user?.team_member_id) {
+            const assignments = await store.assignments.getByTeamMember(user.team_member_id, church.id);
+            const serviceIds = new Set<string>();
+            for (const a of assignments) {
+              if (a.service_id) serviceIds.add(a.service_id);
+            }
+            const tasks = await store.tasks.getMyTasks(church.id, user.team_member_id);
+            for (const t of tasks) {
+              if (t.service_id) serviceIds.add(t.service_id);
+            }
+            const allSvc = await store.services.getByChurch(church.id);
+            svcs = allSvc.filter((s: Service) => serviceIds.has(s.id));
+          }
+        } else {
+          svcs = await store.services.getByChurch(church.id);
+        }
+
         svcs.sort((a: Service, b: Service) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        // Team members can see all services (read-only view)
         setServices(svcs);
         const allSongs = await store.songs.getByChurch(church.id);
         setSongs(allSongs);
@@ -236,7 +259,7 @@ export default function DashboardPage() {
       }
     }
     loadData();
-  }, [church, user, toast]);
+  }, [church, user, permissions.isVolunteer, toast]);
 
   // Check localStorage for dismissed state
   useEffect(() => {
@@ -278,7 +301,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <Box p={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} maxW="1100px" mx="auto">
+    <Box p={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} maxW="1100px" w="full" mx="auto" overflowX="hidden">
       {/* Greeting Header */}
       <Box mb="8">
         <Text fontSize="2xl" fontWeight="bold" letterSpacing="tight">
@@ -292,8 +315,8 @@ export default function DashboardPage() {
       {/* Onboarding Checklist */}
       <OnboardingChecklist />
 
-      {/* Stats Grid - Admin/Leader only */}
-      {user?.role !== 'team' && (
+      {/* Stats Grid - Admin only */}
+      {!permissions.isVolunteer && (
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing="4" mb="8">
           <StatBox icon={Calendar} label="Total Services" value={services.length} />
           <StatBox icon={Music} label="Songs in Library" value={songs.length} />
@@ -394,9 +417,9 @@ export default function DashboardPage() {
         >
           <CardBody textAlign="center" py="8">
             <Text fontSize="lg" mb="1" color={emptyColor}>
-              {user?.role === 'team' ? "You aren't scheduled for any services this week." : "No upcoming services"}
+              {permissions.isVolunteer ? "You aren't scheduled for any services this week." : "No upcoming services"}
             </Text>
-            {user?.role !== 'team' && (
+            {!permissions.isVolunteer && (
               <Button 
                 mt="3" 
                 size="sm" 
@@ -412,8 +435,8 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Quick Actions - Admin/Leader only */}
-      {user?.role !== 'team' && (
+      {/* Quick Actions - Admin only */}
+      {!permissions.isVolunteer && (
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing="3" mb="8">
           <Button 
             variant="outline" 

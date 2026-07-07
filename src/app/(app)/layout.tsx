@@ -10,6 +10,7 @@ import AppShell from '@/components/layout/AppShell';
 import { SubscriptionGate } from '@/components/layout/SubscriptionGate';
 import { SubscriptionProvider } from '@/components/providers/SubscriptionProvider';
 import { TourProvider } from '@/lib/tour/TourContext';
+import { PermissionsProvider } from '@/lib/PermissionsContext';
 import { Center, Spinner, VStack, Text } from '@chakra-ui/react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -23,12 +24,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         router.replace('/login');
         return;
       }
-      
-      // Role-Based Route Protection
-      if (user.role === 'team') {
-        // Team members can view services and songs (read-only), but not manage team, templates, or usage
-        const restrictedPrefixes = ['/team', '/templates', '/usage'];
-        
+
+      // All non-admin users (team + leader) are restricted from admin-only routes
+      if (user.role !== 'admin') {
+        const restrictedPrefixes = [
+          '/team',
+          '/templates',
+          '/usage',
+          '/reports',
+          '/services/debriefs',
+          '/settings/billing',
+        ];
+
         if (restrictedPrefixes.some(prefix => pathname === prefix || pathname.startsWith(prefix))) {
           router.replace('/dashboard');
         }
@@ -64,17 +71,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Pages that should always be accessible (even when subscription expired)
   const alwaysAccessiblePaths = ['/settings/billing'];
   const isAlwaysAccessible = alwaysAccessiblePaths.some(path => pathname.startsWith(path));
-  
+
   // Wrap with subscription gate unless it's an always-accessible path
   return (
     <StoreProvider store={db}>
-      <SubscriptionProvider>
-        <TourProvider>
-          <AppShell>
-            {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
-          </AppShell>
-        </TourProvider>
-      </SubscriptionProvider>
+      <PermissionsProvider>
+        <SubscriptionProvider>
+          <TourProvider>
+            <AppShell>
+              {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
+            </AppShell>
+          </TourProvider>
+        </SubscriptionProvider>
+      </PermissionsProvider>
     </StoreProvider>
   );
 }

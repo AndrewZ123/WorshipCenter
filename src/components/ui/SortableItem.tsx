@@ -106,10 +106,10 @@ export default function SortableItem({ id, children }: SortableItemProps) {
           display="flex"
           alignItems="center"
           justifyContent="center"
-          w={{ base: '44px', md: '40px' }}
-          h={{ base: '44px', md: 'full' }}
-          minH={{ base: '44px', md: 'auto' }}
-          mr="2"
+          w={{ base: '36px', md: '40px' }}
+          h={{ base: '36px', md: 'full' }}
+          minH={{ base: '36px', md: 'auto' }}
+          mr={{ base: '1', md: '2' }}
           cursor={{ base: 'grab', md: 'grab' }}
           _active={{ cursor: 'grabbing', bg: 'gray.100', borderRadius: 'md' }}
           _hover={{ 

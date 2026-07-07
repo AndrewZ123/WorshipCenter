@@ -10,6 +10,7 @@ import {
   Menu, MenuButton, MenuList, MenuItem, useColorModeValue, Spinner, Center,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/PermissionsContext';
 import { useStore } from '@/lib/StoreContext';
 import type { Song, SongUsage } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -26,6 +27,7 @@ import {
 
 export default function SongsPage() {
   const { church, user } = useAuth();
+  const permissions = usePermissions();
   const store = useStore();
   const router = useRouter();
   const toast = useToast();
@@ -73,8 +75,8 @@ export default function SongsPage() {
   const mutedText = useColorModeValue('gray.400', 'gray.500');
   const iconTeal = useColorModeValue('#0D9488', '#5EEAD4');
   
-  // Team members have read-only access
-  const isReadOnly = user?.role === 'team';
+  // Volunteers have read-only access
+  const isReadOnly = permissions.isVolunteer;
 
   useEffect(() => {
     if (church) loadSongs();

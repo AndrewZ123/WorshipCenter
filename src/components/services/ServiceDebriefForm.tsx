@@ -149,9 +149,9 @@ export default function ServiceDebriefForm({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" scrollBehavior="inside" closeOnOverlayClick={false}>
+    <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: 'xl' }} scrollBehavior="inside" closeOnOverlayClick={false}>
       <ModalOverlay backdropBlur="sm" />
-      <ModalContent bg={bgColor} borderRadius="2xl" mx="4" my="8">
+      <ModalContent bg={bgColor} borderRadius={{ base: '0', md: '2xl' }} mx={{ base: '0', md: '4' }}>
         <ModalHeader fontWeight="700">
           <HStack spacing="3">
             <Clock size={20} />

@@ -12,6 +12,7 @@ import {
   Divider, SimpleGrid,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/PermissionsContext';
 import { useStore } from '@/lib/StoreContext';
 import type { Service, ServiceTemplate, ServiceDebriefPopulated } from '@/lib/types';
 import ServiceDetailClient from './[id]/ServiceDetailClient';
@@ -32,6 +33,7 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 
 export default function ServicesPage() {
   const { church, user } = useAuth();
+  const permissions = usePermissions();
   const store = useStore();
   const router = useRouter();
   const toast = useToast();
@@ -80,16 +82,34 @@ export default function ServicesPage() {
   const templatesBg = useColorModeValue('gray.50', 'gray.900');
   const theadBg = useColorModeValue('gray.50', 'gray.900');
   
-  // Team members have read-only access
-  const isReadOnly = user?.role === 'team';
+  // Volunteers have read-only access
+  const isReadOnly = permissions.isVolunteer;
 
-  useEffect(() => { if (church) loadData(); }, [church]);
+  useEffect(() => { if (church) loadData(); }, [church, permissions.isVolunteer]);
 
   const loadData = async () => {
     if (!church) return;
     try {
       setLoading(true);
-      const all = await store.services.getByChurch(church.id);
+      let all: Service[];
+
+      if (permissions.isVolunteer && user?.team_member_id) {
+        // Volunteers only see services they are assigned to
+        const assignments = await store.assignments.getByTeamMember(user.team_member_id, church.id);
+        const serviceIds = new Set<string>();
+        for (const a of assignments) {
+          if (a.service_id) serviceIds.add(a.service_id);
+        }
+        const tasks = await store.tasks.getMyTasks(church.id, user.team_member_id);
+        for (const t of tasks) {
+          if (t.service_id) serviceIds.add(t.service_id);
+        }
+        const allSvc = await store.services.getByChurch(church.id);
+        all = allSvc.filter((s: Service) => serviceIds.has(s.id));
+      } else {
+        all = await store.services.getByChurch(church.id);
+      }
+
       all.sort((a: Service, b: Service) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setServices(all);
       setTemplates(await store.templates.getByChurch(church.id));
@@ -221,7 +241,7 @@ export default function ServicesPage() {
   }
 
   return (
-    <Box p={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} maxW="1100px" mx="auto">
+    <Box p={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} maxW="1100px" w="full" mx="auto" overflowX="hidden">
       {/* Page Header */}
       <Flex justify="space-between" align={{ base: 'flex-start', md: 'center' }} mb="6" flexWrap="wrap" gap="4" direction={{ base: 'column', md: 'row' }}>
         <Box>
@@ -322,17 +342,18 @@ export default function ServicesPage() {
             ) : (
               <VStack spacing="2" align="stretch">
                 {templates.map((tpl) => (
-                  <HStack
+                  <Flex
                     key={tpl.id}
+                    direction={{ base: 'column', md: 'row' }}
+                    align={{ base: 'stretch', md: 'center' }}
+                    justify="space-between"
+                    gap="2"
                     bg={cardBg} 
                     border="1px solid" 
                     borderColor={borderColor}
                     borderRadius="lg" 
                     px="4" 
                     py="3" 
-                    justify="space-between"
-                    flexWrap={{ base: 'wrap', md: 'nowrap' }} 
-                    gap="2"
                     cursor="pointer"
                     boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)"
                     _hover={{ 
@@ -343,7 +364,7 @@ export default function ServicesPage() {
                     transition="all 0.15s ease"
                     onClick={() => router.push(`/templates/${tpl.id}`)}
                   >
-                    <HStack spacing="3" flex="1" minW="0">
+                    <HStack spacing="3" minW="0" flex="1">
                       <Tag size="sm" colorScheme="teal" variant="subtle" flexShrink={0} borderRadius="full">
                         <TagLabel>{DAYS[tpl.day_of_week]}</TagLabel>
                       </Tag>
@@ -354,7 +375,7 @@ export default function ServicesPage() {
                       </HStack>
                       <Text fontSize="xs" color={subtextColor} flexShrink={0}>{tpl.items.length} items</Text>
                     </HStack>
-                    <HStack spacing="2" flexShrink={0} onClick={(e) => e.stopPropagation()}>
+                    <HStack spacing="2" justify={{ base: 'flex-end', md: 'flex-start' }} onClick={(e) => e.stopPropagation()}>
                       <Button 
                         size="sm" 
                         variant="ghost" 
@@ -378,7 +399,7 @@ export default function ServicesPage() {
                         onClick={() => { setDeleteTemplateId(tpl.id); deleteTemplateConfirm.onOpen(); }}
                       />
                     </HStack>
-                  </HStack>
+                  </Flex>
                 ))}
                 <Button 
                   size="sm" 

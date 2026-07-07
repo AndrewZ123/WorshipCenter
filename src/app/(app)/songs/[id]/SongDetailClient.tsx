@@ -11,6 +11,7 @@ import {
   Spinner, Center, Menu, MenuButton, MenuList, MenuItem,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/PermissionsContext';
 import { useStore } from '@/lib/StoreContext';
 import type { Song, SongFile, SongUsage, Service } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -83,6 +84,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   const router = useRouter();
   const toast = useToast();
   const { user, church } = useAuth();
+  const permissions = usePermissions();
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const songId = propSongId || (params.id as string);
@@ -146,7 +148,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   }, [allUsage, services]);
 
   const totalUsageCount = allUsage.length;
-  const isTeam = user?.role === 'team';
+  const isTeam = permissions.isVolunteer;
 
   // Get rotation health
   const getRotationHealth = () => {

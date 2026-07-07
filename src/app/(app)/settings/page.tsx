@@ -25,10 +25,12 @@ import {
   Flex,
   Textarea,
   SimpleGrid,
+  Stack,
   Switch,
 } from '@chakra-ui/react';
 import { FiCamera, FiUser, FiHome, FiHelpCircle, FiAlertTriangle } from 'react-icons/fi';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/PermissionsContext';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/lib/StoreContext';
 import { useTour } from '@/lib/tour/TourContext';
@@ -41,6 +43,7 @@ import type { TeamMemberPreference, TeamMemberBlockoutDate, AdminPermission, Use
 
 export default function SettingsPage() {
   const { user, church, deleteAccount } = useAuth();
+  const permissions = usePermissions();
   const toast = useToast();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -197,8 +200,8 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    if (church && user?.role === 'admin') loadAdmins();
-  }, [church, user?.role]);
+    if (church && permissions.isAdmin) loadAdmins();
+  }, [church, permissions.isAdmin]);
 
   useEffect(() => {
     if (showAddAdmin && church) {
@@ -394,7 +397,7 @@ export default function SettingsPage() {
   }
   
   return (
-    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" w="full" mx="auto" overflowX="hidden">
       <VStack spacing={8} align="stretch">
         <Box>
           <Heading size="lg" mb={2} color={textColor}>Settings</Heading>
@@ -477,13 +480,13 @@ export default function SettingsPage() {
                 <FormLabel color={textColor}>Role</FormLabel>
                 <HStack>
                   <Badge
-                    colorScheme={user.role === 'admin' ? 'purple' : user.role === 'leader' ? 'blue' : 'gray'}
+                    colorScheme={permissions.isAdmin ? 'purple' : 'gray'}
                     fontSize="sm"
                     px={3}
                     py={1}
                     borderRadius="full"
                   >
-                    {user.role === 'admin' ? 'Worship Leader (Admin)' : user.role === 'leader' ? 'Leader' : 'Team Member'}
+                    {permissions.isAdmin ? 'Admin' : permissions.roleLabel}
                   </Badge>
                 </HStack>
               </FormControl>
@@ -501,7 +504,7 @@ export default function SettingsPage() {
         </Card>
         
         {/* Church Settings (Admin only) */}
-        {user.role === 'admin' && church && (
+        {permissions.isAdmin && church && (
           <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
             <CardBody>
               <VStack align="stretch" spacing={6}>
@@ -552,7 +555,7 @@ export default function SettingsPage() {
   )}
 
   {/* Admin Management (admin only) */}
-  {user.role === 'admin' && church && (
+  {permissions.isAdmin && church && (
     <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
       <CardBody>
         <VStack align="stretch" spacing={6}>
@@ -827,7 +830,7 @@ export default function SettingsPage() {
                 <Box p="3" borderRadius="lg" border="1px dashed" borderColor={borderColor}>
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb="2">Add Blockout Date</Text>
                   <VStack spacing="3" align="stretch">
-                    <HStack spacing="3">
+                    <Stack direction={{ base: 'column', sm: 'row' }} spacing="3">
                       <FormControl>
                         <FormLabel fontWeight="600" fontSize="xs">Start Date</FormLabel>
                         <Input
@@ -848,7 +851,7 @@ export default function SettingsPage() {
                           borderRadius="lg"
                         />
                       </FormControl>
-                    </HStack>
+                    </Stack>
                     <FormControl>
                       <FormLabel fontWeight="600" fontSize="xs">Reason (optional)</FormLabel>
                       <Input

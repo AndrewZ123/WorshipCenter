@@ -155,7 +155,7 @@ export default function ReportsPage() {
   const taskCompletionRate = data.totalTasks > 0 ? Math.round((data.completedTasks / data.totalTasks) * 100) : 0;
 
   return (
-    <Box maxW="1200px" mx="auto" px={{ base: 4, md: 6 }} pt={{ base: 2, md: 8 }} pb={{ base: 4, md: 8 }}>
+    <Box w="full" mx="auto" px={{ base: 4, md: 6 }} pt={{ base: 2, md: 8 }} pb={{ base: 4, md: 8 }} maxW="1200px">
       <VStack align="start" spacing={1} mb={6}>
         <Heading size="lg">Service Reports & Analytics</Heading>
         <Text fontSize="sm" color="gray.500">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/PermissionsContext';
 import { db } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import {
@@ -40,8 +41,9 @@ export default function ChatPage() {
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
   const toast = useToast();
+  const permissions = usePermissions();
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'leader';
+  const isAdmin = permissions.can('manage_chat');
 
   // Load channels — ref-based to avoid stale closures
   const activeChannelRef = useRef(activeChannel);

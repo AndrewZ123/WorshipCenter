@@ -12,6 +12,7 @@ import {
   Skeleton, SimpleGrid, Progress,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/PermissionsContext';
 import { useStore } from '@/lib/StoreContext';
 import type { Service, ServiceItem, TeamMember, ServiceAssignment, ServiceStatus, Song, ServiceDebriefPopulated } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -67,6 +68,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   const searchParams = useSearchParams();
   const toast = useToast();
   const { user, church } = useAuth();
+  const permissions = usePermissions();
   const store = useStore();
   const serviceId = propServiceId || (params.id as string);
   const highlightedAssignmentId = searchParams.get('assignmentId');
@@ -159,8 +161,8 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     return songs.some(s => s.title.toLowerCase() === addSongSearchText.trim().toLowerCase());
   }, [songs, addSongSearchText]);
   
-  // Team members have read-only access
-  const isReadOnly = user?.role === 'team';
+  // Volunteers have read-only access
+  const isReadOnly = permissions.isVolunteer;
 
   // Plan-change notification accumulation (debounced)
   const pendingChanges = useRef<PlanChange[]>([]);
@@ -448,7 +450,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       .map(m => m.user_id!);
     const churchUsers = await store.users.getByChurch(church.id).catch(() => []);
     const leaderIds = churchUsers
-      .filter(u => u.role !== 'team')
+      .filter(u => u.role === 'admin')
       .map(u => u.id);
     return [...new Set([...assignedUserIds, ...leaderIds])];
   }, [assignments, teamMembers, church, store]);
@@ -860,7 +862,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   }
 
   return (
-    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
+    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" w="full" mx="auto" overflowX="hidden">
       {/* Header */}
       <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
         <HStack spacing="3" flex="1">
@@ -1127,7 +1129,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                         <span>Chat</span>
                       </HStack>
                     </Box>
-                    {user && (user.team_member_id || user.role !== 'team') && (
+                    {user && (user.team_member_id || !permissions.isVolunteer) && (
                       <Box
                         as="button"
                         flexShrink={0}
@@ -1372,7 +1374,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                 </TabPanel>
 
                 {/* Plan Tab */}
-                <TabPanel p="6">
+                <TabPanel p={{ base: '4', md: '6' }}>
                   <HStack justify="space-between" align="center" mb="4" flexWrap="wrap" gap="2">
                     <Text fontSize="lg" fontWeight="semibold" color={headingColor}>Service Order</Text>
                     {!isReadOnly && (
@@ -1410,8 +1412,8 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                 border="1px solid"
                                 borderColor={borderColor}
                                 borderRadius="lg"
-                                px={{ base: '3', md: '4' }}
-                                py="3"
+                                px={{ base: '2', md: '4' }}
+                                py={{ base: '2.5', md: '3' }}
                                 boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)"
                                 transition="all 0.15s ease"
                                 borderLeft="3px solid"
@@ -1421,16 +1423,17 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                   transform: 'translateY(-1px)',
                                 }}
                               >
-                                <HStack spacing="3">
+                                <HStack spacing={{ base: '2', md: '3' }}>
                                   {/* Icon */}
                                   <Box
-                                    minW="32px"
-                                    h="32px"
+                                    minW={{ base: '28px', md: '32px' }}
+                                    h={{ base: '28px', md: '32px' }}
                                     borderRadius="lg"
                                     bg={item.type === 'song' ? 'teal.100' : 'gray.100'}
                                     display="flex"
                                     alignItems="center"
                                     justifyContent="center"
+                                    flexShrink={0}
                                   >
                                     {item.type === 'song' ? (
                                       <Music size={16} color="var(--chakra-colors-teal-600)" />
@@ -1440,11 +1443,11 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                   </Box>
 
                                   {/* Position */}
-                                  <Text fontSize="sm" fontWeight="600" color="gray.400" w="20px">{index + 1}.</Text>
+                                  <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600" color="gray.400" w={{ base: '16px', md: '20px' }} flexShrink={0}>{index + 1}.</Text>
 
                                   {/* Title */}
-                                  <VStack spacing="0" align="start" flex="1">
-                                    <Text fontWeight="600" color={itemTitleColor} noOfLines={1}>{item.title}</Text>
+                                  <VStack spacing="0" align="start" flex="1" minW="0">
+                                    <Text fontSize={{ base: 'sm', md: 'md' }} fontWeight="600" color={itemTitleColor} wordBreak="break-word">{item.title}</Text>
                                     {item.assigned_to && (
                                       <HStack spacing="1">
                                         <UserCheck size={12} color="var(--chakra-colors-gray-400)" />
@@ -1455,17 +1458,17 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
                                   {/* Key badge for songs */}
                                   {item.type === 'song' && item.key && (
-                                    <Badge colorScheme="teal" variant="subtle" fontSize="xs">Key: {item.key}</Badge>
+                                    <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0}>Key: {item.key}</Badge>
                                   )}
 
                                   {/* Duration */}
                                   {item.duration_minutes && (
-                                    <Text fontSize="xs" color="gray.400">{item.duration_minutes} min</Text>
+                                    <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
                                   )}
 
                                   {/* Actions */}
                                   {!isReadOnly ? (
-                                    <HStack spacing="1">
+                                    <HStack spacing="1" flexShrink={0}>
                                       <Menu>
                                         <MenuButton
                                           as={IconButton}
@@ -1559,7 +1562,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                 </TabPanel>
 
                 {/* Rehearsal Tab */}
-                {user && (user.team_member_id || user.role !== 'team') && (
+                {user && (user.team_member_id || !permissions.isVolunteer) && (
                   <TabPanel p="0">
                     {church && (
                       <RehearsalTab
@@ -1567,7 +1570,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                         churchId={church.id}
                         teamMemberId={user.team_member_id || null}
                         items={items}
-                        isLeader={user.role !== 'team'}
+                        isLeader={!permissions.isVolunteer}
                       />
                     )}
                   </TabPanel>

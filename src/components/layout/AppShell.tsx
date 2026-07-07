@@ -9,6 +9,7 @@ import {
   useColorMode, useColorModeValue, Badge, Switch,   Portal,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/PermissionsContext';
 import { db } from '@/lib/store';
 import type { Notification } from '@/lib/types';
 import { TrialBanner, TrialExpiredBanner, FloatingSubscribeCTA } from './TrialBanner';
@@ -42,13 +43,14 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Reports', href: '/reports', icon: FileBarChart },
 ];
 
-// Nav items hidden from team members
-const TEAM_HIDDEN_ITEMS = ['/team', '/usage', '/reports'];
+// Allowed nav items for non-admin users
+const VOLUNTEER_NAV_ITEMS = ['/dashboard', '/services', '/tasks', '/songs', '/chat'];
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, church, logout } = useAuth();
+  const permissions = usePermissions();
   const { colorMode, toggleColorMode } = useColorMode();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -134,7 +136,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Primary Nav */}
       <VStack spacing="0.5" px="2" py="3" align="stretch" flex="1">
         {NAV_ITEMS.map((item) => {
-          if (user?.role === 'team' && TEAM_HIDDEN_ITEMS.includes(item.href)) return null;
+          if (!permissions.isAdmin && !VOLUNTEER_NAV_ITEMS.includes(item.href)) return null;
 
           const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
           const IconComponent = item.icon;
@@ -221,7 +223,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
       {/* Notifications + User section */}
       {user && (
-        <Box px="3" py="2" borderTop="1px solid" borderColor={borderColor}>
+        <Box px="3" py="2" pb={{ base: 'calc(0.5rem + env(safe-area-inset-bottom))', md: '2' }} borderTop="1px solid" borderColor={borderColor}>
           {/* Notification bell */}
           <Box position="relative">
             <HStack
@@ -373,7 +375,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               >
                 Settings
               </MenuItem>
-              {user?.role === 'admin' && (
+              {permissions.can('manage_billing') && (
                 <MenuItem
                   icon={<CreditCard size={16} />}
                   onClick={() => { router.push('/settings/billing'); onClose?.(); }}
@@ -478,18 +480,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </Box>
 
       {/* Mobile drawer */}
-      <Drawer isOpen={isOpen} placement="left" onClose={onClose} size="xs">
+      <Drawer isOpen={isOpen} placement="left" onClose={onClose}>
         <DrawerOverlay bg="blackAlpha.300" backdropFilter="blur(4px)" />
           <DrawerContent 
-            maxW="200px"
             borderRadius="0 12px 12px 0"
             boxShadow="xl"
             m="0"
-            sx={{ paddingTop: 'env(safe-area-inset-top)' }}
+            sx={{ 
+              width: '70vw !important',
+              maxWidth: '70vw !important',
+              minWidth: '70vw !important',
+              paddingTop: 'env(safe-area-inset-top)'
+            }}
         >
           <DrawerCloseButton 
             size="md" 
-            top="12px" 
+            top="calc(12px + env(safe-area-inset-top))" 
             right="12px"
             zIndex="20"
             borderRadius="full"
@@ -518,7 +524,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <TrialBanner />
         <TrialExpiredBanner />
         
-        <Box w="full" display="flex" flexDir="column" flex="1" minH="0" overflowY="auto" overflowX="hidden">
+        <Box w="full" display="flex" flexDir="column" flex="1" minH="0" overflowY="scroll">
           {children}
         </Box>
       </Box>
