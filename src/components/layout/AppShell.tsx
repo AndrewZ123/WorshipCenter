@@ -13,6 +13,7 @@ import { usePermissions } from '@/lib/PermissionsContext';
 import { db } from '@/lib/store';
 import type { Notification } from '@/lib/types';
 import { TrialBanner, TrialExpiredBanner, FloatingSubscribeCTA } from './TrialBanner';
+import { OfflineIndicator } from './OfflineIndicator';
 import BottomNav from './BottomNav';
 import Avatar from '@/components/ui/Avatar';
 import TourOverlay from '@/components/onboarding/TourOverlay';
@@ -522,6 +523,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Trial status banners */}
         <TrialBanner />
         <TrialExpiredBanner />
+        
+        <OfflineIndicator />
         
         <Box w="full" display="flex" flexDir="column" flex="1" minH="0" overflowY="scroll">
           {children}

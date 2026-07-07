@@ -1,44 +1,88 @@
 'use client';
 
+import React, { useEffect, useState } from 'react';
+import {
+  Center, VStack, Text, Box, Spinner, Button, useColorModeValue,
+} from '@chakra-ui/react';
+import { WifiOff, RefreshCw } from 'lucide-react';
+
 export default function OfflinePage() {
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : false
+  );
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const handleRetry = () => {
+    setChecking(true);
+    setTimeout(() => {
+      setChecking(false);
+      if (navigator.onLine) {
+        window.location.reload();
+      }
+    }, 2000);
+  };
+
+  const bg = useColorModeValue('gray.50', 'gray.900');
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100dvh',
-        fontFamily: 'Inter, sans-serif',
-        background: 'linear-gradient(135deg, #6B46C1 0%, #553C9A 100%)',
-        color: 'white',
-        textAlign: 'center',
-        padding: '2rem',
-      }}
-    >
-      <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>♫</div>
-      <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: '0 0 0.5rem' }}>
-        You're offline
-      </h1>
-      <p style={{ fontSize: '1rem', opacity: 0.8, maxWidth: '360px', lineHeight: 1.6 }}>
-        No internet connection detected. Check your connection and try again — your data is safely saved in the cloud.
-      </p>
-      <button
-        onClick={() => window.location.reload()}
-        style={{
-          marginTop: '2rem',
-          padding: '0.75rem 2rem',
-          borderRadius: '9999px',
-          border: '2px solid rgba(255,255,255,0.6)',
-          background: 'transparent',
-          color: 'white',
-          fontSize: '1rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        Try Again
-      </button>
-    </div>
+    <Center h="100dvh" bg={bg}>
+      <VStack spacing={6} textAlign="center" px={6}>
+        <Box
+          p={4}
+          borderRadius="full"
+          bg="orange.100"
+          color="orange.500"
+          _dark={{ bg: 'orange.900', color: 'orange.200' }}
+        >
+          <WifiOff size={48} />
+        </Box>
+
+        <Text fontSize="2xl" fontWeight="bold">
+          No Internet Connection
+        </Text>
+
+        <Text color="gray.500" maxW="md">
+          You need an internet connection to use WorshipCenter.
+          Please check your connection and try again.
+        </Text>
+
+        {checking ? (
+          <VStack spacing={2}>
+            <Spinner size="sm" color="brand.500" />
+            <Text fontSize="sm" color="gray.400">Checking connection...</Text>
+          </VStack>
+        ) : (
+          <Button
+            leftIcon={<RefreshCw size={18} />}
+            colorScheme="brand"
+            onClick={handleRetry}
+            isDisabled={isOnline}
+          >
+            {isOnline ? 'Connected! Refreshing...' : 'Try Again'}
+          </Button>
+        )}
+
+        {isOnline && (
+          <Button
+            variant="link"
+            colorScheme="brand"
+            onClick={() => window.location.reload()}
+          >
+            Refresh now
+          </Button>
+        )}
+      </VStack>
+    </Center>
   );
 }

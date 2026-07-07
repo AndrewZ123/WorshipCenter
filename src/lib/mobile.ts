@@ -105,11 +105,16 @@ export async function initMobile(): Promise<void> {
     }
   });
 
-  // ── Clear caches to prevent WKWebView serving stale JS ──
+  // ── Clear WKWebView JS caches only — preserve offline data cache ──
   try {
     if ('caches' in window) {
       caches.keys().then((names) => {
-        names.forEach((name) => caches.delete(name));
+        names.forEach((name) => {
+          // Preserve IndexedDB-backed offline data
+          // Only delete JS/RSC caches from next-pwa, not custom app caches
+          if (name.includes('worshipcenter') || name.includes('offline') || name.includes('idb')) return;
+          caches.delete(name);
+        });
       });
     }
   } catch {

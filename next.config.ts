@@ -11,6 +11,37 @@ const pwaConfig = withPWA({
   fallbacks: {
     document: "/_offline",
   },
+  runtimeCaching: [
+    {
+      urlPattern: /^https?:\/\/[^/]+\.supabase\.co\/rest\/v1\//,
+      handler: 'NetworkFirst' as const,
+      options: {
+        cacheName: 'supabase-api-cache',
+        expiration: {
+          maxEntries: 200,
+          maxAgeSeconds: 60 * 60 * 24,
+        },
+        networkTimeoutSeconds: 5,
+        backgroundSync: {
+          name: 'supabase-sync-queue',
+          options: {
+            maxRetentionTime: 60 * 24,
+          },
+        },
+      },
+    },
+    {
+      urlPattern: /^https?:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\//,
+      handler: 'CacheFirst' as const,
+      options: {
+        cacheName: 'supabase-storage-cache',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 60 * 60 * 24 * 7,
+        },
+      },
+    },
+  ],
 });
 
 // Security headers configuration

@@ -11,6 +11,8 @@ import { SubscriptionGate } from '@/components/layout/SubscriptionGate';
 import { SubscriptionProvider } from '@/components/providers/SubscriptionProvider';
 import { TourProvider } from '@/lib/tour/TourContext';
 import { PermissionsProvider } from '@/lib/PermissionsContext';
+import { OfflineProvider } from '@/lib/offline/OfflineContext';
+import { OfflineIndicator } from '@/components/layout/OfflineIndicator';
 import { Center, Spinner, VStack, Text } from '@chakra-ui/react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -78,9 +80,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <PermissionsProvider>
         <SubscriptionProvider>
           <TourProvider>
-            <AppShell>
-              {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
-            </AppShell>
+            <OfflineProvider>
+              <AppShell>
+                {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
+              </AppShell>
+            </OfflineProvider>
           </TourProvider>
         </SubscriptionProvider>
       </PermissionsProvider>
