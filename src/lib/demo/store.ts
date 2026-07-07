@@ -755,7 +755,9 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
     channels: {
       getByChurch: async (churchId: string): Promise<any[]> => {
         const demo = getDemoContext();
-        return demo.chatChannels.filter((c: any) => c.church_id === churchId);
+        return demo.chatChannels.filter((c: any) =>
+          c.church_id === churchId && !c.is_private
+        );
       },
       getById: async (id: string, _churchId: string): Promise<any> => {
         const demo = getDemoContext();
@@ -790,8 +792,10 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       },
       getMembers: async (_channelId: string): Promise<any[]> => {
         const demo = getDemoContext();
-        if (!demo.user) return [];
-        return [{ user_id: demo.user.id, joined_at: new Date().toISOString() }];
+        return (demo.teamMembers || []).map((tm: any) => ({
+          user_id: tm.user_id || tm.id,
+          joined_at: new Date().toISOString(),
+        }));
       },
       addMember: async (_channelId: string, _userId: string): Promise<any> => null,
       removeMember: async (_channelId: string, _userId: string): Promise<boolean> => true,

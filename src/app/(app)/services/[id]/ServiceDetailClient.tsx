@@ -1168,7 +1168,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                     >
                       <HStack spacing={1.5}>
                         <Star size={14} />
-                        <span>Debrief ({debriefEntries.length})</span>
+                        <span>Debrief ({isReadOnly ? debriefEntries.filter(e => e.user_id === user?.id).length : debriefEntries.length})</span>
                       </HStack>
                     </Box>
                   </Flex>
@@ -1391,83 +1391,135 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       title="No items in service order"
                       description="Add songs and segments to build your service plan."
                     />
-                  ) : (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <SortableContext
-                        items={items.map(item => item.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <VStack spacing="2" align="stretch">
-                          {items.map((item, index) => (
-                            <SortableItem
-                              key={item.id}
-                              id={item.id}
+                  ) : isReadOnly ? (
+                      <VStack spacing="2" align="stretch">
+                        {items.map((item, index) => (
+                          <Box key={item.id}>
+                            <Box
+                              bg={cardBg}
+                              border="1px solid"
+                              borderColor={borderColor}
+                              borderRadius="lg"
+                              px={{ base: '2', md: '4' }}
+                              py={{ base: '2.5', md: '3' }}
+                              boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)"
+                              transition="all 0.15s ease"
+                              borderLeft="3px solid"
+                              borderLeftColor={item.type === 'song' ? 'teal.500' : 'gray.300'}
+                              _hover={{
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
+                                transform: 'translateY(-1px)',
+                              }}
                             >
-                              <Box
-                                bg={cardBg}
-                                border="1px solid"
-                                borderColor={borderColor}
-                                borderRadius="lg"
-                                px={{ base: '2', md: '4' }}
-                                py={{ base: '2.5', md: '3' }}
-                                boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)"
-                                transition="all 0.15s ease"
-                                borderLeft="3px solid"
-                                borderLeftColor={item.type === 'song' ? 'teal.500' : 'gray.300'}
-                                _hover={{
-                                  boxShadow: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
-                                  transform: 'translateY(-1px)',
-                                }}
-                              >
-                                <HStack spacing={{ base: '2', md: '3' }}>
-                                  {/* Icon */}
-                                  <Box
-                                    minW={{ base: '28px', md: '32px' }}
-                                    h={{ base: '28px', md: '32px' }}
-                                    borderRadius="lg"
-                                    bg={item.type === 'song' ? 'teal.100' : 'gray.100'}
-                                    display="flex"
-                                    alignItems="center"
-                                    justifyContent="center"
-                                    flexShrink={0}
-                                  >
-                                    {item.type === 'song' ? (
-                                      <Music size={16} color="var(--chakra-colors-teal-600)" />
-                                    ) : (
-                                      <AlignLeft size={16} color="var(--chakra-colors-gray-500)" />
-                                    )}
-                                  </Box>
-
-                                  {/* Position */}
-                                  <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600" color="gray.400" w={{ base: '16px', md: '20px' }} flexShrink={0}>{index + 1}.</Text>
-
-                                  {/* Title */}
-                                  <VStack spacing="0" align="start" flex="1" minW="0">
-                                    <Text fontSize={{ base: 'sm', md: 'md' }} fontWeight="600" color={itemTitleColor} wordBreak="break-word">{item.title}</Text>
-                                    {item.assigned_to && (
-                                      <HStack spacing="1">
-                                        <UserCheck size={12} color="var(--chakra-colors-gray-400)" />
-                                        <Text fontSize="xs" color="gray.500">{item.assigned_to}</Text>
-                                      </HStack>
-                                    )}
-                                  </VStack>
-
-                                  {/* Key badge for songs */}
-                                  {item.type === 'song' && item.key && (
-                                    <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0}>Key: {item.key}</Badge>
+                              <HStack spacing={{ base: '2', md: '3' }}>
+                                <Box
+                                  minW={{ base: '28px', md: '32px' }}
+                                  h={{ base: '28px', md: '32px' }}
+                                  borderRadius="lg"
+                                  bg={item.type === 'song' ? 'teal.100' : 'gray.100'}
+                                  display="flex"
+                                  alignItems="center"
+                                  justifyContent="center"
+                                  flexShrink={0}
+                                >
+                                  {item.type === 'song' ? (
+                                    <Music size={16} color="var(--chakra-colors-teal-600)" />
+                                  ) : (
+                                    <AlignLeft size={16} color="var(--chakra-colors-gray-500)" />
                                   )}
-
-                                  {/* Duration */}
-                                  {item.duration_minutes && (
-                                    <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
+                                </Box>
+                                <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600" color="gray.400" w={{ base: '16px', md: '20px' }} flexShrink={0}>{index + 1}.</Text>
+                                <VStack spacing="0" align="start" flex="1" minW="0">
+                                  <Text fontSize={{ base: 'sm', md: 'md' }} fontWeight="600" color={itemTitleColor} wordBreak="break-word">{item.title}</Text>
+                                  {item.assigned_to && (
+                                    <HStack spacing="1">
+                                      <UserCheck size={12} color="var(--chakra-colors-gray-400)" />
+                                      <Text fontSize="xs" color="gray.500">{item.assigned_to}</Text>
+                                    </HStack>
                                   )}
-
-                                  {/* Actions */}
-                                  {!isReadOnly ? (
+                                </VStack>
+                                {item.type === 'song' && item.key && (
+                                  <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0}>Key: {item.key}</Badge>
+                                )}
+                                {item.duration_minutes && (
+                                  <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
+                                )}
+                                <IconButton
+                                  aria-label="View details"
+                                  icon={<MoreVertical size={16} />}
+                                  size="sm"
+                                  variant="ghost"
+                                  color="gray.400"
+                                  _hover={{ color: 'gray.600', bg: 'gray.100' }}
+                                  onClick={() => openEditItem(item)}
+                                />
+                              </HStack>
+                            </Box>
+                          </Box>
+                        ))}
+                      </VStack>
+                    ) : (
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <SortableContext
+                          items={items.map(item => item.id)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <VStack spacing="2" align="stretch">
+                            {items.map((item, index) => (
+                              <SortableItem key={item.id} id={item.id}>
+                                <Box
+                                  bg={cardBg}
+                                  border="1px solid"
+                                  borderColor={borderColor}
+                                  borderRadius="lg"
+                                  px={{ base: '2', md: '4' }}
+                                  py={{ base: '2.5', md: '3' }}
+                                  boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)"
+                                  transition="all 0.15s ease"
+                                  borderLeft="3px solid"
+                                  borderLeftColor={item.type === 'song' ? 'teal.500' : 'gray.300'}
+                                  _hover={{
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
+                                    transform: 'translateY(-1px)',
+                                  }}
+                                >
+                                  <HStack spacing={{ base: '2', md: '3' }}>
+                                    <Box
+                                      minW={{ base: '28px', md: '32px' }}
+                                      h={{ base: '28px', md: '32px' }}
+                                      borderRadius="lg"
+                                      bg={item.type === 'song' ? 'teal.100' : 'gray.100'}
+                                      display="flex"
+                                      alignItems="center"
+                                      justifyContent="center"
+                                      flexShrink={0}
+                                    >
+                                      {item.type === 'song' ? (
+                                        <Music size={16} color="var(--chakra-colors-teal-600)" />
+                                      ) : (
+                                        <AlignLeft size={16} color="var(--chakra-colors-gray-500)" />
+                                      )}
+                                    </Box>
+                                    <Text fontSize={{ base: 'xs', md: 'sm' }} fontWeight="600" color="gray.400" w={{ base: '16px', md: '20px' }} flexShrink={0}>{index + 1}.</Text>
+                                    <VStack spacing="0" align="start" flex="1" minW="0">
+                                      <Text fontSize={{ base: 'sm', md: 'md' }} fontWeight="600" color={itemTitleColor} wordBreak="break-word">{item.title}</Text>
+                                      {item.assigned_to && (
+                                        <HStack spacing="1">
+                                          <UserCheck size={12} color="var(--chakra-colors-gray-400)" />
+                                          <Text fontSize="xs" color="gray.500">{item.assigned_to}</Text>
+                                        </HStack>
+                                      )}
+                                    </VStack>
+                                    {item.type === 'song' && item.key && (
+                                      <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0}>Key: {item.key}</Badge>
+                                    )}
+                                    {item.duration_minutes && (
+                                      <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
+                                    )}
                                     <HStack spacing="1" flexShrink={0}>
                                       <Menu>
                                         <MenuButton
@@ -1487,25 +1539,14 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                         </Portal>
                                       </Menu>
                                     </HStack>
-                                  ) : (
-                                    <IconButton
-                                      aria-label="View details"
-                                      icon={<MoreVertical size={16} />}
-                                      size="sm"
-                                      variant="ghost"
-                                      color="gray.400"
-                                      _hover={{ color: 'gray.600', bg: 'gray.100' }}
-                                      onClick={() => openEditItem(item)}
-                                    />
-                                  )}
-                                </HStack>
-                              </Box>
-                            </SortableItem>
-                          ))}
-                        </VStack>
-                      </SortableContext>
-                    </DndContext>
-                  )}
+                                  </HStack>
+                                </Box>
+                              </SortableItem>
+                            ))}
+                          </VStack>
+                        </SortableContext>
+                      </DndContext>
+                    )}
                 </TabPanel>
 
                 {/* Schedule Tab */}
@@ -1516,6 +1557,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       churchId={church.id}
                       currentUserId={user?.id || ''}
                       highlightedAssignmentId={highlightedAssignmentId}
+                      readOnly={isReadOnly}
                       onAssignmentsChange={async () => {
                         try {
                           const data = await store.assignments.getByService(serviceId, church.id);
@@ -1640,8 +1682,8 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                         );
                       })()}
 
-                      {/* All team entries (anyone can see) */}
-                      {debriefEntries.length > 0 && (
+                      {/* All team entries (not shown to volunteers) */}
+                      {debriefEntries.length > 0 && !isReadOnly && (
                         <Box>
                           <Text fontSize="sm" fontWeight="600" color={headingColor} mb="3">
                             Team Debriefs ({debriefEntries.length})
@@ -1703,7 +1745,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       )}
 
                       {/* Empty state if no debriefs */}
-                      {debriefEntries.length === 0 && (
+                      {debriefEntries.length === 0 && !isReadOnly && (
                         <Box textAlign="center" py="10">
                           <Star size={40} style={{ margin: '0 auto', opacity: 0.3 }} />
                           <Text mt="3" fontSize="md" color={subtextColor}>No debriefs submitted yet</Text>

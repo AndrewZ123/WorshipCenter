@@ -57,9 +57,15 @@ CREATE POLICY "Church members can create channels"
   ON chat_channels FOR INSERT
   WITH CHECK (church_id IN (SELECT church_id FROM users WHERE id = auth.uid()));
 
-CREATE POLICY "Users can view public channels in their church"
+CREATE POLICY "Users can view channels they have access to"
   ON chat_channels FOR SELECT
-  USING (church_id IN (SELECT church_id FROM users WHERE id = auth.uid()));
+  USING (
+    church_id IN (SELECT church_id FROM users WHERE id = auth.uid())
+    AND (
+      is_private = FALSE
+      OR id IN (SELECT channel_id FROM chat_channel_members WHERE user_id = auth.uid())
+    )
+  );
 
 CREATE POLICY "Admins/leaders can update channels"
   ON chat_channels FOR UPDATE
@@ -75,8 +81,11 @@ CREATE POLICY "Admins/leaders can delete channels"
 CREATE POLICY "Users can view channel members"
   ON chat_channel_members FOR SELECT
   USING (
-    user_id = auth.uid()
-    OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('admin', 'leader'))
+    channel_id IN (
+      SELECT id FROM chat_channels
+      WHERE church_id IN (SELECT church_id FROM users WHERE id = auth.uid())
+      AND (is_private = FALSE OR id IN (SELECT channel_id FROM chat_channel_members WHERE user_id = auth.uid()))
+    )
   );
 
 CREATE POLICY "Admins can manage channel members"
@@ -103,7 +112,16 @@ CREATE POLICY "Users can view messages in accessible channels"
 
 CREATE POLICY "Users can post messages"
   ON chat_messages FOR INSERT
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (
+    user_id = auth.uid()
+    AND (
+      channel_id IS NULL
+      OR channel_id IN (
+        SELECT id FROM chat_channels
+        WHERE (is_private = FALSE OR id IN (SELECT channel_id FROM chat_channel_members WHERE user_id = auth.uid()))
+      )
+    )
+  );
 
 CREATE POLICY "Users can delete their own messages"
   ON chat_messages FOR DELETE

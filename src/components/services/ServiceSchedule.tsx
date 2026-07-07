@@ -31,6 +31,7 @@ interface ServiceScheduleProps {
   currentUserId: string;
   highlightedAssignmentId?: string | null;
   onAssignmentsChange?: (count: number) => void;
+  readOnly?: boolean;
 }
 
 export default function ServiceSchedule({
@@ -39,6 +40,7 @@ export default function ServiceSchedule({
   currentUserId,
   highlightedAssignmentId,
   onAssignmentsChange,
+  readOnly = false,
 }: ServiceScheduleProps) {
   const [assignments, setAssignments] = useState<ServiceAssignmentPopulated[]>([]);
   const [loading, setLoading] = useState(true);
@@ -336,7 +338,7 @@ export default function ServiceSchedule({
         <Text fontSize="sm" color={subTextColor}>
           {assignments.length} {assignments.length === 1 ? 'person' : 'people'} scheduled
         </Text>
-        {!showBulkAdd && (
+        {!showBulkAdd && !readOnly && (
           <Button
             variant="secondary"
             size="sm"
@@ -349,7 +351,7 @@ export default function ServiceSchedule({
       </HStack>
 
       {/* Bulk Add Panel */}
-      {showBulkAdd && (
+      {showBulkAdd && !readOnly && (
         <Box
           bg={subtleBg}
           border="1px solid"
@@ -486,9 +488,11 @@ export default function ServiceSchedule({
           <Text fontSize="xs" color={subTextColor} mt="1" mb="4">
             Add team members to the schedule to get started.
           </Text>
-          <Button variant="secondary" size="sm" leftIcon={UserPlus} onClick={startBulkAdd}>
-            Add Team Members
-          </Button>
+          {!readOnly && (
+            <Button variant="secondary" size="sm" leftIcon={UserPlus} onClick={startBulkAdd}>
+              Add Team Members
+            </Button>
+          )}
         </Box>
       ) : (
         <VStack spacing="2" align="stretch">
@@ -570,16 +574,18 @@ export default function ServiceSchedule({
                     </>
                   )}
                   {/* Remove button — on every row including declined */}
-                  <IconButton
-                    aria-label="Remove member"
-                    icon={<X size={16} />}
-                    size="sm"
-                    variant="ghost"
-                    color="gray.400"
-                    _hover={{ color: 'red.500' }}
-                    onClick={() => confirmRemove(assignment.id, isOwn ? 'You' : (assignment.team_member?.name || 'this member'))}
-                    isDisabled={processing === assignment.id}
-                  />
+                  {!readOnly && (
+                    <IconButton
+                      aria-label="Remove member"
+                      icon={<X size={16} />}
+                      size="sm"
+                      variant="ghost"
+                      color="gray.400"
+                      _hover={{ color: 'red.500' }}
+                      onClick={() => confirmRemove(assignment.id, isOwn ? 'You' : (assignment.team_member?.name || 'this member'))}
+                      isDisabled={processing === assignment.id}
+                    />
+                  )}
                 </HStack>
               </HStack>
               </Box>
