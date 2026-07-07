@@ -1444,15 +1444,6 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                 {item.duration_minutes && (
                                   <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
                                 )}
-                                <IconButton
-                                  aria-label="View details"
-                                  icon={<MoreVertical size={16} />}
-                                  size="sm"
-                                  variant="ghost"
-                                  color="gray.400"
-                                  _hover={{ color: 'gray.600', bg: 'gray.100' }}
-                                  onClick={() => openEditItem(item)}
-                                />
                               </HStack>
                             </Box>
                           </Box>
