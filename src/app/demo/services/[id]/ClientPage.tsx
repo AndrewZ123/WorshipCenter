@@ -279,7 +279,7 @@ export default function DemoServiceDetailClient() {
             </HStack>
           </Box>
         </HStack>
-        <HStack spacing="2">
+        <HStack spacing="2" w={{ base: 'full', md: 'auto' }} justifyContent={{ base: 'center', md: 'flex-start' }}>
           <IconButton
             aria-label="Share service"
             icon={<Share2 size={16} />}
@@ -392,7 +392,9 @@ export default function DemoServiceDetailClient() {
                         <Avatar name={member?.name || 'Unknown'} size="sm" />
                         <Text fontWeight="600" flex="1" color={itemTitleColor}>{member?.name || 'Unknown'}</Text>
                         <Badge variant="outline" colorScheme="teal" fontSize="xs">{roleLabel(a.role)}</Badge>
-                        <Badge variant="solid" colorScheme={ASSIGNMENT_STATUS_COLORS[a.status] || 'gray'} fontSize="xs">{a.status}</Badge>
+                        {a.status !== 'pending' && (
+                          <Badge variant="solid" colorScheme={ASSIGNMENT_STATUS_COLORS[a.status] || 'gray'} fontSize="xs">{a.status}</Badge>
+                        )}
                         {a.status === 'pending' && (
                           <>
                             <Button size="xs" colorScheme="green" onClick={() => updateAssignmentStatus(a.id, 'confirmed')}>Confirm</Button>

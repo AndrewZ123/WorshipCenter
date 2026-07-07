@@ -940,7 +940,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
           </Box>
         </HStack>
         
-        <HStack spacing="2">
+        <HStack spacing="2" w={{ base: 'full', md: 'auto' }} justifyContent={{ base: 'center', md: 'flex-start' }}>
           {isPhone ? (
             <Button
               size="sm"

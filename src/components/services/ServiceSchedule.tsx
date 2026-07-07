@@ -765,10 +765,12 @@ export default function ServiceSchedule({
                           </Badge>
                         </Tooltip>
                       )}
-                      <StatusBadge
-                        status={mapAssignmentStatus(assignment.status)}
-                        size="sm"
-                      />
+                      {!showActions && (
+                        <StatusBadge
+                          status={mapAssignmentStatus(assignment.status)}
+                          size="sm"
+                        />
+                      )}
                     </HStack>
                     <Text fontSize="xs" color={subTextColor} isTruncated>
                       {assignment.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
