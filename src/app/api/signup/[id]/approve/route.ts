@@ -97,7 +97,7 @@ export async function POST(
       // Update existing assignment to confirmed
       const { data: updated } = await supabaseAdmin
         .from('service_assignments')
-        .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
+        .update({ status: 'confirmed' })
         .eq('id', existingAssignment.id)
         .select()
         .single();
@@ -111,7 +111,6 @@ export async function POST(
           team_member_id: teamMemberId,
           role: signupRequest.role,
           status: 'confirmed',
-          confirmed_at: new Date().toISOString(),
         })
         .select()
         .single();
