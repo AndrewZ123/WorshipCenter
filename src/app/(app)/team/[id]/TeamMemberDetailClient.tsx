@@ -241,6 +241,9 @@ export default function TeamMemberDetailClient({ memberId: propMemberId, onBack 
       if (created) {
         setNotes(prev => [{ ...created, authorName: user.name }, ...prev]);
         setNewNote('');
+        toast({ title: 'Note saved', status: 'success', duration: 1500 });
+      } else {
+        toast({ title: 'Error saving note', description: 'Could not save note. Check permissions.', status: 'error', duration: 3000 });
       }
     } catch (error) {
       console.error('Error adding note:', error);

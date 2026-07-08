@@ -24,7 +24,7 @@ export default function ChannelCreateModal({ isOpen, onClose, churchId, userId, 
   const [isAnnouncement, setIsAnnouncement] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [loading, setLoading] = useState(false);
-  const modalSize = useBreakpointValue({ base: 'full', md: 'md' });
+  const modalSize = useBreakpointValue({ base: 'md', md: 'md' });
   const [users, setUsers] = useState<User[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const toast = useToast();
@@ -78,10 +78,10 @@ export default function ChannelCreateModal({ isOpen, onClose, churchId, userId, 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size={modalSize} isCentered>
       <ModalOverlay backdropBlur="sm" />
-      <ModalContent borderRadius="2xl" mx="4">
+      <ModalContent borderRadius="2xl" mx="4" maxH="90dvh" pt="env(safe-area-inset-top)" pb="env(safe-area-inset-bottom)">
         <ModalHeader fontWeight="700">Create Channel</ModalHeader>
         <ModalCloseButton />
-        <ModalBody>
+        <ModalBody overflowY="auto">
           <VStack spacing="4" align="stretch">
             <FormControl isRequired>
               <FormLabel fontWeight="600" fontSize="sm">Channel Name</FormLabel>

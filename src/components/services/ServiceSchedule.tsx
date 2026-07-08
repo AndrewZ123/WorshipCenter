@@ -742,7 +742,7 @@ export default function ServiceSchedule({
                 boxShadow={highlighted ? '0 0 0 3px rgba(66,153,225,0.15)' : '0 1px 2px rgba(0,0,0,0.04)'}
                 transition="all 0.15s ease"
               >
-              <HStack spacing="3" align="center" justify="space-between">
+              <HStack spacing="3" justify="space-between" flexDir={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'center' }}>
                 {/* Left: Avatar + Info */}
                 <HStack spacing="3" flex="1" minW="0">
                   <Box opacity={blockout ? 0.5 : 1}>
@@ -765,12 +765,10 @@ export default function ServiceSchedule({
                           </Badge>
                         </Tooltip>
                       )}
-                      {!showActions && (
-                        <StatusBadge
-                          status={mapAssignmentStatus(assignment.status)}
-                          size="sm"
-                        />
-                      )}
+                      <StatusBadge
+                        status={mapAssignmentStatus(assignment.status)}
+                        size="sm"
+                      />
                     </HStack>
                     <Text fontSize="xs" color={subTextColor} isTruncated>
                       {assignment.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
@@ -784,7 +782,7 @@ export default function ServiceSchedule({
                 </HStack>
 
                 {/* Right: Actions */}
-                <HStack spacing="2" flexShrink="0">
+                <HStack spacing="2" flexShrink="0" justifyContent={{ base: 'center', md: 'flex-start' }}>
                   {showActions && (
                     <>
                       <Button

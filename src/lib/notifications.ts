@@ -20,6 +20,7 @@ export enum NotificationType {
   REHEARSAL_REMINDER = 'REHEARSAL_REMINDER',
   ESCALATION_PENDING = 'ESCALATION_PENDING',
   PLAN_CHANGE = 'PLAN_CHANGE',
+  CHAT_MESSAGE = 'CHAT_MESSAGE',
 }
 
 /**
@@ -391,6 +392,37 @@ export async function sendDeclinationNotification(options: {
       userName,
       role,
       serviceDate,
+    },
+  });
+}
+
+/**
+ * Send notification when a chat message is sent in a channel
+ * Called from chat components when a new message is created
+ */
+export async function sendChatMessageNotification(options: {
+  userId: string;        // recipient user ID
+  senderName: string;    // name of the person who sent the message
+  channelName: string;   // channel name
+  messagePreview: string; // first ~100 chars of the message
+  channelId: string;
+  organizationId: string;
+}): Promise<NotificationResult> {
+  const { userId, senderName, channelName, messagePreview, channelId, organizationId } = options;
+  const linkUrl = `/chat?channel=${channelId}`;
+
+  return sendNotification({
+    userId,
+    type: NotificationType.CHAT_MESSAGE,
+    subject: `New message from ${senderName} in #${channelName}`,
+    body: messagePreview,
+    linkUrl,
+    channels: [NotificationChannel.IN_APP, NotificationChannel.PUSH],
+    organizationId,
+    metadata: {
+      channelId,
+      senderName,
+      channelName,
     },
   });
 }

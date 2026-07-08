@@ -146,7 +146,7 @@ import ServeSection from '@/components/serve/ServeSection';
   );
 }
 
-function StatBox({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?: number }>; label: string; value: number }) {
+function StatBox({ icon: Icon, label, value, onClick }: { icon: React.ComponentType<{ size?: number }>; label: string; value: number; onClick?: () => void }) {
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const textColor = useColorModeValue('gray.800', 'white');
@@ -159,6 +159,8 @@ function StatBox({ icon: Icon, label, value }: { icon: React.ComponentType<{ siz
       borderColor={borderColor} 
       borderRadius="xl"
       boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)"
+      cursor={onClick ? 'pointer' : undefined}
+      onClick={onClick}
       _hover={{
         boxShadow: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
         transform: 'translateY(-1px)',
@@ -320,10 +322,10 @@ export default function DashboardPage() {
       {/* Stats Grid - Admin only */}
       {!permissions.isVolunteer && (
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing="4" mb="8">
-          <StatBox icon={Calendar} label="Total Services" value={services.length} />
-          <StatBox icon={Music} label="Songs in Library" value={songs.length} />
-          <StatBox icon={Users} label="Team Members" value={teamMembers.length} />
-          <StatBox icon={Calendar} label="Upcoming This Week" value={thisWeekServices.length} />
+          <StatBox icon={Calendar} label="Total Services" value={services.length} onClick={() => router.push('/services')} />
+          <StatBox icon={Music} label="Songs in Library" value={songs.length} onClick={() => router.push('/songs')} />
+          <StatBox icon={Users} label="Team Members" value={teamMembers.length} onClick={() => router.push('/team')} />
+          <StatBox icon={Calendar} label="Upcoming This Week" value={thisWeekServices.length} onClick={() => router.push('/services')} />
         </SimpleGrid>
       )}
 

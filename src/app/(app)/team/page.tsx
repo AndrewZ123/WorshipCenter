@@ -94,10 +94,19 @@ export default function TeamPage() {
 
   const handleCreateGroup = async () => {
     if (!church || !groupName) return;
-    await store.memberGroups.create({ church_id: church.id, name: groupName, description: groupDesc });
-    toast({ title: 'Group created', status: 'success', duration: 2000 });
-    setGroupName(''); setGroupDesc(''); setGroupModalOpen(false);
-    await loadGroups();
+    try {
+      const created = await store.memberGroups.create({ church_id: church.id, name: groupName, description: groupDesc });
+      if (!created) {
+        toast({ title: 'Failed to create group', description: 'Check that you have admin permissions.', status: 'error', duration: 3000 });
+        return;
+      }
+      toast({ title: 'Group created', status: 'success', duration: 2000 });
+      setGroupName(''); setGroupDesc(''); setGroupModalOpen(false);
+      await loadGroups();
+    } catch (error) {
+      console.error('Error creating group:', error);
+      toast({ title: 'Failed to create group', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
+    }
   };
 
   const handleDeleteGroup = async () => {

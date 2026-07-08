@@ -388,22 +388,24 @@ export default function DemoServiceDetailClient() {
                   const member = teamMembers.find(m => m.id === a.team_member_id);
                   return (
                     <Box key={a.id} bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="lg" px="4" py="3">
-                      <HStack spacing="3">
-                        <Avatar name={member?.name || 'Unknown'} size="sm" />
-                        <Text fontWeight="600" flex="1" color={itemTitleColor}>{member?.name || 'Unknown'}</Text>
-                        <Badge variant="outline" colorScheme="teal" fontSize="xs">{roleLabel(a.role)}</Badge>
-                        {a.status !== 'pending' && (
+                      <HStack spacing="3" flexDir={{ base: 'column', md: 'row' }} align={{ base: 'flex-start', md: 'center' }}>
+                        <HStack spacing="3" w={{ base: 'full', md: 'auto' }}>
+                          <Avatar name={member?.name || 'Unknown'} size="sm" />
+                          <Text fontWeight="600" flex="1" color={itemTitleColor}>{member?.name || 'Unknown'}</Text>
+                        </HStack>
+                        <HStack spacing="2" wrap="wrap">
+                          <Badge variant="outline" colorScheme="teal" fontSize="xs">{roleLabel(a.role)}</Badge>
                           <Badge variant="solid" colorScheme={ASSIGNMENT_STATUS_COLORS[a.status] || 'gray'} fontSize="xs">{a.status}</Badge>
-                        )}
-                        {a.status === 'pending' && (
-                          <>
-                            <Button size="xs" colorScheme="green" onClick={() => updateAssignmentStatus(a.id, 'confirmed')}>Confirm</Button>
-                            <Button size="xs" variant="outline" colorScheme="red" onClick={() => updateAssignmentStatus(a.id, 'declined')}>Decline</Button>
-                          </>
-                        )}
-                        {a.status === 'confirmed' && <Button size="xs" variant="outline" onClick={() => updateAssignmentStatus(a.id, 'pending')}>Set Pending</Button>}
-                        {a.status === 'declined' && <Button size="xs" variant="outline" onClick={() => updateAssignmentStatus(a.id, 'pending')}>Reinvite</Button>}
-                        <IconButton aria-label="Remove" icon={<Trash2 size={14} />} size="sm" variant="ghost" colorScheme="red" onClick={() => { deleteAssignment(a.id); loadData(); }} />
+                          {a.status === 'pending' && (
+                            <>
+                              <Button size="xs" colorScheme="green" onClick={() => updateAssignmentStatus(a.id, 'confirmed')}>Confirm</Button>
+                              <Button size="xs" variant="outline" colorScheme="red" onClick={() => updateAssignmentStatus(a.id, 'declined')}>Decline</Button>
+                            </>
+                          )}
+                          {a.status === 'confirmed' && <Button size="xs" variant="outline" onClick={() => updateAssignmentStatus(a.id, 'pending')}>Set Pending</Button>}
+                          {a.status === 'declined' && <Button size="xs" variant="outline" onClick={() => updateAssignmentStatus(a.id, 'pending')}>Reinvite</Button>}
+                          <IconButton aria-label="Remove" icon={<Trash2 size={14} />} size="sm" variant="ghost" colorScheme="red" onClick={() => { deleteAssignment(a.id); loadData(); }} />
+                        </HStack>
                       </HStack>
                     </Box>
                   );

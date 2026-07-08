@@ -1688,7 +1688,6 @@ export const db = {
         .select('*, services!inner(date, title)')
         .eq('church_id', churchId)
         .eq('assigned_team_member_id', teamMemberId)
-        .neq('status', 'done')
         .order('created_at', { ascending: false });
       return (data || []) as any[];
     },
@@ -1943,7 +1942,11 @@ export const db = {
         name: sanitizeString(g.name),
         description: g.description ? sanitizeString(g.description) : '',
       };
-      const { data } = await supabase.from('member_groups').insert(payload).select().single();
+      const { data, error } = await supabase.from('member_groups').insert(payload).select().single();
+      if (error) {
+        console.error('[MemberGroups] Create failed:', error.message);
+        return null;
+      }
       return data as any;
     },
     update: async (id: string, churchId: string, updates: { name?: string; description?: string }) => {
@@ -2004,7 +2007,11 @@ export const db = {
     },
     create: async (n: { team_member_id: string; author_user_id: string; note: string }) => {
       const payload = { ...n, note: sanitizeString(n.note) };
-      const { data } = await supabase.from('team_member_notes').insert(payload).select().single();
+      const { data, error } = await supabase.from('team_member_notes').insert(payload).select().single();
+      if (error) {
+        console.error('[MemberNotes] Create failed:', error.message);
+        return null;
+      }
       return data as any;
     },
     delete: async (id: string) => {

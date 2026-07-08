@@ -256,11 +256,17 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     store.debriefs.getByService(serviceId, church.id).then(setDebriefEntries).catch(() => {});
   }, [serviceId, church]);
 
-  // Switch to Debrief tab if tab=debrief query param or initialTab is provided
+  // Switch to specific tab based on query param or initialTab prop
   useEffect(() => {
     const tab = searchParams.get('tab') || initialTab;
     if (tab === 'debrief') {
       setActiveTab(6);
+      setPrimaryTab(2);
+    } else if (tab === 'tasks') {
+      setActiveTab(3);
+      setPrimaryTab(1);
+    } else if (tab === 'schedule') {
+      setActiveTab(2);
       setPrimaryTab(2);
     }
   }, [searchParams, initialTab]);

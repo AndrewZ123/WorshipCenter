@@ -178,7 +178,11 @@ export default function MyTasksPage() {
                       _hover={{ boxShadow: 'md', borderColor: 'teal.200' }}
                       transition="all 0.15s ease"
                       cursor="pointer"
-                      onClick={() => task.service_id && setSelectedServiceId(task.service_id)}
+                      onClick={() => {
+                        if (task.service_id) {
+                          router.push(`/services/${task.service_id}?tab=tasks`);
+                        }
+                      }}
                     >
                       <CardBody py="3">
                         <HStack spacing="3" align="start">
@@ -252,7 +256,11 @@ export default function MyTasksPage() {
                     borderColor={borderColor}
                     opacity={0.7}
                     cursor="pointer"
-                    onClick={() => task.service_id && setSelectedServiceId(task.service_id)}
+                    onClick={() => {
+                      if (task.service_id) {
+                        router.push(`/services/${task.service_id}?tab=tasks`);
+                      }
+                    }}
                   >
                     <CardBody py="3">
                       <HStack spacing="3" align="start">
