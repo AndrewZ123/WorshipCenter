@@ -83,7 +83,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
-  const { user, church } = useAuth();
+  const { user, church, loading: authLoading } = useAuth();
   const permissions = usePermissions();
   const store = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -167,6 +167,31 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
     }
     return { color: 'gray.400', label: 'Not used recently', dot: '⚪' };
   };
+
+  if (authLoading) {
+    return (
+      <Center minH="50vh">
+        <Spinner size="xl" color="teal.500" />
+      </Center>
+    );
+  }
+
+  // Auth finished but church data never arrived — explain instead of spinning forever.
+  if (!church) {
+    return (
+      <Center minH="50vh">
+        <VStack spacing={3} textAlign="center" px={6}>
+          <Text fontWeight="600">Couldn&apos;t load your church data</Text>
+          <Text fontSize="sm" color="gray.500">
+            Check your internet connection and try refreshing the page.
+          </Text>
+          <Button size="sm" colorScheme="teal" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </VStack>
+      </Center>
+    );
+  }
 
   if (loading) {
     return (

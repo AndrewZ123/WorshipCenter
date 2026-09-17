@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export default function SongsPage() {
-  const { church, user } = useAuth();
+  const { church, user, loading: authLoading } = useAuth();
   const permissions = usePermissions();
   const store = useStore();
   const router = useRouter();
@@ -163,6 +163,31 @@ export default function SongsPage() {
       return { color: 'green.500', label: 'Fresh' };
     }
   };
+
+  if (authLoading) {
+    return (
+      <Center minH="50vh">
+        <Spinner size="xl" color="teal.500" />
+      </Center>
+    );
+  }
+
+  // Auth finished but church data never arrived — explain instead of spinning forever.
+  if (!church) {
+    return (
+      <Center minH="50vh">
+        <VStack spacing={3} textAlign="center" px={6}>
+          <Text fontWeight="600">Couldn&apos;t load your church data</Text>
+          <Text fontSize="sm" color="gray.500">
+            Check your internet connection and try refreshing the page.
+          </Text>
+          <Button size="sm" colorScheme="teal" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </VStack>
+      </Center>
+    );
+  }
 
   if (loading) {
     return (

@@ -24,7 +24,7 @@ import {
 type DateRange = '1m' | '3m' | '6m' | '1y' | 'all';
 
 export default function ServiceLogPage() {
-  const { church } = useAuth();
+  const { church, loading: authLoading } = useAuth();
   const store = useStore();
   const [loading, setLoading] = useState(true);
   const [debriefs, setDebriefs] = useState<(ServiceDebriefPopulated & { service?: { title: string; date: string } })[]>([]);
@@ -76,6 +76,31 @@ export default function ServiceLogPage() {
     flow: Math.round((debriefs.reduce((s, d) => s + d.rating_flow, 0) / debriefs.length) * 10) / 10,
     tech: Math.round((debriefs.reduce((s, d) => s + d.rating_tech, 0) / debriefs.length) * 10) / 10,
   } : null;
+
+  if (authLoading) {
+    return (
+      <Center minH="50vh">
+        <Spinner size="xl" color="teal.500" />
+      </Center>
+    );
+  }
+
+  // Auth finished but church data never arrived — explain instead of spinning forever.
+  if (!church) {
+    return (
+      <Center minH="50vh">
+        <VStack spacing={3} textAlign="center" px={6}>
+          <Text fontWeight="600">Couldn&apos;t load your church data</Text>
+          <Text fontSize="sm" color="gray.500">
+            Check your internet connection and try refreshing the page.
+          </Text>
+          <Button size="sm" colorScheme="teal" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </VStack>
+      </Center>
+    );
+  }
 
   if (loading) {
     return (

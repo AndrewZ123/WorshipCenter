@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import TeamMemberDetailClient from './[id]/TeamMemberDetailClient';
 import {
   Box, Text, HStack, Button, Table, Thead, Tbody, Tr, Th, Td,
@@ -174,7 +174,7 @@ export default function TeamPage() {
         
         let data;
         try {
-          data = await response.json();
+          data = await parseJsonSafe(response);
         } catch (parseError) {
           // Use cloned response to get text if JSON parsing fails
           try {
@@ -270,7 +270,7 @@ export default function TeamPage() {
       
       let data;
       try {
-        data = await response.json();
+        data = await parseJsonSafe(response);
       } catch (parseError) {
         // Use cloned response to get text if JSON parsing fails
         try {

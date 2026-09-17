@@ -32,7 +32,7 @@ import {
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function ServicesPage() {
-  const { church, user } = useAuth();
+  const { church, user, loading: authLoading } = useAuth();
   const permissions = usePermissions();
   const store = useStore();
   const router = useRouter();
@@ -94,7 +94,9 @@ export default function ServicesPage() {
       let all: Service[];
 
       if (permissions.isVolunteer && user?.team_member_id) {
-        // Volunteers only see services they are assigned to
+        // Volunteers only see services they are assigned to — and only
+        // upcoming ones, so a lone 6-month-old service doesn't look like
+        // the whole schedule.
         const assignments = await store.assignments.getByTeamMember(user.team_member_id, church.id);
         const serviceIds = new Set<string>();
         for (const a of assignments) {
@@ -105,7 +107,8 @@ export default function ServicesPage() {
           if (t.service_id) serviceIds.add(t.service_id);
         }
         const allSvc = await store.services.getByChurch(church.id);
-        all = allSvc.filter((s: Service) => serviceIds.has(s.id));
+        const today = new Date().toISOString().slice(0, 10);
+        all = allSvc.filter((s: Service) => serviceIds.has(s.id) && s.date >= today);
       } else {
         all = await store.services.getByChurch(church.id);
       }
@@ -221,6 +224,31 @@ export default function ServicesPage() {
     d.setDate(d.getDate() + diff);
     return d.toISOString().split('T')[0];
   };
+
+  if (authLoading) {
+    return (
+      <Center minH="50vh">
+        <Spinner size="xl" color="teal.500" />
+      </Center>
+    );
+  }
+
+  // Auth finished but church data never arrived — explain instead of spinning forever.
+  if (!church) {
+    return (
+      <Center minH="50vh">
+        <VStack spacing={3} textAlign="center" px={6}>
+          <Text fontWeight="600">Couldn&apos;t load your church data</Text>
+          <Text fontSize="sm" color="gray.500">
+            Check your internet connection and try refreshing the page.
+          </Text>
+          <Button size="sm" colorScheme="teal" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </VStack>
+      </Center>
+    );
+  }
 
   if (loading) {
     return (
@@ -422,13 +450,21 @@ export default function ServicesPage() {
 
       {/* Services List */}
       {services.length === 0 ? (
-        <EmptyState
-          icon="calendar"
-          title="No services yet"
-          description="Create your first service to get started planning Sunday."
-          ctaLabel="Create Service"
-          ctaOnClick={createModal.onOpen}
-        />
+        isReadOnly ? (
+          <EmptyState
+            icon="calendar"
+            title="No upcoming services"
+            description="You don't have any upcoming assignments. Check back later or ask your worship leader."
+          />
+        ) : (
+          <EmptyState
+            icon="calendar"
+            title="No services yet"
+            description="Create your first service to get started planning Sunday."
+            ctaLabel="Create Service"
+            ctaOnClick={createModal.onOpen}
+          />
+        )
       ) : (
         <>
           {/* Desktop table */}

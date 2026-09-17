@@ -11,7 +11,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
 import { supabase } from '@/lib/supabase';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import type { ServiceRolePosition, SignupRequestPopulated } from '@/lib/types';
 import { Calendar, Clock, Users, UserPlus, CheckCircle, AlertCircle, XCircle, Filter } from 'lucide-react';
 
@@ -109,10 +109,10 @@ export default function ServeSection() {
         body: JSON.stringify(body),
       });
 
-      const result = await response.json();
+      const result = await parseJsonSafe(response);
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to sign up');
+        throw new Error(result.error || `Signup failed (server returned ${response.status})`);
       }
 
       toast({

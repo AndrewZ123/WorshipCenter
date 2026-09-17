@@ -20,7 +20,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 import { formatServiceDate } from '@/lib/formatDate';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
@@ -68,7 +68,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
-  const { user, church } = useAuth();
+  const { user, church, loading: authLoading } = useAuth();
   const permissions = usePermissions();
   const store = useStore();
   const serviceId = propServiceId || (params.id as string);
@@ -335,6 +335,18 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       // Auto-prompt debrief when service is marked completed
       if (status === 'completed' && prevStatus !== 'completed') {
         setShowDebriefForm(true);
+        // Log song usage for CCLI reporting (this populates the table that
+        // powers the CSV export in Reporting — it was never called before,
+        // so the export stayed permanently disabled)
+        try {
+          await store.songUsage.createForService(
+            serviceId,
+            church.id,
+            date || service?.date || new Date().toISOString().slice(0, 10)
+          );
+        } catch (e) {
+          console.error('[SongUsage] Failed to log song usage:', e);
+        }
         // Notify assigned team members
         if (user && church) {
           try {
@@ -881,6 +893,26 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     { value: 'media_tech', label: 'Media Tech' },
   ];
 
+  // Auth finished but church data never arrived — explain instead of showing
+  // skeleton tabs forever.
+  if (!authLoading && !church) {
+    return (
+      <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
+        <Center minH="50vh">
+          <VStack spacing={3} textAlign="center" px={6}>
+            <Text fontWeight="600">Couldn&apos;t load your church data</Text>
+            <Text fontSize="sm" color="gray.500">
+              Check your internet connection and try refreshing the page.
+            </Text>
+            <Button size="sm" colorScheme="teal" onClick={() => window.location.reload()}>
+              Refresh
+            </Button>
+          </VStack>
+        </Center>
+      </Box>
+    );
+  }
+
   if (loading) {
     return (
     <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" mx="auto">
@@ -998,13 +1030,20 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
               <Portal>
               <MenuList borderRadius="xl" zIndex={50}>
                 <MenuItem onClick={() => { setEditing(true); setActiveTab(0); setPrimaryTab(0); }} icon={<Edit size={16} />}>Edit Service</MenuItem>
-                <MenuItem onClick={() => generateServicePDF({
-                  service: service!,
-                  items,
-                  assignments,
-                  teamMembers,
-                  churchName: church?.name || 'Church',
-                })} icon={<Printer size={16} />}>Export / Print PDF</MenuItem>
+                <MenuItem onClick={() => {
+                  // generateServicePDF is async — catch failures so a PDF
+                  // error surfaces as a toast instead of a silent rejection
+                  generateServicePDF({
+                    service: service!,
+                    items,
+                    assignments,
+                    teamMembers,
+                    churchName: church?.name || 'Church',
+                  }).catch((error) => {
+                    console.error('[PDF] Export failed:', error);
+                    toast({ title: 'PDF export failed', description: 'Please try again.', status: 'error', duration: 3000 });
+                  });
+                }} icon={<Printer size={16} />}>Export / Print PDF</MenuItem>
                 <MenuItem onClick={handleDuplicateService} icon={<Copy size={16} />}>Duplicate</MenuItem>
                 <Divider />
                 <MenuItem color="red.500" onClick={deleteDisclosure.onOpen} icon={<Trash2 size={16} />}>Delete</MenuItem>
@@ -2416,7 +2455,7 @@ function NotifyTeamButton({ churchId, serviceId, serviceTitle, changes, sessionT
         onClose();
         toast({ title: 'Team notified', status: 'success', duration: 3000 });
       } else {
-        const err = await res.json();
+        const err = await parseJsonSafe(res);
         toast({ title: 'Failed to send', description: err.error, status: 'error', duration: 3000 });
       }
     } catch (e) {

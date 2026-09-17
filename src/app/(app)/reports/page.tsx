@@ -7,7 +7,7 @@ import {
   Box, VStack, HStack, Text, Heading, Select, SimpleGrid,
   Stat, StatLabel, StatNumber, StatHelpText, Progress,
   Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Spinner, Center,
-  useColorModeValue, Card, CardBody, CardHeader,
+  useColorModeValue, Card, CardBody, CardHeader, Button,
 } from '@chakra-ui/react';
 import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare, BarChart3 } from 'lucide-react';
 import SongUsageSection from '@/components/reports/SongUsageSection';
@@ -37,7 +37,7 @@ interface ReportData {
 type DateRange = '30d' | '90d' | '6m' | '1y' | 'all';
 
 export default function ReportsPage() {
-  const { user, church } = useAuth();
+  const { user, church, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
   const [range, setRange] = useState<DateRange>('90d');
@@ -132,10 +132,27 @@ export default function ReportsPage() {
     loadData();
   }, [loadData]);
 
-  if (!user || !church) {
+  if (authLoading) {
     return (
       <Center h="100dvh">
         <Spinner size="xl" color="teal.500" />
+      </Center>
+    );
+  }
+
+  // Auth finished but user/church never arrived — explain instead of spinning forever.
+  if (!user || !church) {
+    return (
+      <Center h="100dvh">
+        <VStack spacing={3} textAlign="center" px={6}>
+          <Text fontWeight="600">Couldn&apos;t load your church data</Text>
+          <Text fontSize="sm" color="gray.500">
+            Check your internet connection and try refreshing the page.
+          </Text>
+          <Button size="sm" colorScheme="teal" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </VStack>
       </Center>
     );
   }

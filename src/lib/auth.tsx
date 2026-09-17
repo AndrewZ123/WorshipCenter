@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User, Church } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { apiBaseUrl, isCapacitorNative, getRedirectUrl } from '@/lib/api-base';
+import { apiBaseUrl, isCapacitorNative, getRedirectUrl, parseJsonSafe } from '@/lib/api-base';
 
 interface AuthContextType {
   user: User | null;
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // Load fresh data in background without blocking UI
           loadProfile(authUserId, false).catch(err => {
-            // Silent background refresh failure
+            console.warn('[Auth] Background profile refresh failed:', err);
           });
           
           return 'success';
@@ -176,7 +176,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
         
       if (churchError) {
-        // Silent church load error
+        // Don't swallow this: pages render a "couldn't load your church data"
+        // state when church is still null after auth finishes.
+        console.error('[Auth] Failed to load church:', churchError.message, { churchId: (userData as User).church_id });
       }
       const churchVal = churchData ? (churchData as Church) : null;
       setChurch(prev => isSameData(prev, churchVal) ? prev : churchVal);
@@ -467,7 +469,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       });
 
-      const result = await response.json();
+      const result = await parseJsonSafe(response);
 
       if (!response.ok || !result.success) {
         return { success: false, error: result.error || 'Failed to delete account' };

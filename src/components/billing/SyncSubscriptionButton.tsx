@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import { PRICING } from '@/lib/stripe';
 
 interface SyncSubscriptionButtonProps {
@@ -40,7 +40,7 @@ export default function SyncSubscriptionButton({ onSynced }: SyncSubscriptionBut
         },
       });
 
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
 
       if (!res.ok) {
         setMessage({ text: data.error || 'Sync failed', type: 'error' });

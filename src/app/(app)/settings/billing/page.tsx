@@ -18,7 +18,7 @@ import { useSubscription } from '@/lib/useSubscription';
 import { PRICING } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import { Box, SimpleGrid } from '@chakra-ui/react';
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ export default function BillingPage() {
     (async () => {
       try {
         const res = await fetch(apiUrl('/api/billing/status'));
-        const data = await res.json();
+        const data = await parseJsonSafe(res);
         if (!cancelled) setStripeReady(Boolean(data?.configured));
       } catch {
         // Leave stripeReady=false on failure
@@ -108,7 +108,7 @@ export default function BillingPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
 
       if (!res.ok) {
         setActionError(data.error || 'Failed to create checkout session.');
@@ -145,7 +145,7 @@ export default function BillingPage() {
         },
       });
 
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
 
       if (!res.ok) {
         setActionError(data.error || 'Failed to open billing portal.');

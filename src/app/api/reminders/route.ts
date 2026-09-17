@@ -12,9 +12,11 @@ import { handleRemindersRequest } from '@/lib/reminders';
 // - Pre-service reminders (48h before)
 // - Leader escalations (24h before service for pending assignments)
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Only allow calls from internal cron jobs (add authentication in production)
+    if (!isAuthorized(request)) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    }
     const result = await handleRemindersRequest();
     
     return NextResponse.json(result, {
@@ -29,10 +31,12 @@ export async function GET() {
   }
 }
 
-// Manual trigger for testing (POST request)
-// In production, you may want to add authentication here
-export async function POST() {
+// Manual trigger for testing (POST request) — requires the same cron secret
+export async function POST(request: Request) {
   try {
+    if (!isAuthorized(request)) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    }
     const result = await handleRemindersRequest();
     
     return NextResponse.json(result, {
@@ -45,4 +49,20 @@ export async function POST() {
       { status: 500 }
     );
   }
+}
+
+// ── Cron auth ────────────────────────────────────────────────
+// Vercel Cron cannot send custom headers, so the secret is accepted either
+// as `Authorization: Bearer <CRON_SECRET>` or as a `?secret=` query param.
+// Configure CRON_SECRET on the server and in the cron job URL.
+// If CRON_SECRET is not set, the route refuses requests in production
+// (so a missing env var fails closed instead of leaving it open).
+function isAuthorized(request: Request): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  const header = request.headers.get('authorization');
+  const querySecret = new URL(request.url).searchParams.get('secret');
+  return header === `Bearer ${secret}` || querySecret === secret;
 }

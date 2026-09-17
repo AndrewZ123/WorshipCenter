@@ -235,11 +235,12 @@ export function sanitizeRequestBody<T extends Record<string, unknown>>(body: T):
   
   for (const [key, value] of Object.entries(body)) {
     if (typeof value === 'string') {
-      // Basic XSS prevention
+      // Basic XSS prevention — escape HTML entities (& first, so we don't double-escape)
       sanitized[key] = value
-        .replace(/</g, '<')
-        .replace(/>/g, '>')
-        .replace(/"/g, '"')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
         .replace(/'/g, '&#x27;')
         .replace(/`/g, '&#x60;')
         // Remove null bytes

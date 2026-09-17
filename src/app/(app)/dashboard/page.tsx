@@ -185,7 +185,7 @@ function StatBox({ icon: Icon, label, value, onClick }: { icon: React.ComponentT
 }
 
 export default function DashboardPage() {
-  const { user, church } = useAuth();
+  const { user, church, loading: authLoading } = useAuth();
   const permissions = usePermissions();
   const store = useStore();
   const router = useRouter();
@@ -291,6 +291,32 @@ export default function DashboardPage() {
 
   const firstName = user?.name?.split(' ')[0] || '';
   const greeting = getGreeting();
+
+  if (authLoading) {
+    return (
+      <Center minH="50vh">
+        <Spinner size="xl" color="teal.500" />
+      </Center>
+    );
+  }
+
+  // Auth finished but church data never arrived (e.g. the church fetch failed).
+  // Show an explanation instead of spinning forever.
+  if (!church) {
+    return (
+      <Center minH="50vh">
+        <VStack spacing={3} textAlign="center" px={6}>
+          <Text fontWeight="600">Couldn&apos;t load your church data</Text>
+          <Text fontSize="sm" color="gray.500">
+            Check your internet connection and try refreshing the page.
+          </Text>
+          <Button size="sm" colorScheme="teal" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </VStack>
+      </Center>
+    );
+  }
 
   if (loading) {
     return (

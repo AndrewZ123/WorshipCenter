@@ -112,7 +112,15 @@ export default function ServiceDebriefForm({
   const hasTiming = timingData.some((t) => t.actual_seconds != null);
 
   const handleSubmit = async () => {
-    if (!church || !user) return;
+    if (!church || !user) {
+      toast({
+        title: 'Not signed in',
+        description: 'Your session may have expired — please refresh and sign in again to submit your debrief.',
+        status: 'warning',
+        duration: 4000,
+      });
+      return;
+    }
     if (!allRatingsFilled) {
       toast({ title: 'Please complete all ratings', status: 'warning', duration: 2000 });
       return;

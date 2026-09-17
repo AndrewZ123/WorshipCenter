@@ -7,7 +7,7 @@ import {
   useColorModeValue, IconButton, Alert, AlertIcon, AlertDescription,
 } from '@chakra-ui/react';
 import { Search, ChevronDown } from 'lucide-react';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 
 interface GifResult {
   id: string;
@@ -45,7 +45,7 @@ export default function GifPicker({ isOpen, onClose, onSelect, variant = 'modal'
     setGiphyError('');
     try {
       const res = await fetch(apiUrl(`/api/chat/giphy?q=${encodeURIComponent(q.trim())}`));
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
       if (data.error === 'GIPHY API key not configured') {
         setGiphyError('GIPHY API key not configured. Add GIPHY_API_KEY to your environment variables.');
         setResults([]);

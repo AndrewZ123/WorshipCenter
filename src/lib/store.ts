@@ -167,13 +167,20 @@ export const db = {
     },
     update: async (id: string, churchId: string, updates: Partial<Service>) => {
       const sanitized = sanitizeInput.service(updates);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('services')
         .update({ ...sanitized, updated_at: new Date().toISOString() })
         .eq('id', id)
         .eq('church_id', churchId)
         .select()
         .single();
+      if (error) {
+        // Surface the real failure instead of relying on .single() throwing a
+        // generic error — RLS denials and constraint violations were previously
+        // indistinguishable from success paths upstream.
+        console.error('[Services] Update failed:', error.message, { id, churchId });
+        throw new Error(`Failed to save service: ${error.message}`);
+      }
       return data as Service;
     },
     delete: async (id: string, churchId: string) => {

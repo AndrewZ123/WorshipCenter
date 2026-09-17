@@ -16,7 +16,7 @@ import {
   Switch,
 } from '@chakra-ui/react';
 import { X, UserPlus, Users, Calendar, AlertTriangle } from 'lucide-react';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
 import type {
@@ -366,11 +366,11 @@ export default function ServiceSchedule({
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
+        const err = await parseJsonSafe(response).catch(() => ({}));
         throw new Error(err.error || 'Failed to create assignments');
       }
 
-      const result = await response.json();
+      const result = await parseJsonSafe(response);
       toast({
         title: 'Success!',
         description: `Created ${result.created} assignment${result.created !== 1 ? 's' : ''}`,

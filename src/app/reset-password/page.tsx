@@ -6,7 +6,7 @@ import {
   FormLabel, Link as ChakraLink, Alert, AlertIcon, Card, CardBody,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/navigation';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('');
@@ -30,7 +30,7 @@ export default function ResetPasswordPage() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await response.json();
+      const data = await parseJsonSafe(response);
 
       if (response.ok && data.success) {
         setSuccess(true);

@@ -10,7 +10,7 @@ import {
 } from '@chakra-ui/react';
 import { useStore } from '@/lib/StoreContext';
 import { supabase } from '@/lib/supabase';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import type { ServiceRolePosition, SignupRequestPopulated } from '@/lib/types';
 import { Plus, CheckCircle, XCircle, UserPlus, Trash2, Settings } from 'lucide-react';
 
@@ -125,8 +125,8 @@ export default function SignupManagement({ serviceId, churchId, onSignupChange }
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to approve');
+        const err = await parseJsonSafe(response);
+        throw new Error(err.error || `Failed to approve (server returned ${response.status})`);
       }
 
       toast({ title: 'Signup approved!', description: 'Assignment created.', status: 'success', duration: 3000 });
@@ -152,8 +152,8 @@ export default function SignupManagement({ serviceId, churchId, onSignupChange }
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to decline');
+        const err = await parseJsonSafe(response);
+        throw new Error(err.error || `Failed to decline (server returned ${response.status})`);
       }
 
       toast({ title: 'Signup declined', status: 'info', duration: 3000 });

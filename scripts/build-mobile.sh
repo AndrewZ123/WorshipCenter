@@ -3,14 +3,36 @@ set -e
 
 cd "$(dirname "$0")/.."
 
+# ── Pre-flight: recover from an interrupted build ─────────────────
+# If a previous build was killed (SIGKILL, machine reboot, etc.) before the
+# EXIT trap could restore the tree, the working tree may be missing
+# src/app/api, src/middleware.ts, or src/app/share while their backups exist.
+# Committing that state breaks every /api/* route, middleware, and /share.
+# Detect it up front and restore before touching anything.
+API_DIR="src/app/api"
+API_BACKUP=".mobile-backup-api"
+MW_FILE="src/middleware.ts"
+MW_BACKUP="src/middleware._mobile_excluded.ts"
+SHARE_DIR="src/app/share"
+SHARE_BACKUP=".mobile-backup-share"
+
+recover_if_interrupted() {
+  local src="$1" backup="$2"
+  if [ ! -e "$src" ] && [ -e "$backup" ]; then
+    echo "⚠️  Detected backup from an interrupted build ($backup) — restoring $src first"
+    mv "$backup" "$src"
+  fi
+}
+recover_if_interrupted "$API_DIR" "$API_BACKUP"
+recover_if_interrupted "$MW_FILE" "$MW_BACKUP"
+recover_if_interrupted "$SHARE_DIR" "$SHARE_BACKUP"
+
 echo "🏗️  Building WorshipCenter for mobile (Capacitor static export)..."
 
 # ── Exclude API routes ──────────────────────────────────────
 # Next.js "output: export" cannot build server-side API route handlers.
 # The mobile app calls the deployed web server's API via absolute URLs
 # (see src/lib/api-base.ts → apiUrl()), so the static bundle doesn't need them.
-API_DIR="src/app/api"
-API_BACKUP=".mobile-backup-api"
 
 if [ -d "$API_DIR" ]; then
   rm -rf "$API_BACKUP"
@@ -20,8 +42,6 @@ fi
 
 # ── Exclude middleware ──────────────────────────────────────
 # Middleware doesn't run in static export and can cause build warnings.
-MW_FILE="src/middleware.ts"
-MW_BACKUP="src/middleware._mobile_excluded.ts"
 
 if [ -f "$MW_FILE" ]; then
   mv "$MW_FILE" "$MW_BACKUP"
@@ -31,8 +51,6 @@ fi
 # ── Exclude share page ──────────────────────────────────────
 # The /share/[token] page requires a server to resolve the share token
 # and can't be statically pre-rendered. Mobile uses the deployed web app URL.
-SHARE_DIR="src/app/share"
-SHARE_BACKUP=".mobile-backup-share"
 
 if [ -d "$SHARE_DIR" ]; then
   rm -rf "$SHARE_BACKUP"

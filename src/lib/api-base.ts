@@ -60,6 +60,22 @@ export function apiUrl(path: string): string {
 }
 
 /**
+ * Safely parse a fetch Response as JSON.
+ * Returns {} when the body isn't JSON (proxy/HTML error pages, empty
+ * responses) instead of throwing — callers can then report the HTTP status
+ * honestly instead of crashing on response.json().
+ */
+export async function parseJsonSafe(response: Response): Promise<any> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Alias for getApiBase — returns the base URL for API calls.
  * Kept for backward compatibility with code that uses apiBaseUrl().
  */

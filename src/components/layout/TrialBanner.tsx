@@ -4,16 +4,25 @@ import { useState, useEffect } from 'react';
 import { Box, Button, HStack, Text, Icon, Container, Badge, useColorModeValue, VStack, Flex } from '@chakra-ui/react';
 import { FiClock, FiArrowRight, FiCheck } from 'react-icons/fi';
 import { useSubscription } from '@/lib/useSubscription';
+import { useAuth } from '@/lib/auth';
 import NextLink from 'next/link';
+
+// Billing CTAs are only actionable by admins/leaders — the billing page itself
+// redirects everyone else away, so showing these to volunteers is a dead end.
+function useCanManageBilling(): boolean {
+  const { user } = useAuth();
+  return user?.role === 'admin' || user?.role === 'leader';
+}
 
 export function TrialBanner() {
   const { isActive, isTrialing, daysRemaining, loading } = useSubscription();
+  const canManageBilling = useCanManageBilling();
   
   const bgColor = useColorModeValue('teal.50', 'teal.900');
   const borderColor = useColorModeValue('teal.200', 'teal.700');
   
   // Don't show banner while loading, if active subscription, not trialing, or more than 3 days remaining
-  if (loading || isActive || !isTrialing || daysRemaining > 3) {
+  if (loading || isActive || !isTrialing || daysRemaining > 3 || !canManageBilling) {
     return null;
   }
   
@@ -62,12 +71,13 @@ export function TrialBanner() {
 
 export function TrialExpiredBanner() {
   const { isActive, isTrialing, loading } = useSubscription();
+  const canManageBilling = useCanManageBilling();
   
   const bgColor = useColorModeValue('orange.50', 'orange.900');
   const borderColor = useColorModeValue('orange.200', 'orange.700');
   
   // Only show if not loading, trial expired and not active
-  if (loading || isActive || isTrialing) {
+  if (loading || isActive || isTrialing || !canManageBilling) {
     return null;
   }
   
@@ -101,6 +111,7 @@ export function TrialExpiredBanner() {
 // Floating CTA for trial users - shows on bottom right
 export function FloatingSubscribeCTA() {
   const { isActive, isTrialing, daysRemaining } = useSubscription();
+  const canManageBilling = useCanManageBilling();
   const [isVisible, setIsVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   
@@ -119,7 +130,7 @@ export function FloatingSubscribeCTA() {
   }, [isTrialing, isActive, dismissed, daysRemaining]);
   
   // Don't show if not trialing, already active, dismissed, or more than 3 days remaining
-  if (!isTrialing || isActive || dismissed || daysRemaining > 3) {
+  if (!isTrialing || isActive || dismissed || daysRemaining > 3 || !canManageBilling) {
     return null;
   }
   

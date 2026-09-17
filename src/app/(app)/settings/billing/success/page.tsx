@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 
 export default function CheckoutSuccessPage() {
   const router = useRouter();
@@ -27,7 +27,7 @@ export default function CheckoutSuccessPage() {
         });
 
         if (res.ok) {
-          const data = await res.json();
+          const data = await parseJsonSafe(res);
           setSubscription(data.subscription);
         }
       } catch (error) {
