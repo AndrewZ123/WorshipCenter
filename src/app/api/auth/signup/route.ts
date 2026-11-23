@@ -64,7 +64,41 @@ export async function POST(request: NextRequest) {
     const profileUserId = authUser.id;
     const profileEmail = tokenEmail;
 
-    // 1. Create the church (churches table only has id, name, created_at)
+    // 1. If this auth user already has a profile, the church was created by an
+    //    earlier request (signup retry, login completion, or a double submit).
+    //    Return it instead of creating a second church.
+    const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
+      .from('users')
+      .select('church_id')
+      .eq('id', profileUserId)
+      .maybeSingle();
+
+    if (existingProfileError) {
+      console.error('[Signup API] Existing profile lookup error:', existingProfileError.message);
+      return NextResponse.json(
+        { error: 'Could not load your existing church account.' },
+        { status: 500 }
+      );
+    }
+
+    if (existingProfile) {
+      if (existingProfile.church_id) {
+        return NextResponse.json({
+          success: true,
+          church_id: existingProfile.church_id,
+        });
+      }
+
+      // A profile without a church cannot be repaired safely here; never create
+      // a second church for an auth user that already has a profile row.
+      console.error('[Signup API] Existing profile has no church_id:', profileUserId);
+      return NextResponse.json(
+        { error: 'Your church account is incomplete. Please contact support.' },
+        { status: 500 }
+      );
+    }
+
+    // 2. Create the church (churches table only has id, name, created_at)
     const { data: churchData, error: churchError } = await supabaseAdmin
       .from('churches')
       .insert({ name: churchName })
@@ -117,6 +151,30 @@ export async function POST(request: NextRequest) {
 
     if (userError) {
       console.error('[Signup API] User profile creation error:', userError.message);
+
+      // A concurrent request may have created the profile between our lookup
+      // and insert. Drop the church this request created and return the winner.
+      const isDuplicate =
+        userError.code === '23505' || /duplicate key/i.test(userError.message ?? '');
+      if (isDuplicate) {
+        // Drop the church and subscription this request created before
+        // returning the profile/church the winning request persisted.
+        await supabaseAdmin.from('subscriptions').delete().eq('church_id', churchId);
+        await supabaseAdmin.from('churches').delete().eq('id', churchId);
+        const { data: racedProfile } = await supabaseAdmin
+          .from('users')
+          .select('church_id')
+          .eq('id', profileUserId)
+          .maybeSingle();
+
+        if (racedProfile?.church_id) {
+          return NextResponse.json({
+            success: true,
+            church_id: racedProfile.church_id,
+          });
+        }
+      }
+
       // Try to clean up the church we just created
       await supabaseAdmin.from('churches').delete().eq('id', churchId);
       return NextResponse.json(

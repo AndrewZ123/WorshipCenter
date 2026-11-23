@@ -10,6 +10,12 @@ import {
   shouldClearResidualSession,
   shouldIgnoreAuthEvent,
 } from '@/lib/auth-session';
+import {
+  clearPendingSignup,
+  completeChurchSignup,
+  pendingSignupFromMetadata,
+  savePendingSignup,
+} from '@/lib/signup-completion';
 
 export interface SignupResult {
   success: boolean;
@@ -336,6 +342,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (status === 'not_found') {
+          // Email confirmation creates the auth user before any public.users
+          // row exists. Finish the church/profile setup on the first session
+          // using the details saved at signup. The API is idempotent, so a
+          // concurrent signup request cannot create a second church.
+          const completion = await completeChurchSignup(session);
+          if (completion.completed) {
+            status = await loadProfile(session.user.id, false);
+          }
+        }
+
+        if (status === 'not_found') {
           setUser(null);
           setChurch(null);
         }
@@ -434,12 +451,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     explicitAuthRef.current = true;
 
     try {
-      // 1. Create Supabase Auth User
-      const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+      const normalizedChurchName = churchName.trim();
+      const normalizedUserName = userName.trim();
+
+      // 1. Create Supabase Auth User. The church details live on the auth user
+      //    so the profile can still be created after email confirmation, when
+      //    signUp returns no session.
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            churchName: normalizedChurchName,
+            userName: normalizedUserName,
+          },
+        },
+      });
       if (authError || !authData.user) {
         console.error('[Auth] Signup auth error:', authError?.message);
         return { success: false, error: authError?.message || 'Could not create your account.' };
       }
+
+      // Same-browser backup for the first login after confirmation.
+      const storedPendingSignup = savePendingSignup(authData.user.id, {
+        churchName: normalizedChurchName,
+        userName: normalizedUserName,
+      });
+      const metadataPendingSignup = pendingSignupFromMetadata(authData.user.user_metadata);
 
       // 2. Call server-side API to create church, subscription, user profile, and team member
       //    (bypasses the buggy signup_church RPC function that causes duplicate key errors).
@@ -447,6 +485,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       //    until email confirmation produces a session.
       const accessToken = authData.session?.access_token;
       if (!accessToken) {
+        // Do not claim the church was created unless login can finish the job.
+        if (!metadataPendingSignup && !storedPendingSignup) {
+          return {
+            success: false,
+            error: 'Your account was created, but we could not save your church details. Please contact support to finish setting up your church.',
+          };
+        }
         return { success: true, requiresEmailConfirmation: true };
       }
 
@@ -457,8 +502,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          churchName,
-          userName,
+          churchName: normalizedChurchName,
+          userName: normalizedUserName,
           email,
         }),
       });
@@ -470,11 +515,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: signupResult.error || 'Could not create your church account.' };
       }
 
+      // The profile and church now exist, so the pending backup is obsolete.
+      clearPendingSignup(authData.user.id);
       console.log('[Auth] Signup successful, church created:', signupResult.church_id);
 
-      // Send welcome email (requires an authenticated session; skip if email
-      // confirmation is pending, since there is no access token yet)
-      const welcomeAccessToken = authData.session?.access_token;
+      // Send welcome email (requires the authenticated session from signup)
+      const welcomeAccessToken = accessToken;
       if (welcomeAccessToken) {
         try {
           const welcomeEmailResponse = await fetch(`${apiBaseUrl()}/api/notifications/send-welcome`, {
@@ -498,12 +544,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Don't fail signup if email fails
           console.warn('[Auth] Welcome email error:', emailError);
         }
-      }
-
-      // Email confirmation is enabled: there is no session yet, so do NOT let
-      // the caller navigate to /dashboard (it would bounce straight to /login).
-      if (!authData.session?.access_token) {
-        return { success: true, requiresEmailConfirmation: true };
       }
 
       // Explicit signup authentication: safe to leave the signed-out state.

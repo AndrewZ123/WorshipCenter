@@ -167,4 +167,56 @@ describe('POST /api/auth/signup', () => {
       ],
     });
   });
+
+  it('creates the profile when the body has no password field', async () => {
+    fake.setTableResult('churches', {
+      data: { id: 'church-passwordless' },
+      error: null,
+    });
+
+    // The client never posts the password; the schema must keep accepting the
+    // request without it.
+    const response = await POST(signupRequest(validBody, '203.0.113.18'));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      church_id: 'church-passwordless',
+    });
+    expect(
+      fake.operationsFor('users').some((operation) => operation.method === 'insert')
+    ).toBe(true);
+  });
+
+  it('returns the existing church for an existing profile without inserting another church', async () => {
+    let existingProfile: { church_id: string } | null = null;
+    fake.setTableResult('users', () => ({ data: existingProfile, error: null }));
+    fake.setTableResult('churches', {
+      data: { id: 'church-1' },
+      error: null,
+    });
+
+    const first = await POST(signupRequest(validBody, '203.0.113.19'));
+    expect(first.status).toBe(200);
+    await expect(first.json()).resolves.toEqual({
+      success: true,
+      church_id: 'church-1',
+    });
+
+    // Simulate the profile that the first request persisted.
+    existingProfile = { church_id: 'church-1' };
+    fake.operations.length = 0;
+
+    const second = await POST(signupRequest(validBody, '203.0.113.20'));
+
+    expect(second.status).toBe(200);
+    await expect(second.json()).resolves.toEqual({
+      success: true,
+      church_id: 'church-1',
+    });
+    expect(fake.operationsFor('churches')).toHaveLength(0);
+    expect(
+      fake.operationsFor('users').some((operation) => operation.method === 'insert')
+    ).toBe(false);
+  });
 });
