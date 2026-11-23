@@ -184,8 +184,7 @@ BEGIN
     artist = sv.artist,
     default_key = sv.default_key,
     ccli_number = sv.ccli_number,
-    tags = sv.tags,
-    updated_at = NOW()
+    tags = sv.tags
   FROM song_versions sv
   WHERE s.id = song_uuid AND sv.id = version_id;
 
