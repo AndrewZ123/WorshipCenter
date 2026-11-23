@@ -82,7 +82,8 @@ export default function MarkdownRenderer({ content, color }: MarkdownRendererPro
               >
                 <img
                   src={part.url}
-                  alt=""
+                  alt={part.type === 'gif' ? 'GIF' : 'Image'}
+                  loading="lazy"
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 />
               </Box>
