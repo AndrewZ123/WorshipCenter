@@ -8,11 +8,11 @@ import {
   ModalHeader, ModalBody, ModalCloseButton, ModalFooter, FormControl,
   FormLabel, VStack, Flex, useToast, IconButton, Spinner, Center,
   Card, CardBody, Menu, MenuButton, MenuList, MenuItem,
-  useColorModeValue, Select, Tag, TagLabel, Collapse,
+  useColorModeValue, Select, Collapse,
   Divider, Badge,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';
-import type { Service, ServiceTemplate } from '@/lib/types';
+import type { ServiceTemplate } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
@@ -21,7 +21,7 @@ import { formatServiceDate } from '@/lib/formatDate';
 // Lucide icons
 import { 
   Plus, MoreVertical, ChevronDown, ChevronRight, Calendar, 
-  Clock, Trash2, Copy, Sparkles
+  Clock, Trash2, Copy
 } from 'lucide-react';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -85,7 +85,7 @@ export default function DemoServicesPage() {
         createModal.onClose();
         router.push(`/demo/services/${newService.id}`);
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error creating service', status: 'error', duration: 3000 });
     }
   };
@@ -97,7 +97,7 @@ export default function DemoServicesPage() {
       toast({ title: 'Service deleted', status: 'info', duration: 2000 });
       setDeleteId(null);
       deleteDisclosure.onClose();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error deleting service', status: 'error', duration: 3000 });
     }
   };
@@ -113,7 +113,7 @@ export default function DemoServicesPage() {
         setDupDate('');
         setDupTitle('');
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error duplicating service', status: 'error', duration: 3000 });
     }
   };
@@ -135,7 +135,7 @@ export default function DemoServicesPage() {
       toast({ title: 'Template created', status: 'success', duration: 2000 });
       setTplTitle(''); setTplTime('09:00'); setTplDay(0);
       templateCreateModal.onClose();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error creating template', status: 'error', duration: 3000 });
     }
   };
@@ -151,7 +151,7 @@ export default function DemoServicesPage() {
         setGenerateDate('');
         router.push(`/demo/services/${svc.id}`);
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error generating service', status: 'error', duration: 3000 });
     }
   };
@@ -163,7 +163,7 @@ export default function DemoServicesPage() {
       toast({ title: 'Template deleted', status: 'info', duration: 2000 });
       setDeleteTemplateId(null);
       deleteTemplateConfirm.onClose();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error deleting template', status: 'error', duration: 3000 });
     }
   };

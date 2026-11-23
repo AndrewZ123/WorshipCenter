@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Box, Text, Button, Table, Thead, Tbody, Tr, Th, Td,
   Input, Flex, useToast, Spinner, Center, useColorModeValue,
-  HStack, VStack, Badge, IconButton, Menu, MenuButton, MenuList, MenuItem,
+  HStack, VStack, Badge, IconButton,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';
 import type { SongUsage, ServiceItem } from '@/lib/types';
@@ -14,7 +14,7 @@ import { formatShortDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  Download, Calendar, X, BarChart2, FileText
+  Download, Calendar, X
 } from 'lucide-react';
 
 export default function DemoUsagePage() {

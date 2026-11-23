@@ -21,8 +21,7 @@ import type { ChordProParsed } from '@/lib/chordpro';
 
 // Lucide icons
 import { 
-  Plus, Search, Music, MoreVertical, Trash2, Edit, 
-  SlidersHorizontal, Mic2, Upload, AlertCircle
+  Plus, Search, Music, MoreVertical, Mic2, Upload, AlertCircle
 } from 'lucide-react';
 
 export default function SongsPage() {

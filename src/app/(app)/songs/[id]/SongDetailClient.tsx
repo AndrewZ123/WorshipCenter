@@ -20,7 +20,7 @@ import EmptyState from '@/components/ui/EmptyState';
 // Lucide icons
 import { 
   ArrowLeft, MoreVertical, Trash2, Edit, FileText, Eye,
-  Music, Mic2, Youtube, Upload, Download, Clock, Calendar
+  Music, Mic2, Upload, Download, Calendar
 } from 'lucide-react';
 
 // ChordPro renderer — parses [G]Amazing [C]Grace format

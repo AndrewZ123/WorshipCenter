@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Box, Text, VStack, Button, HStack } from '@chakra-ui/react';
+import { Box, Text, VStack, Button } from '@chakra-ui/react';
 import { 
   Calendar, Music, Users, UserCheck, BarChart2, Clock,
   FileText, FolderOpen, Inbox, AlertCircle

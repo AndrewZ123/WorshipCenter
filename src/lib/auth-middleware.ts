@@ -32,16 +32,6 @@ const getSupabaseAdmin = (): SupabaseClient => {
   return supabaseAdmin;
 };
 
-// User payload extracted from JWT
-interface DecodedToken {
-  sub: string;  // User ID
-  email: string;
-  role: string;
-  church_id: string;
-  iat: number;  // Issued at time
-  exp?: number;
-}
-
 interface AuthResult {
   success: boolean;
   user: User | null;

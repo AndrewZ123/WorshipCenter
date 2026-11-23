@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, VStack, HStack, Text, useColorModeValue, Button, Divider } from '@chakra-ui/react';
+import { Box, VStack, HStack, Text, useColorModeValue, Button } from '@chakra-ui/react';
 import { Hash, Megaphone, Lock, Plus } from 'lucide-react';
 import type { ChatChannel } from '@/lib/types';
 

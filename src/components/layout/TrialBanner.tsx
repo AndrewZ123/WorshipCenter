@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Box, Button, HStack, Text, Icon, Container, Badge, useColorModeValue, VStack, Flex } from '@chakra-ui/react';
-import { FiClock, FiArrowRight, FiCheck } from 'react-icons/fi';
+import { FiClock, FiArrowRight } from 'react-icons/fi';
 import { useSubscription } from '@/lib/useSubscription';
 import { useAuth } from '@/lib/auth';
 import NextLink from 'next/link';

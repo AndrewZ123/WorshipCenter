@@ -10,7 +10,6 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { apiUrl, parseJsonSafe } from '@/lib/api-base';
-import { PRICING } from '@/lib/stripe';
 
 interface SyncSubscriptionButtonProps {
   onSynced?: () => void;

@@ -54,7 +54,7 @@ export default function PollModal({ isOpen, onClose, onCreate }: PollModalProps)
       setOptions(['', '']);
       setIsMultipleChoice(false);
       onClose();
-    } catch (error) {
+    } catch {
       toast({ title: 'Failed to create poll', status: 'error', duration: 3000 });
     } finally {
       setLoading(false);

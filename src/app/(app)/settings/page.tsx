@@ -59,7 +59,7 @@ export default function SettingsPage() {
 
   // Preferences & Blockout state
   const store = useStore();
-  const [preference, setPreference] = useState<TeamMemberPreference | null>(null);
+  const [, setPreference] = useState<TeamMemberPreference | null>(null);
   const [blockoutDates, setBlockoutDates] = useState<TeamMemberBlockoutDate[]>([]);
   const [prefFrequency, setPrefFrequency] = useState<number | null>(null);
   const [prefNotes, setPrefNotes] = useState('');
@@ -78,7 +78,7 @@ export default function SettingsPage() {
   const [loadingAdmins, setLoadingAdmins] = useState(false);
   const [savingAdmin, setSavingAdmin] = useState(false);
   const [showAddAdmin, setShowAddAdmin] = useState(false);
-  const [deleteAdminId, setDeleteAdminId] = useState<string | null>(null);
+  const [, setDeleteAdminId] = useState<string | null>(null);
 
   const SCOPES: { key: string; label: string; desc: string }[] = [
     { key: 'manage_services', label: 'Services', desc: 'Create, edit, and delete services' },
@@ -221,18 +221,6 @@ export default function SettingsPage() {
       console.error('Error adding admin:', error);
     } finally {
       setSavingAdmin(false);
-    }
-  };
-
-  const handleRemoveAdmin = async () => {
-    if (!church || !deleteAdminId) return;
-    if (deleteAdminId === user?.id) { setDeleteAdminId(null); return; }
-    try {
-      await db.adminPermissions.demoteFromAdmin(deleteAdminId, church.id);
-      setDeleteAdminId(null);
-      await loadAdmins();
-    } catch (error) {
-      console.error('Error removing admin:', error);
     }
   };
 
@@ -987,7 +975,7 @@ export default function SettingsPage() {
                   } else {
                     toast({ title: 'Deletion failed', description: result.error || 'Please try again or contact support.', status: 'error', duration: 5000 });
                   }
-                } catch (error) {
+                } catch {
                   toast({ title: 'Deletion failed', description: 'An unexpected error occurred.', status: 'error', duration: 5000 });
                 } finally {
                   setIsDeleting(false);

@@ -44,7 +44,7 @@ export default function TeamMemberDetailClient({ memberId: propMemberId, onBack 
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   // Preferences & Blockout state
-  const [preference, setPreference] = useState<TeamMemberPreference | null>(null);
+  const [, setPreference] = useState<TeamMemberPreference | null>(null);
   const [blockoutDates, setBlockoutDates] = useState<TeamMemberBlockoutDate[]>([]);
   const [prefFrequency, setPrefFrequency] = useState<number | null>(null);
   const [prefNotes, setPrefNotes] = useState('');

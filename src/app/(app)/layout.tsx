@@ -14,7 +14,6 @@ import { SubscriptionProvider } from '@/components/providers/SubscriptionProvide
 import { TourProvider } from '@/lib/tour/TourContext';
 import { PermissionsProvider } from '@/lib/PermissionsContext';
 import { OfflineProvider } from '@/lib/offline/OfflineContext';
-import { OfflineIndicator } from '@/components/layout/OfflineIndicator';
 import ProfileSetupWizard from '@/components/onboarding/ProfileSetupWizard';
 import { Center, Spinner, VStack, Text } from '@chakra-ui/react';
 

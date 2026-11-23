@@ -7,7 +7,6 @@ import {
   Divider,
   List,
   ListItem,
-  ListIcon,
   Link,
 } from '@chakra-ui/react';
 import { Shield, Mail, ArrowRight } from 'lucide-react';

@@ -2,7 +2,7 @@
 
 import React, { forwardRef } from 'react';
 import { Button as ChakraButton, Tooltip, HStack, Box } from '@chakra-ui/react';
-import { Icon, LucideIcon } from 'lucide-react';
+import { LucideIcon } from 'lucide-react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'icon';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';

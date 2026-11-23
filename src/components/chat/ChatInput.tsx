@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import {
-  HStack, Input, IconButton, Box, useColorModeValue, Text,
+  HStack, IconButton, Box, useColorModeValue, Text,
   useDisclosure, Tooltip, useBreakpointValue,
   Drawer, DrawerOverlay, DrawerContent, DrawerBody,
 } from '@chakra-ui/react';

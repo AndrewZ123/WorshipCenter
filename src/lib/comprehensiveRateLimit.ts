@@ -18,7 +18,6 @@ interface RateLimitResult {
 // In-memory cache for rate limiting (in production, consider using Redis)
 // Simple Map-based cache with TTL eviction
 const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_MAX_ENTRIES = 10000;
 const RATE_LIMIT_TTL = 60000 * 60; // 1 hour TTL
 
 // Periodically evict expired entries to prevent unbounded growth
@@ -41,7 +40,6 @@ export async function rateLimit(
 ): Promise<RateLimitResult> {
   const key = `${options.identifier}:${identifier}`;
   const now = Date.now();
-  const windowStart = now - options.window;
 
   // Get or create rate limit entry
   let entry = rateLimitCache.get(key);

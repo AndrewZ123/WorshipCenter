@@ -7,8 +7,7 @@ import {
   Box, VStack, HStack, Text, Button, Select, SimpleGrid,
   Stat, StatLabel, StatNumber, StatHelpText,
   Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Spinner, Center,
-  useColorModeValue, Card, CardBody, useDisclosure, Collapse,
-  Divider, Tag, TagLabel, Flex,
+  useColorModeValue, Card, CardBody, Collapse, Tag, Flex,
 } from '@chakra-ui/react';
 import type { ServiceDebriefPopulated, DebriefTrends } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
@@ -16,7 +15,7 @@ import EmptyState from '@/components/ui/EmptyState';
 
 // Lucide icons
 import {
-  Star, Calendar, Clock, TrendingUp, Users, MessageSquare,
+  Star, Clock, TrendingUp, Users, MessageSquare,
   ChevronDown, ChevronRight, Heart, CheckCircle, AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
@@ -250,7 +249,6 @@ export default function ServiceLogPage() {
                     </Thead>
                     <Tbody>
                       {trends.map((t) => {
-                        const avg = (t.avg_engagement + t.avg_flow + t.avg_tech) / 3;
                         return (
                           <Tr key={t.period} _hover={{ bg: hoverBg }}>
                             <Td fontWeight="600" fontSize="sm">{t.period}</Td>

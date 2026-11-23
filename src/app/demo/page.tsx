@@ -1,22 +1,21 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box, Text, SimpleGrid, Card, CardBody, HStack, VStack,
-  Badge, Button, Flex, Divider, useColorModeValue, Icon,
+  Badge, Button, Flex, Divider, useColorModeValue,
   Collapse, Tag, TagLabel,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';
 import { useStore } from '@/lib/StoreContext';
-import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment } from '@/lib/types';
+import type { Service, ServiceItem, ServiceAssignment } from '@/lib/types';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatShortDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  Calendar, Music, Users, Plus, BarChart2, Sparkles, Clock, ChevronRight, ChevronDown, CheckSquare,
-  UserPlus
+  Calendar, Music, Users, Plus, BarChart2, Clock, ChevronRight, ChevronDown, CheckSquare
 } from 'lucide-react';
 import ServeSection from '@/components/serve/ServeSection';
 

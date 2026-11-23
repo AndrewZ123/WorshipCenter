@@ -5,7 +5,7 @@ import {
   Box, VStack, HStack, Text, useColorModeValue, Divider, Badge,
   IconButton, Button, Modal, ModalOverlay, ModalContent, ModalHeader,
   ModalCloseButton, ModalBody, ModalFooter, FormControl, FormLabel,
-  Input, Textarea, Switch, useToast, useBreakpointValue,
+  Input, Textarea, Switch, useToast,
   Drawer, DrawerOverlay, DrawerContent, DrawerBody,
 } from '@chakra-ui/react';
 import { Trash2, Pencil, UserPlus, X } from 'lucide-react';

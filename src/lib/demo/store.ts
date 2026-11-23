@@ -20,7 +20,6 @@ import type {
   RehearsalLog,
   RehearsalStats,
   ServiceDebrief,
-  TimingComparisonItem,
   DebriefTrends,
   ServiceTask,
   MemberGroup,

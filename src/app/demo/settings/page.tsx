@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import {
   Box, Heading, Text, VStack, HStack, Button, Card, CardBody,
   Input, FormControl, FormLabel, Avatar, useColorModeValue, useToast,

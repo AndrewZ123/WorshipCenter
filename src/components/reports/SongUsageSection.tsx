@@ -14,7 +14,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import { formatShortDate } from '@/lib/formatDate';
 
 import {
-  Download, Calendar, BarChart2, Music, X
+  Download, Calendar, Music, X
 } from 'lucide-react';
 
 export default function SongUsageSection() {

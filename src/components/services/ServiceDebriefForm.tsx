@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  Box, Text, HStack, VStack, Button, Textarea, Flex,
-  useColorModeValue, useToast, Icon, Heading, Divider,
+  Box, Text, HStack, VStack, Button, Textarea,
+  useColorModeValue, useToast,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
-  ModalCloseButton, ModalFooter, Tag, TagLabel, Badge,
+  ModalCloseButton, ModalFooter, Tag, Badge,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
@@ -80,7 +80,7 @@ export default function ServiceDebriefForm({
   const [sawGodWorking, setSawGodWorking] = useState(existingEntry?.saw_god_working || '');
 
   // Build timing comparison data from service_items
-  const [timingData, setTimingData] = useState<TimingComparisonItem[]>(() => {
+  const [timingData] = useState<TimingComparisonItem[]>(() => {
     if (existingEntry?.timing_data && existingEntry.timing_data.length > 0) {
       return existingEntry.timing_data as TimingComparisonItem[];
     }
@@ -92,12 +92,6 @@ export default function ServiceDebriefForm({
       actual_seconds: item.actual_duration_seconds ?? null,
     }));
   });
-
-  const updateActual = (itemId: string, seconds: number | null) => {
-    setTimingData((prev) =>
-      prev.map((t) => (t.item_id === itemId ? { ...t, actual_seconds: seconds } : t))
-    );
-  };
 
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');

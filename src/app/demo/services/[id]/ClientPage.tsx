@@ -7,16 +7,16 @@ import {
   FormControl, FormLabel, Card, CardBody, useToast, IconButton,
   Badge, useColorModeValue, Spinner, Center, Modal, ModalOverlay,
   ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter,
-  Select, Textarea, useDisclosure, Tabs, TabList, TabPanels, Tab, TabPanel,
+  Select, Textarea, useDisclosure,
   Divider, Checkbox, Tag, TagLabel, Progress,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';
-import type { Service, ServiceItem, TeamMember, ServiceAssignment, ServiceStatus, Song } from '@/lib/types';
+import type { Service, ServiceItem, ServiceAssignment, ServiceStatus } from '@/lib/types';
 import Avatar from '@/components/ui/Avatar';
-import { formatShortDate, formatRelativeDate } from '@/lib/formatDate';
+import { formatRelativeDate } from '@/lib/formatDate';
 import {
-  ArrowLeft, Trash2, Copy, Calendar, Clock, Users, ListMusic, MessageCircle,
-  CheckSquare, Star, Music, CheckCheck, Send, ChevronUp, ChevronDown,
+  ArrowLeft, Trash2, Copy, Clock, Users, ListMusic, MessageCircle,
+  CheckSquare, Star, Music, Send, ChevronUp, ChevronDown,
   Share2, Link2, Link2Off
 } from 'lucide-react';
 
@@ -79,7 +79,7 @@ export default function DemoServiceDetailClient() {
   const [debriefWentWell, setDebriefWentWell] = useState('');
   const [debriefBroke, setDebriefBroke] = useState('');
   const [debriefChange, setDebriefChange] = useState('');
-  const [debriefGod, setDebriefGod] = useState('');
+  const [debriefGod] = useState('');
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -249,14 +249,6 @@ export default function DemoServiceDetailClient() {
   const handleToggleTask = (taskId: string) => {
     toggleTask(taskId, user?.id || '');
     loadData();
-  };
-
-  const handleMarkRehearsed = (songId: string, rehearsed: boolean) => {
-    const userTeamMember = teamMembers.find(tm => tm.user_id === user?.id || tm.name === user?.name);
-    if (userTeamMember) {
-      markRehearsed(serviceId, userTeamMember.id, songId, rehearsed);
-      loadData();
-    }
   };
 
   if (loading) return <Center minH="50vh"><Spinner size="xl" color="teal.500" /></Center>;

@@ -275,7 +275,6 @@ export default function PollRenderer({
           <VStack spacing="2" align="stretch">
             {poll.options.map((option, i) => {
               const pct = getPercentage(i);
-              const count = votes.filter(v => v.option_index === i).length;
               const isSelected = userVotes.has(i);
 
               return (

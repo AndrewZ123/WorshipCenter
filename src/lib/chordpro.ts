@@ -124,7 +124,6 @@ export function toChordPro(parsed: ChordProParsed): string {
     let charIdx = 0;
     for (const chord of l.chords) {
       // Find where to insert chord in the text
-      const before = l.text.slice(charIdx, charIdx + chord.length);
       line += `[${chord}]`;
       charIdx += chord.length;
     }

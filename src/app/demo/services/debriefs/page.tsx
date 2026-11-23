@@ -3,14 +3,13 @@
 import { useState, useMemo } from 'react';
 import { useDemo } from '@/lib/demo/context';
 import {
-  Box, VStack, HStack, Text, Button, Select, SimpleGrid,
+  Box, VStack, HStack, Text, Select, SimpleGrid,
   Stat, StatLabel, StatNumber, StatHelpText,
-  Table, Thead, Tbody, Tr, Th, Td, Badge, Spinner, Center,
-  useColorModeValue, Card, CardBody, Collapse, Divider, Flex,
+  useColorModeValue, Card, CardBody, Collapse, Flex,
 } from '@chakra-ui/react';
 import Avatar from '@/components/ui/Avatar';
 import EmptyState from '@/components/ui/EmptyState';
-import { Star, Calendar, TrendingUp, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Star, TrendingUp, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 
 type DateRange = '1m' | '3m' | '6m' | '1y' | 'all';
 

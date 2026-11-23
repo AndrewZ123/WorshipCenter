@@ -5,10 +5,10 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Box, Text, HStack, Button, VStack, Input, Flex,
   FormControl, FormLabel, Card, CardBody, useToast, IconButton,
-  useColorModeValue, Spinner, Center, Modal, ModalOverlay,
+  useColorModeValue, Center, Modal, ModalOverlay,
   ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter,
   Select, Textarea, useDisclosure, Menu, MenuButton, MenuList, MenuItem,
-  Divider, Badge, Portal, Tabs, TabList, TabPanels, Tab, TabPanel,
+  Divider, Badge, Portal, Tabs, TabPanels, TabPanel,
   Skeleton, SimpleGrid, Progress,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
@@ -37,7 +37,7 @@ import { computeKeyChange, computeItemAdded, computeItemRemoved, formatChangesSu
 // Lucide icons
 import { 
   ArrowLeft, MoreVertical, Copy, Trash2, Edit, Plus,
-  Music, AlignLeft, Send, CheckCircle, Calendar, Clock, 
+  Music, AlignLeft, Send, Calendar, Clock,
   BookOpen, UserCheck, MessageSquare, Calendar as CalendarIcon,
   ListMusic, Users, ListChecks, Monitor, Printer, CheckSquare,
   Star, UserPlus, Share2, Link2, Link2Off
@@ -745,47 +745,6 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       toast({ title: 'Link copied!', status: 'success', duration: 2000 });
     } catch {
       toast({ title: 'Failed to copy', status: 'error', duration: 2000 });
-    }
-  };
-
-  const handleUpdateAssignmentStatus = async (assignmentId: string, newStatus: ServiceAssignment['status']) => {
-    if (!church) return;
-    
-    try {
-      const assignment = assignments.find(a => a.id === assignmentId);
-      const member = assignment ? teamMembers.find(m => m.id === assignment.team_member_id) : null;
-      const memberName = member?.name || 'Team member';
-      
-      await store.assignments.update(assignmentId, church.id, { status: newStatus });
-      if (newStatus === 'confirmed' || newStatus === 'declined') {
-        await store.notifications.create({
-          church_id: church!.id,
-          user_id: user!.id,
-          type: 'status_change',
-          title: `Assignment ${newStatus}`,
-          message: `${memberName} ${newStatus} the invitation for ${service?.title || 'this service'}`,
-          service_id: serviceId,
-          read: false,
-        });
-      }
-      await loadData();
-      toast({ title: 'Status updated', status: 'success', duration: 2000 });
-    } catch (error) {
-      console.error('Error updating assignment:', error);
-      toast({ title: 'Error updating assignment', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
-    }
-  };
-
-  const handleDeleteAssignment = async (assignmentId: string) => {
-    if (!church || !service) return;
-
-    try {
-      await store.assignments.delete(assignmentId, church.id);
-      await loadData();
-      toast({ title: 'Assignment removed', status: 'info', duration: 2000 });
-    } catch (error) {
-      console.error('Error removing assignment:', error);
-      toast({ title: 'Error removing assignment', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
     }
   };
 

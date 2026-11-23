@@ -19,7 +19,7 @@ import { formatRelativeDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  Plus, MoreVertical, Users, Trash2, Link as LinkIcon
+  Plus, MoreVertical, Trash2, Link as LinkIcon
 } from 'lucide-react';
 
 export default function DemoTeamPage() {

@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box, Text, HStack, VStack, Card, CardBody, useToast,
-  useColorModeValue, Spinner, Center, Badge, Checkbox, IconButton,
+  useColorModeValue, Badge, Checkbox, IconButton,
   Heading, Input, InputGroup, InputLeftElement,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';

@@ -101,7 +101,7 @@ export default function TemplatesPage() {
       toast({ title: 'Template deleted', status: 'info', duration: 2000 });
       setDeleteId(null);
       await loadTemplates();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error deleting template', status: 'error', duration: 3000 });
     }
   };

@@ -3,16 +3,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Text, VStack, HStack, Button, useToast, Spinner, Center,
-  Card, CardBody, useColorModeValue, Tag, TagLabel, TagCloseButton,
+  Card, CardBody, useColorModeValue, Tag, TagLabel,
   Flex, Badge, Modal, ModalOverlay, ModalContent, ModalHeader,
   ModalBody, ModalCloseButton, ModalFooter, FormControl, FormLabel,
-  Input, Select, useDisclosure, Switch, IconButton, SimpleGrid,
+  Input, Select, useDisclosure, Switch, IconButton,
 } from '@chakra-ui/react';
 import { useStore } from '@/lib/StoreContext';
 import { supabase } from '@/lib/supabase';
 import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import type { ServiceRolePosition, SignupRequestPopulated } from '@/lib/types';
-import { Plus, CheckCircle, XCircle, UserPlus, Trash2, Settings } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, UserPlus, Trash2 } from 'lucide-react';
 
 const ROLE_OPTIONS = [
   'worship_leader', 'vocals', 'acoustic', 'electric', 'keys', 'bass', 'drums',
@@ -82,7 +82,7 @@ export default function SignupManagement({ serviceId, churchId, onSignupChange }
       setNewMax(1);
       addModal.onClose();
       await loadData();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error adding position', status: 'error', duration: 3000 });
     }
   };
@@ -95,7 +95,7 @@ export default function SignupManagement({ serviceId, churchId, onSignupChange }
       setPositions(prev => prev.map(p =>
         p.id === position.id ? { ...p, signup_enabled: !p.signup_enabled } : p
       ));
-    } catch (error) {
+    } catch {
       toast({ title: 'Error updating position', status: 'error', duration: 3000 });
     }
   };
@@ -107,7 +107,7 @@ export default function SignupManagement({ serviceId, churchId, onSignupChange }
         setPositions(prev => prev.filter(p => p.id !== positionId));
         toast({ title: 'Position removed', status: 'info', duration: 2000 });
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error removing position', status: 'error', duration: 3000 });
     }
   };

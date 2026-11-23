@@ -6,7 +6,7 @@ import {
   Box, Heading, HStack, Button, VStack, Text, Input,
   FormControl, FormLabel, Card, CardBody, useToast, IconButton,
   Tag, TagLabel, Wrap, WrapItem, Table, Thead, Tbody, Tr, Th, Td, Badge,
-  Spinner, Center, Flex, useColorModeValue,
+  Spinner, Center, useColorModeValue,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';
 import type { TeamMember, Service } from '@/lib/types';

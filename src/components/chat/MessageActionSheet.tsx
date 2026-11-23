@@ -3,7 +3,7 @@
 import {
   Box, VStack, HStack, Text, useColorModeValue, Drawer, DrawerOverlay, DrawerContent, DrawerBody, Divider,
 } from '@chakra-ui/react';
-import { SmilePlus, Pencil, Copy, Trash2 } from 'lucide-react';
+import { Pencil, Copy, Trash2 } from 'lucide-react';
 
 interface MessageActionSheetProps {
   isOpen: boolean;

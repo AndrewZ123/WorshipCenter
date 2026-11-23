@@ -4,8 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Text, HStack, VStack, Button, Flex,
   IconButton, useColorModeValue, Modal, ModalOverlay,
-  ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter,
-  useDisclosure, Badge, Progress, Spacer,
+  ModalContent, Badge, Progress,
 } from '@chakra-ui/react';
 import type { Service, ServiceItem } from '@/lib/types';
 import { formatServiceDate } from '@/lib/formatDate';
@@ -65,9 +64,7 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
 
   const currentItem = items[currentIndex];
   const nextItem = items[currentIndex + 1];
-  const prevItem = items[currentIndex - 1];
 
-  const totalEstimated = items.reduce((sum, item) => sum + (item.duration_minutes || 0), 0);
   const estimatedMs = (currentItem?.duration_minutes || 0) * 60 * 1000;
 
   // ─── Broadcast & DB sync ──────────────────────────────────────
@@ -218,7 +215,7 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
       } else {
         await document.exitFullscreen();
       }
-    } catch (err) {
+    } catch {
       setIsFullscreen(!isFullscreen);
     }
   }, [isFullscreen]);

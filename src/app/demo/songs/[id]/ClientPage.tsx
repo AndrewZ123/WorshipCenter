@@ -11,7 +11,7 @@ import {
   Spinner, Center,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';
-import type { Song, SongUsage, Service } from '@/lib/types';
+import type { Song, Service } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 const BackIcon = () => (

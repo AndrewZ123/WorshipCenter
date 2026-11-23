@@ -14,7 +14,7 @@ import ServiceDetailClient from '@/app/(app)/services/[id]/ServiceDetailClient';
 import type { ServiceTask } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatServiceDate } from '@/lib/formatDate';
-import { CheckSquare, Search, Calendar, ArrowRight } from 'lucide-react';
+import { Search, Calendar, ArrowRight } from 'lucide-react';
 
 type EnrichedTask = ServiceTask & {
   service?: { date: string; title: string } | null;

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import type { Church, User, Song, TeamMember, TeamMemberPreference, TeamMemberBlockoutDate, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessage, ChatMessagePopulated, RehearsalLog, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote, ServiceDebrief, TimingComparisonItem } from '@/lib/types';
+import type { Church, User, Song, TeamMember, TeamMemberPreference, TeamMemberBlockoutDate, Service, ServiceItem, ServiceAssignment, SongUsage, ServiceTemplate, ChatMessage, ChatMessagePopulated, RehearsalLog, ServiceTask, MemberGroup, MemberGroupMember, TeamMemberNote, ServiceDebrief } from '@/lib/types';
 import { getInitialDemoData } from './data';
 
   // Demo context types

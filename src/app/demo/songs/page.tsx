@@ -11,14 +11,14 @@ import {
   useColorModeValue, Spinner, Center,
 } from '@chakra-ui/react';
 import { useDemo } from '@/lib/demo/context';
-import type { Song, SongUsage } from '@/lib/types';
+import type { SongUsage } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatRelativeDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
-  Plus, MoreVertical, Search, Music, Trash2, SlidersHorizontal
+  Plus, MoreVertical, Search, Music, Trash2
 } from 'lucide-react';
 
 export default function DemoSongsPage() {

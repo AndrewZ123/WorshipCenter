@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Box, Flex, VStack, Text, HStack, Menu, MenuButton,
-  MenuList, MenuItem, Divider, useDisclosure, IconButton, Drawer,
+  MenuList, MenuItem, Divider, useDisclosure, Drawer,
   DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
   useColorMode, useColorModeValue, Badge, Switch,   Portal,
 } from '@chakra-ui/react';
@@ -424,7 +424,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [onOpen, onClose, setDrawerControls]);
 
   // Determine if mobile — use matchMedia to avoid SSR flash
-  const [isMobile, setIsMobile] = useState(false);
+  const [, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 62em)');
     setIsMobile(mq.matches);

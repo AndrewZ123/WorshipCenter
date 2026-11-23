@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Text, SimpleGrid, useColorModeValue } from '@chakra-ui/react';
+import { Box, SimpleGrid, useColorModeValue } from '@chakra-ui/react';
 
 const EMOJIS = [
   '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊',

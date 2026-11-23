@@ -9,7 +9,7 @@ import {
   FormLabel, VStack, Flex, useToast, IconButton, Spinner, Center,
   Card, CardBody, Menu, MenuButton, MenuList, MenuItem,
   useColorModeValue, Select, Tag, TagLabel, Collapse,
-  Divider, SimpleGrid,
+  Divider,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
@@ -25,8 +25,7 @@ import { formatServiceDate } from '@/lib/formatDate';
 // Lucide icons
 import { 
   Plus, ChevronDown, ChevronRight, Calendar, Clock, MoreVertical,
-  Copy, Trash2, Repeat, CalendarPlus, Star, MessageSquare,
-  CheckCircle, AlertTriangle, RefreshCw, Heart, ExternalLink
+  Copy, Trash2, Repeat, CalendarPlus, Star, AlertTriangle, ExternalLink
 } from 'lucide-react';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -133,7 +132,7 @@ export default function ServicesPage() {
       setTitle(''); setDate(''); setTime('09:00');
       createModal.onClose();
       await loadData();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error creating service', status: 'error', duration: 3000 });
     }
   };
@@ -145,7 +144,7 @@ export default function ServicesPage() {
       toast({ title: 'Service deleted', status: 'info', duration: 2000 });
       setDeleteId(null);
       await loadData();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error deleting service', status: 'error', duration: 3000 });
     }
   };
@@ -162,7 +161,7 @@ export default function ServicesPage() {
         setDupTitle('');
         await loadData();
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error duplicating service', status: 'error', duration: 3000 });
     }
   };
@@ -185,7 +184,7 @@ export default function ServicesPage() {
       setTplTitle(''); setTplTime('09:00'); setTplDay(0);
       templateCreateModal.onClose();
       await loadData();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error creating template', status: 'error', duration: 3000 });
     }
   };
@@ -201,7 +200,7 @@ export default function ServicesPage() {
         setGenerateDate('');
         setSelectedServiceId(svc.id);
       }
-    } catch (error) {
+    } catch {
       toast({ title: 'Error generating service', status: 'error', duration: 3000 });
     }
   };
@@ -213,7 +212,7 @@ export default function ServicesPage() {
       toast({ title: 'Template deleted', status: 'info', duration: 2000 });
       setDeleteTemplateId(null);
       await loadData();
-    } catch (error) {
+    } catch {
       toast({ title: 'Error deleting template', status: 'error', duration: 3000 });
     }
   };

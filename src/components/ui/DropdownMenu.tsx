@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, VStack, Text, Icon, Portal, useColorModeValue } from '@chakra-ui/react';
+import { Box, VStack, Portal, useColorModeValue } from '@chakra-ui/react';
 import { MoreVertical, Edit, Trash2, Copy, ExternalLink } from 'lucide-react';
 
 export interface DropdownItem {

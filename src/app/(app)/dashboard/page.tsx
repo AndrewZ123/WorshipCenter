@@ -10,7 +10,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { useStore } from '@/lib/StoreContext';
-import type { Service, Song, TeamMember, ServiceItem, ServiceAssignment, ServiceTask, RehearsalStats } from '@/lib/types';
+import type { Service, Song, TeamMember, ServiceItem, RehearsalStats } from '@/lib/types';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatServiceDate, formatShortDate, getGreeting } from '@/lib/formatDate';
 import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
@@ -18,9 +18,8 @@ import ServiceDetailClient from '@/app/(app)/services/[id]/ServiceDetailClient';
 
 // Lucide icons
 import { 
-  Calendar, Music, Users, Plus, Sparkles, BarChart2,
-  Clock, ChevronRight, CheckSquare, ChevronDown, ChevronRight as ChevronRightIcon,
-  UserPlus
+  Calendar, Music, Users, Plus, BarChart2,
+  Clock, ChevronRight, CheckSquare, ChevronDown, ChevronRight as ChevronRightIcon
 } from 'lucide-react';
 import ServeSection from '@/components/serve/ServeSection';
 
@@ -203,8 +202,8 @@ export default function DashboardPage() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [myTasks, setMyTasks] = useState<any[]>([]);
-  const [hasData, setHasData] = useState(false);
-  const [dismissedPrompt, setDismissedPrompt] = useState(false);
+  const [, setHasData] = useState(false);
+  const [, setDismissedPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
@@ -272,11 +271,6 @@ export default function DashboardPage() {
       setDismissedPrompt(true);
     }
   }, []);
-
-  const handleDismissPrompt = () => {
-    setDismissedPrompt(true);
-    localStorage.setItem('dashboard-prompt-dismissed', 'true');
-  };
 
   const today = new Date().toISOString().split('T')[0];
   const thisWeekEnd = (() => {

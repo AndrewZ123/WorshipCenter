@@ -5,7 +5,7 @@ import {
   Box, VStack, HStack, Text, Button, Spinner, Center,
   useToast, useColorModeValue, Tag, TagLabel, Flex,
 } from '@chakra-ui/react';
-import { CheckSquare, Music, CheckCheck } from 'lucide-react';
+import { CheckSquare, CheckCheck } from 'lucide-react';
 import { db } from '@/lib/store';
 import type { ServiceItem, RehearsalLog, RehearsalStats } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';

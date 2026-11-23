@@ -6,12 +6,12 @@ import { usePermissions } from '@/lib/PermissionsContext';
 import { db } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import {
-  Box, Text, HStack, VStack, Flex, Spinner, Center, useColorModeValue,
+  Box, Text, HStack, VStack, Spinner, Center, useColorModeValue,
   useDisclosure, useToast, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerBody,
   Badge, IconButton, Button,
 } from '@chakra-ui/react';
 import { Menu, MessageCircle, Hash, Plus } from 'lucide-react';
-import type { ChatChannel, ChatReaction, ChatChannelWithMeta, ChatChannelMessagePopulated } from '@/lib/types';
+import type { ChatChannel, ChatReaction } from '@/lib/types';
 import ChannelList from '@/components/chat/ChannelList';
 import ChannelHeader from '@/components/chat/ChannelHeader';
 import ChannelInfo from '@/components/chat/ChannelInfo';

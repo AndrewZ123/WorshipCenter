@@ -11,20 +11,20 @@ import {
   FormLabel, VStack, useToast, Badge, Input,
   Card, CardBody, IconButton, Menu, MenuButton, MenuList, MenuItem,
   useColorModeValue, Spinner, Center,
-  Tabs, TabList, Tab, TabPanels, TabPanel, Textarea,
+  Tabs, TabList, Tab, Textarea,
   SimpleGrid, AvatarGroup,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
-import type { TeamMember, Service, MemberGroup, MemberGroupMember } from '@/lib/types';
+import type { TeamMember, Service } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 
 // Lucide icons
 import { 
-  Plus, MoreVertical, Link2, Trash2, Users, Calendar, Mail,
-  CheckCircle2, Clock, UserPlus
+  Plus, MoreVertical, Link2, Trash2, Calendar, Mail,
+  CheckCircle2, Clock
 } from 'lucide-react';
 
 export default function TeamPage() {
@@ -175,11 +175,11 @@ export default function TeamPage() {
         let data;
         try {
           data = await parseJsonSafe(response);
-        } catch (parseError) {
+        } catch {
           // Use cloned response to get text if JSON parsing fails
           try {
             await clonedResponse.text();
-          } catch (textError) {
+          } catch {
             // Silently handle text error
           }
           toast({ 
@@ -215,7 +215,7 @@ export default function TeamPage() {
             duration: 5000 
           });
         }
-      } catch (error) {
+      } catch {
         toast({ 
           title: 'Email warning', 
           description: 'Team member added, but there was an issue sending the invitation email',
@@ -271,11 +271,11 @@ export default function TeamPage() {
       let data;
       try {
         data = await parseJsonSafe(response);
-      } catch (parseError) {
+      } catch {
         // Use cloned response to get text if JSON parsing fails
         try {
           await clonedResponse.text();
-        } catch (textError) {
+        } catch {
           // Silently handle text error
         }
         toast({ 
@@ -318,7 +318,7 @@ export default function TeamPage() {
           duration: 3000 
         });
       }
-    } catch (error) {
+    } catch {
       toast({ 
         title: 'Failed to send invitation', 
         description: 'Please use copy invite link instead',

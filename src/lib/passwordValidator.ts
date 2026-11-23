@@ -57,9 +57,6 @@ const commonPasswords = [
   'password1',
 ];
 
-// Special characters that count for strength
-const specialChars = '!@#$%^&*()_+-=[]{}|;:\'",.<>?`~';
-
 /**
  * Validate password strength and provide feedback
  */

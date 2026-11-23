@@ -9,7 +9,7 @@ import {
   Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Spinner, Center,
   useColorModeValue, Card, CardBody, CardHeader, Button,
 } from '@chakra-ui/react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare, BarChart3 } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare } from 'lucide-react';
 import SongUsageSection from '@/components/reports/SongUsageSection';
 import { countServiceStatuses } from '@/lib/service-status';
 

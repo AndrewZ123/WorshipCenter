@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { sanitizeString, sanitizeHtml, sanitizeObject } from '@/lib/sanitize';
+import { sanitizeString, sanitizeHtml } from '@/lib/sanitize';
 import type {
   Church,
   User,
@@ -34,9 +34,7 @@ import type {
   AdminPermission,
   ChatPoll,
   ChatPollVote,
-  ChatAttachment,
   ChatReaction,
-  ChatMessageFull,
   ChatChannelWithMeta,
   ServiceRolePosition,
   SignupRequest,

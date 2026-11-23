@@ -8,12 +8,11 @@ import {
   Stat, StatLabel, StatNumber, StatHelpText, Progress,
   Table, Thead, Tbody, Tr, Th, Td, Badge, Button, Input, Flex,
   useColorModeValue, Card, CardBody, CardHeader, Divider, Tooltip, useToast,
-  Spinner, Center,
 } from '@chakra-ui/react';
 import type { SongUsage, ServiceItem } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatShortDate } from '@/lib/formatDate';
-import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare, Download, BarChart2, Music, X } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare, Download, Music, X } from 'lucide-react';
 
 interface MemberStat {
   name: string;

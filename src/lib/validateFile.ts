@@ -175,7 +175,7 @@ async function validateFileContent(
     }
 
     return { valid: true };
-  } catch (error) {
+  } catch {
     return {
       valid: false,
       error: 'Failed to validate file content',

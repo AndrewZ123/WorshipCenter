@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripe, isStripeConfigured, getMissingStripeConfig, PRICING } from '@/lib/stripe';
+import { getStripe, isStripeConfigured, getMissingStripeConfig } from '@/lib/stripe';
 import { supabaseAdmin, isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
 import { env } from '@/lib/env';
 import type { Subscription } from '@/lib/types';

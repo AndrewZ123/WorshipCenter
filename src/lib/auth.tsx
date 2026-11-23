@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User, Church } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { apiBaseUrl, isCapacitorNative, getRedirectUrl, parseJsonSafe } from '@/lib/api-base';
+import { apiBaseUrl, getRedirectUrl, parseJsonSafe } from '@/lib/api-base';
 
 export interface SignupResult {
   success: boolean;
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           return 'success';
         }
-      } catch (err) {
+      } catch {
         // Silent cache failure
       }
     }

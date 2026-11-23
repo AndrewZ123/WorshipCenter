@@ -68,7 +68,7 @@ export default function ChannelCreateModal({ isOpen, onClose, churchId, userId, 
       setSelectedMembers([]);
       onClose();
       onCreated();
-    } catch (error) {
+    } catch {
       toast({ title: 'Failed to create channel', status: 'error', duration: 3000 });
     } finally {
       setLoading(false);
