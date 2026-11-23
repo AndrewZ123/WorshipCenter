@@ -16,8 +16,7 @@ import {
   Switch,
 } from '@chakra-ui/react';
 import { X, UserPlus, Users, Calendar, AlertTriangle } from 'lucide-react';
-import { apiUrl, parseJsonSafe } from '@/lib/api-base';
-import { supabase } from '@/lib/supabase';
+import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { db } from '@/lib/store';
 import type {
   Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate,
@@ -138,15 +137,6 @@ export default function ServiceSchedule({
     } finally {
       setLoading(false);
     }
-  };
-
-  const getAuthHeaders = async (): Promise<Record<string, string>> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
-    }
-    return headers;
   };
 
   const handleConfirm = async (assignmentId: string) => {
@@ -347,15 +337,9 @@ export default function ServiceSchedule({
     try {
       setBulkSaving(true);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
-
       const response = await fetch(apiUrl('/api/assignments/bulk'), {
         method: 'POST',
-        headers,
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           serviceId: service.id,
           assignments: memberIds.map((memberId) => ({

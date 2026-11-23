@@ -10,8 +10,7 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
-import { supabase } from '@/lib/supabase';
-import { apiUrl, parseJsonSafe } from '@/lib/api-base';
+import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import type { ServiceRolePosition, SignupRequestPopulated } from '@/lib/types';
 import { Calendar, Clock, Users, UserPlus, CheckCircle, AlertCircle, XCircle, Filter } from 'lucide-react';
 
@@ -97,11 +96,7 @@ export default function ServeSection() {
     setSigningUp(position.id);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
+      const headers = await getAuthHeaders();
 
       const body: any = {
         serviceId: position.service_id,

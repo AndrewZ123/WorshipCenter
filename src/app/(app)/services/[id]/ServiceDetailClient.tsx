@@ -20,7 +20,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 import { formatServiceDate } from '@/lib/formatDate';
-import { apiUrl, parseJsonSafe } from '@/lib/api-base';
+import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
@@ -408,8 +408,6 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       let sentCount = 0;
       let emailCount = 0;
 
-      const session = (await supabase.auth.getSession()).data.session;
-
       for (const assignment of assignments) {
         const member = churchMembers.find((m) => m.id === assignment.team_member_id);
         if (!member) continue;
@@ -431,10 +429,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
           try {
             const res = await fetch(apiUrl('/api/notifications/send-invitation'), {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-              },
+              headers: await getAuthHeaders(),
               body: JSON.stringify({
                 assignmentId: assignment.id,
                 churchId: church.id,
@@ -859,7 +854,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       if (member?.email) {
         fetch(apiUrl('/api/notifications/send-invitation'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await getAuthHeaders(),
           body: JSON.stringify({
             assignmentId: '',
             churchId: church.id,

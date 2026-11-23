@@ -9,6 +9,8 @@
  *         which has no server, so all API calls must be absolute.
  */
 
+import { supabase } from '@/lib/supabase';
+
 export function isCapacitorNative(): boolean {
   if (typeof window === 'undefined') return false;
   // Capacitor injects this global when running in a native shell
@@ -57,6 +59,60 @@ export function apiUrl(path: string): string {
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${base}${normalizedPath}`;
+}
+
+/**
+ * Get the current Supabase access token, if there is a session.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build headers for an authenticated API call.
+ *
+ * Sends JSON by default and attaches the current Supabase session's bearer
+ * token. Protected API routes require `Authorization: Bearer <access_token>`;
+ * callers that skip it receive a 401 even when the user is signed in.
+ */
+export async function getAuthHeaders(
+  options: { json?: boolean } = {}
+): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  if (options.json !== false) headers['Content-Type'] = 'application/json';
+
+  const token = await getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+/**
+ * Wait for Supabase to restore/return a session before making an
+ * authenticated request. The session can still be hydrating on first mount,
+ * so a single getSession() call is not reliable.
+ *
+ * Returns null only after all attempts are exhausted (definitely signed out).
+ */
+export async function waitForAccessToken(
+  options: { attempts?: number; delayMs?: number } = {}
+): Promise<string | null> {
+  const attempts = Math.max(1, options.attempts ?? 5);
+  const delayMs = Math.max(0, options.delayMs ?? 250);
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const token = await getAccessToken();
+    if (token) return token;
+    if (attempt < attempts - 1 && delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return null;
 }
 
 /**

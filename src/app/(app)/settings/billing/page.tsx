@@ -18,7 +18,7 @@ import { useSubscription } from '@/lib/useSubscription';
 import { PRICING } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiUrl, parseJsonSafe } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe, waitForAccessToken } from '@/lib/api-base';
 import { Box, SimpleGrid } from '@chakra-ui/react';
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
@@ -65,20 +65,32 @@ export default function BillingPage() {
   // is actually configured, instead of hardcoding true and failing on click.
   const [stripeReady, setStripeReady] = useState(false);
   const [stripeStatusLoading, setStripeStatusLoading] = useState(true);
+  const [stripeStatusError, setStripeStatusError] = useState<'signed_out' | 'error' | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) return;
+        // The Supabase session can still be hydrating on first mount. Wait for
+        // it instead of silently leaving stripeReady=false forever.
+        const accessToken = await waitForAccessToken();
+        if (cancelled) return;
+        if (!accessToken) {
+          setStripeStatusError('signed_out');
+          return;
+        }
+
         const res = await fetch(apiUrl('/api/billing/status'), {
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
+        if (!res.ok) {
+          if (!cancelled) setStripeStatusError('error');
+          return;
+        }
         const data = await parseJsonSafe(res);
         if (!cancelled) setStripeReady(Boolean(data?.configured));
       } catch {
-        // Leave stripeReady=false on failure
+        if (!cancelled) setStripeStatusError('error');
       } finally {
         if (!cancelled) setStripeStatusLoading(false);
       }
@@ -553,8 +565,41 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* ── Stripe Not Configured ──────────────────────────────────────── */}
-      {!stripeReady && (
+      {/* ── Stripe status ─────────────────────────────────────────────── */}
+      {stripeStatusLoading ? (
+        <div style={{
+          padding: '20px', backgroundColor: '#f7fafc', borderRadius: '10px',
+          border: '1px solid #e2e8f0', marginTop: '16px',
+        }}>
+          <p style={{ fontSize: '14px', color: '#718096' }}>
+            Checking payment configuration…
+          </p>
+        </div>
+      ) : stripeStatusError === 'signed_out' ? (
+        <div style={{
+          padding: '20px', backgroundColor: '#fffaf0', borderRadius: '10px',
+          border: '1px solid #fbd38d', marginTop: '16px',
+        }}>
+          <p style={{ fontWeight: 600, color: '#744210', marginBottom: '8px' }}>
+            Please log in
+          </p>
+          <p style={{ fontSize: '14px', color: '#744210' }}>
+            Log in to manage your subscription and billing.
+          </p>
+        </div>
+      ) : stripeStatusError ? (
+        <div style={{
+          padding: '20px', backgroundColor: '#f7fafc', borderRadius: '10px',
+          border: '1px solid #e2e8f0', marginTop: '16px',
+        }}>
+          <p style={{ fontWeight: 600, color: '#4a5568', marginBottom: '8px' }}>
+            Unable to check billing status
+          </p>
+          <p style={{ fontSize: '14px', color: '#718096' }}>
+            Please refresh the page and try again.
+          </p>
+        </div>
+      ) : !stripeReady ? (
         <div style={{
           padding: '20px', backgroundColor: '#f7fafc', borderRadius: '10px',
           border: '1px solid #e2e8f0', marginTop: '16px',
@@ -566,7 +611,7 @@ export default function BillingPage() {
             Stripe is not set up yet. Contact support if you need to manage your subscription.
           </p>
         </div>
-      )}
+      ) : null}
     </Box>
   );
 }

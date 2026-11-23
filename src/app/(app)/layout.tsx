@@ -4,6 +4,8 @@
 import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { shouldRedirectToLogin } from '@/lib/auth-routing';
 import { StoreProvider } from '@/lib/StoreContext';
 import { db } from '@/lib/store';
 import AppShell from '@/components/layout/AppShell';
@@ -20,31 +22,66 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [sessionState, setSessionState] = React.useState({
+    checked: false,
+    hasSession: false,
+  });
+
+  // When the profile is missing, check the actual Supabase session before
+  // redirecting. During signup the profile row can lag behind SIGNED_IN.
+  React.useEffect(() => {
+    if (loading) {
+      setSessionState({ checked: false, hasSession: false });
+      return;
+    }
+
+    if (user) {
+      setSessionState({ checked: true, hasSession: true });
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!cancelled) {
+          setSessionState({ checked: true, hasSession: Boolean(session?.user) });
+        }
+      } catch {
+        if (!cancelled) setSessionState({ checked: true, hasSession: false });
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user, loading]);
 
   React.useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        router.replace('/login');
-        return;
-      }
+    if (shouldRedirectToLogin({
+      loading,
+      hasUser: Boolean(user),
+      sessionChecked: sessionState.checked,
+      hasSession: sessionState.hasSession,
+    })) {
+      router.replace('/login');
+      return;
+    }
 
+    if (!loading && user && user.role !== 'admin') {
       // All non-admin users (team + leader) are restricted from admin-only routes
-      if (user.role !== 'admin') {
-        const restrictedPrefixes = [
-          '/team',
-          '/templates',
-          '/usage',
-          '/reports',
-          '/services/debriefs',
-          '/settings/billing',
-        ];
+      const restrictedPrefixes = [
+        '/team',
+        '/templates',
+        '/usage',
+        '/reports',
+        '/services/debriefs',
+        '/settings/billing',
+      ];
 
-        if (restrictedPrefixes.some(prefix => pathname === prefix || pathname.startsWith(prefix))) {
-          router.replace('/dashboard');
-        }
+      if (restrictedPrefixes.some(prefix => pathname === prefix || pathname.startsWith(prefix))) {
+        router.replace('/dashboard');
       }
     }
-  }, [user, loading, router, pathname]);
+  }, [user, loading, sessionState.checked, sessionState.hasSession, router, pathname]);
 
   // Session is restored from localStorage synchronously (see auth.tsx init),
   // so loading is only true on the very first visit or after logout.

@@ -1,5 +1,5 @@
 import { isCapacitorNative } from '@/lib/api-base';
-import { apiUrl } from '@/lib/api-base';
+import { apiUrl, getAuthHeaders } from '@/lib/api-base';
 import type { PushNotificationSchema } from '@capacitor/push-notifications';
 
 let pushRegistered = false;
@@ -16,7 +16,7 @@ async function sendTokenToServer(token: string, platform: string): Promise<boole
   try {
     const response = await fetch(apiUrl('/api/push/register'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ token, platform }),
     });
     return response.ok;
@@ -30,7 +30,7 @@ async function unregisterTokenOnServer(token: string): Promise<boolean> {
   try {
     const response = await fetch(apiUrl('/api/push/unregister'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ token }),
     });
     return response.ok;

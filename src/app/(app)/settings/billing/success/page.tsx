@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import { apiUrl, parseJsonSafe } from '@/lib/api-base';
+import { apiUrl, parseJsonSafe, waitForAccessToken } from '@/lib/api-base';
 
 export default function CheckoutSuccessPage() {
   const router = useRouter();
@@ -14,15 +13,15 @@ export default function CheckoutSuccessPage() {
   useEffect(() => {
     const fetchSubscription = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
+        const accessToken = await waitForAccessToken();
+        if (!accessToken) {
           router.push('/login');
           return;
         }
 
         const res = await fetch(apiUrl('/api/billing/status'), {
           headers: {
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer ${accessToken}`,
           },
         });
 

@@ -11,6 +11,7 @@ import {
 } from '@chakra-ui/react';
 import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare, BarChart3 } from 'lucide-react';
 import SongUsageSection from '@/components/reports/SongUsageSection';
+import { countServiceStatuses } from '@/lib/service-status';
 
 interface MemberStat {
   name: string;
@@ -97,10 +98,9 @@ export default function ReportsPage() {
         : allTasks;
       const completedTasks = filteredTasks.filter((t) => t.status === 'done');
 
-      const upcoming = filteredServices.filter((s) => new Date(s.date) >= now);
-      const past = filteredServices.filter((s) => new Date(s.date) < now);
-      const upcomingFinalized = upcoming.filter((s) => (s as any).is_finalized || (s as any).status === 'finalized').length;
-      const upcomingPlanned = upcoming.length - upcomingFinalized;
+      const statusCounts = countServiceStatuses(filteredServices, now);
+      const upcomingFinalized = statusCounts.upcomingFinalized;
+      const upcomingPlanned = statusCounts.upcomingPlanned;
 
       const memberParticipation = members
         .map((m) => ({
@@ -124,7 +124,9 @@ export default function ReportsPage() {
         memberParticipation,
         upcomingPlanned,
         upcomingFinalized,
-        pastServices: past.length,
+        // Completed services count as completed regardless of date; past
+        // non-completed services are also shown in this bucket.
+        pastServices: statusCounts.completed + statusCounts.past,
       });
     } catch (err) {
       console.error('[Reports] Failed to load:', err);

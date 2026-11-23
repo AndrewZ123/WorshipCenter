@@ -63,6 +63,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const { signup } = useAuth();
   const router = useRouter();
@@ -74,6 +75,7 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNotice('');
 
     // Client-side validation
     if (!passwordValidation.valid) {
@@ -88,11 +90,15 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    const success = await signup(churchName, name, email, password);
-    if (success) {
-      router.push('/dashboard');
+    const result = await signup(churchName, name, email, password);
+    if (result.success) {
+      if (result.requiresEmailConfirmation) {
+        setNotice('Account created! Check your email to confirm your address, then log in.');
+      } else {
+        router.push('/dashboard');
+      }
     } else {
-      setError('Registration failed. The email may already be in use.');
+      setError(result.error || 'Registration failed. The email may already be in use.');
     }
     setLoading(false);
   };
@@ -114,6 +120,13 @@ export default function SignupPage() {
                   <Alert status="error" borderRadius="lg" fontSize="sm">
                     <AlertIcon />
                     {error}
+                  </Alert>
+                )}
+
+                {notice && (
+                  <Alert status="success" borderRadius="lg" fontSize="sm">
+                    <AlertIcon />
+                    {notice}
                   </Alert>
                 )}
 

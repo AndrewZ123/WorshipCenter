@@ -5,12 +5,19 @@ import type { User, Church } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { apiBaseUrl, isCapacitorNative, getRedirectUrl, parseJsonSafe } from '@/lib/api-base';
 
+export interface SignupResult {
+  success: boolean;
+  /** True when Supabase created the user but email confirmation is still pending. */
+  requiresEmailConfirmation?: boolean;
+  error?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   church: Church | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  signup: (churchName: string, userName: string, email: string, password: string) => Promise<boolean>;
+  signup: (churchName: string, userName: string, email: string, password: string) => Promise<SignupResult>;
   join: (email: string, churchId: string, password: string) => Promise<boolean>;
   logout: () => void;
   resetPassword: (email: string) => Promise<boolean>;
@@ -23,13 +30,15 @@ const AuthContext = createContext<AuthContextType>({
   church: null,
   loading: true,
   login: async () => false,
-  signup: async () => false,
+  signup: async () => ({ success: false, error: 'Not implemented' }),
   join: async () => false,
   logout: () => {},
   resetPassword: async () => false,
   updatePassword: async () => false,
   deleteAccount: async () => ({ success: false, error: 'Not implemented' }),
 });
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 // Removed simple password store methods since Supabase Auth handles credentials.
 
@@ -218,8 +227,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (session?.user) {
-        const status = await loadProfile(session.user.id);
-        
+        let status = await loadProfile(session.user.id);
+
+        // Right after SIGNED_IN (especially during signup) the users row may
+        // still be inserting. Retry briefly before treating it as missing.
+        if (status === 'not_found' && event === 'SIGNED_IN') {
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            await sleep(300 * attempt);
+            status = await loadProfile(session.user.id, false);
+            if (status !== 'not_found') break;
+          }
+        }
+
         if (status === 'aborted') {
           // If aborted by lock, wait 500ms and try again once.
           // Don't set loading=false yet.
@@ -273,15 +292,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = useCallback(async (
     churchName: string, userName: string, email: string, password: string
-  ): Promise<boolean> => {
-    if (!email || !password || password.length < 6) return false;
-    
+  ): Promise<SignupResult> => {
+    if (!email || !password || password.length < 6) {
+      return { success: false, error: 'Please provide a valid email and a password of at least 6 characters.' };
+    }
+
+    // Keep the app layout in its loading state for the whole signup flow so the
+    // brief window before the profile row exists is not treated as logged out.
+    setLoading(true);
+
     try {
       // 1. Create Supabase Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
       if (authError || !authData.user) {
         console.error('[Auth] Signup auth error:', authError?.message);
-        return false;
+        return { success: false, error: authError?.message || 'Could not create your account.' };
       }
 
       // 2. Call server-side API to create church, subscription, user profile, and team member
@@ -298,11 +323,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }),
       });
 
-      const signupResult = await signupResponse.json();
+      const signupResult = await parseJsonSafe(signupResponse);
 
       if (!signupResponse.ok || !signupResult.success) {
         console.error('[Auth] Signup API error:', signupResult.error || 'Unknown error');
-        return false;
+        return { success: false, error: signupResult.error || 'Could not create your church account.' };
       }
 
       console.log('[Auth] Signup successful, church created:', signupResult.church_id);
@@ -323,7 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               churchId: signupResult.church_id,
             }),
           });
-          
+
           if (welcomeEmailResponse.ok) {
             console.log('[Auth] Welcome email sent successfully');
           } else {
@@ -335,13 +360,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // onAuthStateChange will fire and load the profile automatically.
-      return true;
+      // Email confirmation is enabled: there is no session yet, so do NOT let
+      // the caller navigate to /dashboard (it would bounce straight to /login).
+      if (!authData.session?.access_token) {
+        return { success: true, requiresEmailConfirmation: true };
+      }
+
+      // The SIGNED_IN event can arrive before the server has inserted the
+      // users row. Load the profile explicitly and do not report success until
+      // it is available, retrying the transient "not found"/"aborted" cases.
+      let profileLoaded = false;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const status = await loadProfile(authData.user.id, false);
+        if (status === 'success') {
+          profileLoaded = true;
+          break;
+        }
+        if (status === 'error') break;
+        await sleep(250 * (attempt + 1));
+      }
+
+      if (!profileLoaded) {
+        return {
+          success: false,
+          error: 'Your account was created, but your profile is still loading. Please log in.',
+        };
+      }
+
+      return { success: true };
     } catch (err) {
       console.error('[Auth] Signup exception:', err);
-      return false;
+      return { success: false, error: 'Registration failed. Please try again.' };
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [loadProfile]);
 
   const join = useCallback(async (
     email: string, churchId: string, password: string

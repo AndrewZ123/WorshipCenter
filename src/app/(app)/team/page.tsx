@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiUrl, parseJsonSafe } from '@/lib/api-base';
+import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import TeamMemberDetailClient from './[id]/TeamMemberDetailClient';
 import {
   Box, Text, HStack, Button, Table, Thead, Tbody, Tr, Th, Td,
@@ -97,7 +97,7 @@ export default function TeamPage() {
     try {
       const created = await store.memberGroups.create({ church_id: church.id, name: groupName, description: groupDesc });
       if (!created) {
-        toast({ title: 'Failed to create group', description: 'Check that you have admin permissions.', status: 'error', duration: 3000 });
+        toast({ title: 'Failed to create group', description: 'The group could not be created. Please try again.', status: 'error', duration: 4000 });
         return;
       }
       toast({ title: 'Group created', status: 'success', duration: 2000 });
@@ -165,7 +165,7 @@ export default function TeamPage() {
       try {
         const response = await fetch(apiUrl('/api/notifications/send-team-invitation'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await getAuthHeaders(),
           body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
         });
         
@@ -261,7 +261,7 @@ export default function TeamPage() {
     try {
       const response = await fetch(apiUrl('/api/notifications/send-team-invitation'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ teamMemberId: member.id, churchId: church.id })
       });
       

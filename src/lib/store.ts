@@ -1956,7 +1956,9 @@ export const db = {
       const { data, error } = await supabase.from('member_groups').insert(payload).select().single();
       if (error) {
         console.error('[MemberGroups] Create failed:', error.message);
-        return null;
+        // Surface the real (RLS/validation) message so the UI can show what
+        // actually failed instead of a misleading "admin permissions" hint.
+        throw new Error(error.message || 'Failed to create group');
       }
       return data as any;
     },
