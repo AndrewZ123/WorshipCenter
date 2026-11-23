@@ -716,7 +716,7 @@ describe('sendEscalations', () => {
     ]);
   });
 
-  it('includes the service creator even when their role is team', async () => {
+  it('does not email a team-role service creator', async () => {
     seedEscalation({
       service: { ...escalationService, created_by: 'user-creator' },
       users: [
@@ -739,10 +739,153 @@ describe('sendEscalations', () => {
 
     const counts = await sendEscalations(now);
 
+    expect(counts.sent).toBe(1);
+    expect(
+      vi.mocked(sendEmail).mock.calls.map((call) => call[0].to)
+    ).toEqual(['admin@example.com']);
+  });
+
+  it('emails an admin or leader service creator in the same church', async () => {
+    seedEscalation({
+      service: { ...escalationService, created_by: 'user-creator' },
+      users: [
+        {
+          id: 'user-admin',
+          name: 'Admin Example',
+          email: 'admin@example.com',
+          role: 'admin',
+          church_id: churchId,
+        },
+        {
+          id: 'user-creator',
+          name: 'Creator Example',
+          email: 'creator@example.com',
+          role: 'leader',
+          church_id: churchId,
+        },
+      ],
+    });
+
+    const counts = await sendEscalations(now);
+
     expect(counts.sent).toBe(2);
     expect(
       vi.mocked(sendEmail).mock.calls.map((call) => call[0].to).sort()
     ).toEqual(['admin@example.com', 'creator@example.com']);
+  });
+
+  it('emails a qualifying creator who was missing from the church user query', async () => {
+    const churchUsers = [
+      {
+        id: 'user-admin',
+        name: 'Admin Example',
+        email: 'admin@example.com',
+        role: 'admin',
+        church_id: churchId,
+      },
+    ];
+    seedEscalation({
+      service: { ...escalationService, created_by: 'user-creator' },
+      users: churchUsers,
+    });
+
+    let userQueries = 0;
+    fake.setTableResult('users', () => {
+      userQueries += 1;
+      return {
+        data:
+          userQueries === 1
+            ? churchUsers
+            : [
+                {
+                  id: 'user-creator',
+                  name: 'Creator Example',
+                  email: 'creator@example.com',
+                  role: 'leader',
+                  church_id: churchId,
+                },
+              ],
+        error: null,
+      };
+    });
+
+    const counts = await sendEscalations(now);
+
+    expect(userQueries).toBe(2);
+    expect(counts.sent).toBe(2);
+    expect(
+      vi.mocked(sendEmail).mock.calls.map((call) => call[0].to).sort()
+    ).toEqual(['admin@example.com', 'creator@example.com']);
+  });
+
+  it('does not email admins or leaders without a church', async () => {
+    seedEscalation({
+      users: [
+        {
+          id: 'user-admin',
+          name: 'Admin Example',
+          email: 'admin@example.com',
+          role: 'admin',
+          church_id: churchId,
+        },
+        {
+          id: 'user-null-church',
+          name: 'Null Church Example',
+          email: 'null-church@example.com',
+          role: 'admin',
+          church_id: null,
+        },
+        {
+          id: 'user-missing-church',
+          name: 'Missing Church Example',
+          email: 'missing-church@example.com',
+          role: 'leader',
+        },
+      ],
+    });
+
+    const counts = await sendEscalations(now);
+
+    expect(counts.sent).toBe(1);
+    expect(
+      vi.mocked(sendEmail).mock.calls.map((call) => call[0].to)
+    ).toEqual(['admin@example.com']);
+  });
+
+  it('does not email admins or leaders from a different church', async () => {
+    const otherChurchId = '00000000-0000-4000-8000-000000000002';
+    seedEscalation({
+      users: [
+        {
+          id: 'user-admin',
+          name: 'Admin Example',
+          email: 'admin@example.com',
+          role: 'admin',
+          church_id: churchId,
+        },
+        {
+          id: 'user-other-admin',
+          name: 'Other Admin Example',
+          email: 'other-admin@example.com',
+          role: 'admin',
+          church_id: otherChurchId,
+        },
+        {
+          id: 'user-other-leader',
+          name: 'Other Leader Example',
+          email: 'other-leader@example.com',
+          role: 'leader',
+          church_id: otherChurchId,
+        },
+      ],
+    });
+
+    const counts = await sendEscalations(now);
+
+    expect(counts.sent).toBe(1);
+    expect(
+      vi.mocked(sendEmail).mock.calls.map((call) => call[0].to)
+    ).toEqual(['admin@example.com']);
   });
 
   it('is idempotent on a second run', async () => {

@@ -722,8 +722,10 @@ export async function sendEscalations(
 
   const allUsers = [...((churchUserRows || []) as ReminderUserRow[])];
 
-  // Include a service creator even if their role is not admin/leader, provided
-  // they were not already loaded with their church.
+  // Fetch any service creator who was not returned by the church user query so
+  // that creators who are admins or leaders still count. They are subject to
+  // the same role, church, and email checks below; merely creating a service
+  // never makes someone an escalation recipient.
   const knownUserIds = new Set(allUsers.map((user) => user.id));
   const missingCreatorIds = [
     ...new Set(
@@ -740,8 +742,6 @@ export async function sendEscalations(
       .in('id', missingCreatorIds);
     allUsers.push(...((creatorRows || []) as ReminderUserRow[]));
   }
-
-  const userById = new Map(allUsers.map((user) => [user.id, user]));
 
   for (const service of servicesWithPending) {
     const pending = pendingByService.get(service.id) || [];
@@ -763,17 +763,12 @@ export async function sendEscalations(
     const leadersById = new Map<string, ReminderUserRow>();
     for (const user of allUsers) {
       if (
-        (user.church_id === service.church_id || !user.church_id) &&
+        user.church_id === service.church_id &&
         (user.role === 'admin' || user.role === 'leader') &&
         user.email
       ) {
         leadersById.set(user.id, user);
       }
-    }
-
-    if (service.created_by) {
-      const creator = userById.get(service.created_by);
-      if (creator?.email) leadersById.set(creator.id, creator);
     }
 
     if (leadersById.size === 0) {
