@@ -11,6 +11,7 @@ import {
   scheduleChangedPush,
 } from '@/lib/push-events';
 import { supabaseAdmin } from '@/lib/supabase';
+import { getUserSwapContext, isLeaderRole } from '@/lib/swaps/service';
 import { UUIDSchema, invalidInputResponse } from '@/lib/validation';
 
 const PushEventSchema = z.discriminatedUnion('type', [
@@ -261,10 +262,6 @@ export async function POST(request: NextRequest) {
       return invalidInputResponse();
     }
 
-    if (!isPushConfigured()) {
-      return NextResponse.json({ success: true, skipped: 'not_configured' });
-    }
-
     if (!user.church_id) {
       return NextResponse.json({ error: 'No church context' }, { status: 400 });
     }
@@ -276,14 +273,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, notified: result.notified }, { status: result.status });
     }
 
-    if (user.role !== 'admin' && user.role !== 'leader') {
+    // Only admins and leaders may announce assignment/schedule changes. Verify
+    // the role server-side rather than trusting the session user object.
+    const context = await getUserSwapContext(user.id);
+    if (
+      !context ||
+      context.churchId !== user.church_id ||
+      !isLeaderRole(context.role)
+    ) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!isPushConfigured()) {
+      return NextResponse.json({ success: true, skipped: 'not_configured' });
     }
 
     const result =
       event.type === 'assignment_created'
-        ? await handleAssignmentCreated(user.id, user.church_id, event.assignmentId)
-        : await handleScheduleChanged(user.id, user.church_id, event.serviceId);
+        ? await handleAssignmentCreated(user.id, context.churchId, event.assignmentId)
+        : await handleScheduleChanged(user.id, context.churchId, event.serviceId);
 
     return NextResponse.json({ success: true, notified: result.notified }, { status: result.status });
   } catch {

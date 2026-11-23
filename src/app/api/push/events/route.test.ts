@@ -18,7 +18,25 @@ const fake = createFakeSupabaseClient();
 vi.mocked(createClient).mockReturnValue(fake as never);
 
 const assignmentId = '00000000-0000-4000-8000-000000000003';
+const serviceId = '00000000-0000-4000-8000-000000000004';
 const messageId = '00000000-0000-4000-8000-000000000005';
+
+const serviceFixture = {
+  id: serviceId,
+  title: 'Sunday Worship',
+  date: '2026-12-06',
+  time: '10:00',
+  church_id: 'church-1',
+};
+
+const assignmentFixture = {
+  id: assignmentId,
+  role: 'vocals',
+  service_id: serviceId,
+  team_member_id: 'member-1',
+  services: serviceFixture,
+  team_members: { user_id: 'user-2', name: 'Jane Doe' },
+};
 
 function eventRequest(body: Record<string, unknown>, token?: string): NextRequest {
   return new NextRequest('http://localhost/api/push/events', {
@@ -31,7 +49,7 @@ function eventRequest(body: Record<string, unknown>, token?: string): NextReques
   });
 }
 
-function authenticate(role = 'leader') {
+function authenticate(role = 'leader', options?: { mentionUsers?: boolean }) {
   let usersCalls = 0;
 
   fake.auth.getUser.mockResolvedValue({
@@ -40,17 +58,17 @@ function authenticate(role = 'leader') {
   });
   fake.setTableResult('users', () => {
     usersCalls += 1;
-    if (usersCalls <= 2) {
+    if (options?.mentionUsers && usersCalls > 2) {
       return {
-        data: { id: 'user-1', role, church_id: 'church-1' },
+        data: [
+          { id: 'user-1', name: 'Test Sender' },
+          { id: 'user-2', name: 'Jane Doe' },
+        ],
         error: null,
       };
     }
     return {
-      data: [
-        { id: 'user-1', name: 'Test Sender' },
-        { id: 'user-2', name: 'Jane Doe' },
-      ],
+      data: { id: 'user-1', role, church_id: 'church-1' },
       error: null,
     };
   });
@@ -117,8 +135,70 @@ describe('POST /api/push/events', () => {
     expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
-  it('notifies mentioned users but never the message sender', async () => {
+  it.each([
+    {
+      event: 'schedule_changed',
+      body: { type: 'schedule_changed', serviceId },
+    },
+    {
+      event: 'assignment_created',
+      body: { type: 'assignment_created', assignmentId },
+    },
+  ])('forbids volunteers from sending $event', async ({ body }) => {
     authenticate('team');
+    vi.mocked(isPushConfigured).mockReturnValue(true);
+
+    const response = await POST(eventRequest(body, 'test-token'));
+
+    expect(response.status).toBe(403);
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(fake.operationsFor('service_assignments')).toHaveLength(0);
+    expect(fake.operationsFor('services')).toHaveLength(0);
+  });
+
+  it.each([
+    {
+      role: 'leader',
+      event: 'schedule_changed',
+      body: { type: 'schedule_changed', serviceId },
+    },
+    {
+      role: 'admin',
+      event: 'schedule_changed',
+      body: { type: 'schedule_changed', serviceId },
+    },
+    {
+      role: 'leader',
+      event: 'assignment_created',
+      body: { type: 'assignment_created', assignmentId },
+    },
+    {
+      role: 'admin',
+      event: 'assignment_created',
+      body: { type: 'assignment_created', assignmentId },
+    },
+  ])('allows $role to send $event', async ({ role, event, body }) => {
+    authenticate(role);
+    vi.mocked(isPushConfigured).mockReturnValue(true);
+
+    if (event === 'schedule_changed') {
+      fake.setTableResult('services', { data: serviceFixture, error: null });
+      fake.setTableResult('service_assignments', {
+        data: [{ id: assignmentId, role: 'vocals', team_members: { user_id: 'user-2' } }],
+        error: null,
+      });
+    } else {
+      fake.setTableResult('service_assignments', { data: assignmentFixture, error: null });
+    }
+
+    const response = await POST(eventRequest(body, 'test-token'));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, notified: 1 });
+  });
+
+  it('notifies mentioned users but never the message sender', async () => {
+    authenticate('team', { mentionUsers: true });
     vi.mocked(isPushConfigured).mockReturnValue(true);
     fake.setTableResult('chat_messages', {
       data: {

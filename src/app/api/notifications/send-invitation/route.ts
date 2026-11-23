@@ -5,7 +5,7 @@ import { db } from '@/lib/store';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceInvitationEmail } from '@/lib/email-templates';
-import { buildResponseUrls, createResponseToken } from '@/lib/assignment-response-tokens';
+import { buildResponseUrls, createResponseTokenWithRetry } from '@/lib/assignment-response-tokens';
 import { z } from 'zod';
 
 const SendInvitationSchema = z.object({
@@ -89,10 +89,13 @@ export async function POST(request: NextRequest) {
     // applied) so invitations still go out.
     if (emailConfigured) {
       try {
-        const rawToken = await createResponseToken(assignmentId, churchId, serviceDate);
+        const rawToken = await createResponseTokenWithRetry(assignmentId, churchId, serviceDate);
         ({ confirmUrl: acceptUrl, declineUrl } = buildResponseUrls(rawToken));
       } catch (error) {
-        console.error('[Send Invitation] Response token creation failed:', error);
+        console.error(
+          '[Send Invitation] Response token creation failed; using legacy links:',
+          error instanceof Error ? error.message : 'unknown error'
+        );
       }
     }
 

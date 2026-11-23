@@ -8,7 +8,7 @@ import { isPushConfigured, sendPushNotification } from '@/lib/push';
 import { assignmentCreatedPush } from '@/lib/push-events';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceInvitationEmail } from '@/lib/email-templates';
-import { buildResponseUrls, createResponseToken } from '@/lib/assignment-response-tokens';
+import { buildResponseUrls, createResponseTokenWithRetry } from '@/lib/assignment-response-tokens';
 import { z } from 'zod';
 
 const BulkAssignmentSchema = z.object({
@@ -179,14 +179,17 @@ export async function POST(req: NextRequest) {
         // Single-use tokenized links; fall back to legacy links if the token
         // table is unavailable so invitations still go out.
         try {
-          const rawToken = await createResponseToken(
+          const rawToken = await createResponseTokenWithRetry(
             assignment.id,
             userData.church_id,
             service.date
           );
           ({ confirmUrl: acceptUrl, declineUrl } = buildResponseUrls(rawToken));
         } catch (error) {
-          console.error('[BulkAssignments] Response token creation failed:', error);
+          console.error(
+            '[BulkAssignments] Response token creation failed; using legacy links:',
+            error instanceof Error ? error.message : 'unknown error'
+          );
         }
 
         const { html, text } = serviceInvitationEmail({

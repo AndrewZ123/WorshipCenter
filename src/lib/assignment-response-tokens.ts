@@ -7,7 +7,9 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase';
+import { isSentryEnabled } from '@/lib/sentry-enabled';
 import type { AssignmentStatus } from '@/lib/types';
 
 export type ResponseAction = 'confirmed' | 'declined';
@@ -20,6 +22,7 @@ export const RESPONSE_TOKEN_MAX_LENGTH = 256;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_TOKEN_AGE_MS = 14 * DAY_MS;
 const MIN_TOKEN_AGE_MS = 60 * 60 * 1000; // 1 hour
+const RESPONSE_TOKEN_RETRY_DELAY_MS = 250;
 
 const INVALID_LINK_MESSAGE = 'This link is invalid or has expired.';
 
@@ -117,6 +120,41 @@ export async function createResponseToken(
   }
 
   return rawToken;
+}
+
+function reportResponseTokenFailure(assignmentId: string, error: unknown): void {
+  const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (!isSentryEnabled(dsn)) return;
+
+  Sentry.captureException(error, {
+    tags: { feature: 'assignment-response-token' },
+    extra: { assignmentId },
+  });
+}
+
+/**
+ * Create a response token, retrying once after a short delay. If both attempts
+ * fail the error is reported to Sentry (without tokens or PII) and rethrown so
+ * callers can fall back or retry on their next run.
+ */
+export async function createResponseTokenWithRetry(
+  assignmentId: string,
+  churchId: string,
+  serviceDate: string,
+  now: Date = new Date()
+): Promise<string> {
+  try {
+    return await createResponseToken(assignmentId, churchId, serviceDate, now);
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, RESPONSE_TOKEN_RETRY_DELAY_MS));
+
+    try {
+      return await createResponseToken(assignmentId, churchId, serviceDate, now);
+    } catch (error) {
+      reportResponseTokenFailure(assignmentId, error);
+      throw error;
+    }
+  }
 }
 
 interface TokenRow {

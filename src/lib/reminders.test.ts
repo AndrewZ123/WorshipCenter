@@ -225,6 +225,45 @@ describe('sendUnconfirmedResponseReminders', () => {
     expect(counts.failed).toBe(1);
     expect(sendEmail).not.toHaveBeenCalled();
   });
+
+  it('retries response token creation before sending each reminder', async () => {
+    seedReminderData();
+    let attempts = 0;
+    fake.setTableResult('assignment_response_tokens', () => {
+      attempts += 1;
+      return attempts === 1
+        ? { data: null, error: { message: 'transient failure' } }
+        : { data: null, error: null };
+    });
+
+    const counts = await sendUnconfirmedResponseReminders(now);
+
+    expect(counts.sent).toBe(2);
+    expect(counts.failed).toBe(0);
+    expect(attempts).toBe(3);
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it('counts a reminder as failed and leaves the ledger untouched when token creation keeps failing', async () => {
+    seedReminderData();
+    let attempts = 0;
+    fake.setTableResult('assignment_response_tokens', () => {
+      attempts += 1;
+      return { data: null, error: { message: 'still failing' } };
+    });
+
+    const counts = await sendUnconfirmedResponseReminders(now);
+
+    expect(counts.sent).toBe(0);
+    expect(counts.failed).toBe(2);
+    expect(attempts).toBe(4);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(
+      fake
+        .operationsFor('assignment_reminders_sent')
+        .filter((operation) => operation.method === 'insert')
+    ).toHaveLength(0);
+  });
 });
 
 describe('sendInitialReminders', () => {

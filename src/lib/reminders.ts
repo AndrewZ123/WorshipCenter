@@ -15,7 +15,7 @@ import {
 import {
   appBaseUrl,
   buildResponseUrls,
-  createResponseToken,
+  createResponseTokenWithRetry,
 } from './assignment-response-tokens';
 
 interface ReminderSettings {
@@ -387,7 +387,7 @@ export async function sendInitialReminders(
     }
 
     try {
-      const rawToken = await createResponseToken(
+      const rawToken = await createResponseTokenWithRetry(
         assignment.id,
         service.church_id,
         service.date,
@@ -570,7 +570,7 @@ export async function sendPreServiceReminders(
       let declineUrl: string | undefined;
 
       if (needsResponse) {
-        const rawToken = await createResponseToken(
+        const rawToken = await createResponseTokenWithRetry(
           assignment.id,
           service.church_id,
           service.date,
@@ -1005,7 +1005,7 @@ export async function sendUnconfirmedResponseReminders(
     }
 
     try {
-      const rawToken = await createResponseToken(
+      const rawToken = await createResponseTokenWithRetry(
         assignment.id,
         service.church_id,
         service.date,
@@ -1044,7 +1044,10 @@ export async function sendUnconfirmedResponseReminders(
       if (kind === '3d') counts.threeDay += 1;
       else counts.oneDay += 1;
     } catch (error) {
-      console.error(`[Reminders] Failed to remind assignment ${assignment.id}:`, error);
+      console.error(
+        `[Reminders] Failed to remind assignment ${assignment.id}:`,
+        error instanceof Error ? error.message : 'unknown error'
+      );
       counts.failed += 1;
     }
   }

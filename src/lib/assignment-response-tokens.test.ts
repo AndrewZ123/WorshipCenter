@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
+import * as Sentry from '@sentry/nextjs';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
 import {
   buildResponseUrls,
   computeResponseTokenExpiry,
   createResponseToken,
+  createResponseTokenWithRetry,
   hashResponseToken,
   previewResponseToken,
   redeemResponseToken,
@@ -13,6 +15,10 @@ import {
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(),
+}));
+
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
 }));
 
 const fake = createFakeSupabaseClient();
@@ -52,6 +58,11 @@ function assignmentRow() {
 
 beforeEach(() => {
   fake.reset();
+  vi.mocked(Sentry.captureException).mockClear();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('assignment response tokens', () => {
@@ -203,5 +214,104 @@ describe('assignment response tokens', () => {
     });
     expect(fake.operations.some((operation) => operation.method === 'update')).toBe(false);
     expect(fake.operations.some((operation) => operation.method === 'insert')).toBe(false);
+  });
+
+  describe('createResponseTokenWithRetry', () => {
+    it('succeeds on the first attempt without reporting to Sentry', async () => {
+      fake.setTableResult('assignment_response_tokens', { data: null, error: null });
+
+      const rawToken = await createResponseTokenWithRetry(
+        assignmentId,
+        churchId,
+        '2026-12-04',
+        now
+      );
+
+      expect(rawToken).toHaveLength(43);
+      expect(
+        fake
+          .operationsFor('assignment_response_tokens')
+          .filter((operation) => operation.method === 'insert')
+      ).toHaveLength(1);
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    it('retries once after a failure and does not report to Sentry', async () => {
+      let attempts = 0;
+      fake.setTableResult('assignment_response_tokens', () => {
+        attempts += 1;
+        return attempts === 1
+          ? { data: null, error: { message: 'transient failure' } }
+          : { data: null, error: null };
+      });
+
+      const rawToken = await createResponseTokenWithRetry(
+        assignmentId,
+        churchId,
+        '2026-12-04',
+        now
+      );
+
+      expect(rawToken).toHaveLength(43);
+      expect(attempts).toBe(2);
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    it('reports once and throws when both attempts fail', async () => {
+      vi.stubEnv('SENTRY_DSN', 'https://example.invalid/1');
+      let attempts = 0;
+      fake.setTableResult('assignment_response_tokens', () => {
+        attempts += 1;
+        return { data: null, error: { message: 'still failing' } };
+      });
+
+      await expect(
+        createResponseTokenWithRetry(assignmentId, churchId, '2026-12-04', now)
+      ).rejects.toThrow('Failed to create response token');
+
+      expect(attempts).toBe(2);
+      expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+      expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+        tags: { feature: 'assignment-response-token' },
+        extra: { assignmentId },
+      });
+    });
+
+    it('does not report to Sentry when the DSN is unset', async () => {
+      fake.setTableResult('assignment_response_tokens', {
+        data: null,
+        error: { message: 'still failing' },
+      });
+
+      await expect(
+        createResponseTokenWithRetry(assignmentId, churchId, '2026-12-04', now)
+      ).rejects.toThrow('Failed to create response token');
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    it('never logs the raw token', async () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      fake.setTableResult('assignment_response_tokens', { data: null, error: null });
+
+      const rawToken = await createResponseTokenWithRetry(
+        assignmentId,
+        churchId,
+        '2026-12-04',
+        now
+      );
+
+      for (const spy of [logSpy, infoSpy, warnSpy, errorSpy]) {
+        expect(JSON.stringify(spy.mock.calls)).not.toContain(rawToken);
+      }
+
+      logSpy.mockRestore();
+      infoSpy.mockRestore();
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
   });
 });
