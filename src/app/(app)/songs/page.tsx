@@ -96,6 +96,21 @@ export default function SongsPage() {
     if (church) loadSongs();
   }, [church]);
 
+  // Deep link from the church setup wizard to the ChordPro importer.
+  useEffect(() => {
+    if (!church || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('import') !== 'chordpro') return;
+
+    importDisclosure.onOpen();
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete('import');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    // Only react to the church becoming available; the query is cleared above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [church]);
+
   const loadSongs = async () => {
     if (!church) return;
     try {

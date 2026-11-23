@@ -15,6 +15,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { getServiceBadgeStatus } from '@/lib/service-status';
 import { formatServiceDate, formatShortDate, getGreeting } from '@/lib/formatDate';
 import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
+import { openChurchSetup } from '@/lib/church-setup';
 
 // Lucide icons
 import { 
@@ -339,14 +340,33 @@ export default function DashboardPage() {
   return (
     <Box p={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} maxW="1100px" w="full" mx="auto" overflowX="hidden">
       {/* Greeting Header */}
-      <Box mb="8">
-        <Text fontSize="2xl" fontWeight="bold" letterSpacing="tight">
-          {greeting}, {firstName} 👋
-        </Text>
-        <Text mt="1" fontSize="sm" color={subtextColor}>
-          {church?.name} — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </Text>
-      </Box>
+      <Flex
+        mb="8"
+        justify="space-between"
+        align={{ base: 'flex-start', md: 'center' }}
+        direction={{ base: 'column', md: 'row' }}
+        gap="2"
+      >
+        <Box>
+          <Text fontSize="2xl" fontWeight="bold" letterSpacing="tight">
+            {greeting}, {firstName} 👋
+          </Text>
+          <Text mt="1" fontSize="sm" color={subtextColor}>
+            {church?.name} — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </Text>
+        </Box>
+        {user?.role === 'admin' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            color="gray.500"
+            onClick={() => openChurchSetup('service')}
+            minH="44px"
+          >
+            Setup guide
+          </Button>
+        )}
+      </Flex>
 
       {/* Onboarding Checklist */}
       <OnboardingChecklist />

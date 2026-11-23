@@ -9,6 +9,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/store';
 import { shouldOpenProfileSetup } from '@/lib/profile-setup';
+import { notifyProfileSetupCompleted } from '@/lib/church-setup';
 import { useTour } from '@/lib/tour/TourContext';
 import { VOLUNTEER_TOUR_STEPS, VOLUNTEER_MOBILE_TOUR_STEPS, getStepsForRole } from '@/lib/tour/steps';
 
@@ -56,11 +57,16 @@ export default function ProfileSetupWizard() {
       localStorage.setItem(key, 'true');
       setIsOpen(false);
 
-      if (step === SETUP_STEPS.length - 1) {
+      const startsTour = step === SETUP_STEPS.length - 1;
+      if (startsTour) {
         const isMobile = window.innerWidth < 992;
         const allSteps = isMobile ? VOLUNTEER_MOBILE_TOUR_STEPS : VOLUNTEER_TOUR_STEPS;
         tour.start(getStepsForRole(allSteps, 'volunteer'));
       }
+
+      // Let the church setup wizard run after this one. When the tour starts,
+      // defer so the user sees one guided flow at a time.
+      notifyProfileSetupCompleted({ deferForTour: startsTour });
 
       toast({ title: 'Profile saved!', status: 'success', duration: 2000 });
     } catch (error) {
@@ -85,6 +91,7 @@ export default function ProfileSetupWizard() {
       localStorage.setItem(key, 'true');
     }
     setIsOpen(false);
+    notifyProfileSetupCompleted();
   };
 
   return (

@@ -15,6 +15,7 @@ import { TourProvider } from '@/lib/tour/TourContext';
 import { PermissionsProvider } from '@/lib/PermissionsContext';
 import { OfflineProvider } from '@/lib/offline/OfflineContext';
 import ProfileSetupWizard from '@/components/onboarding/ProfileSetupWizard';
+import ChurchSetupWizard from '@/components/onboarding/ChurchSetupWizard';
 import { Center, Spinner, VStack, Text } from '@chakra-ui/react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -165,6 +166,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <OfflineProvider>
               <AppShell>
                 <ProfileSetupWizard />
+                <ChurchSetupWizard />
                 {isAlwaysAccessible ? children : <SubscriptionGate>{children}</SubscriptionGate>}
               </AppShell>
             </OfflineProvider>

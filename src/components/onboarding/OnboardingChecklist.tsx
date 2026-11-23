@@ -7,6 +7,11 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/store';
+import {
+  hasTeamMemberBeyondCreator,
+  openChurchSetup,
+  type ChurchSetupStep,
+} from '@/lib/church-setup';
 import { ChevronDown, ChevronUp, Check, Calendar, Music, Users, Plus } from 'lucide-react';
 
 interface ChecklistItem {
@@ -16,6 +21,8 @@ interface ChecklistItem {
   completed: boolean;
   actionText: string;
   actionPath: string;
+  /** Incomplete items open the guided setup at this step. */
+  step?: ChurchSetupStep;
   icon: React.ComponentType<{ size?: number; className?: string }>;
 }
 
@@ -42,6 +49,12 @@ export default function OnboardingChecklist() {
         db.teamMembers.getByChurch(church.id),
       ]);
 
+      const hasInvitedTeamMember = hasTeamMemberBeyondCreator(team, {
+        teamMemberId: user?.team_member_id,
+        userId: user?.id,
+        email: user?.email,
+      });
+
       const checklist: ChecklistItem[] = [
         {
           id: 'services',
@@ -50,6 +63,7 @@ export default function OnboardingChecklist() {
           completed: services.length > 0,
           actionText: services.length > 0 ? 'View services' : 'Create service',
           actionPath: '/services',
+          step: 'service',
           icon: Calendar,
         },
         {
@@ -59,15 +73,17 @@ export default function OnboardingChecklist() {
           completed: songs.length > 0,
           actionText: songs.length > 0 ? 'View songs' : 'Add song',
           actionPath: '/songs',
+          step: 'songs',
           icon: Music,
         },
         {
           id: 'team',
           title: 'Add team members',
           description: 'Invite musicians, vocalists, and tech team',
-          completed: team.length > 0,
-          actionText: team.length > 0 ? 'View team' : 'Add member',
+          completed: hasInvitedTeamMember,
+          actionText: hasInvitedTeamMember ? 'View team' : 'Add member',
           actionPath: '/team',
+          step: 'team',
           icon: Users,
         },
       ];
@@ -79,7 +95,7 @@ export default function OnboardingChecklist() {
     }
 
     loadOnboardingData();
-  }, [church]);
+  }, [church, user]);
 
   // Check if user has dismissed the checklist
   useEffect(() => {
@@ -105,8 +121,12 @@ export default function OnboardingChecklist() {
     }
   };
 
-  const handleAction = (path: string) => {
-    router.push(path);
+  const handleAction = (item: ChecklistItem) => {
+    if (!item.completed && item.step) {
+      openChurchSetup(item.step);
+      return;
+    }
+    router.push(item.actionPath);
   };
 
   // Don't show if dismissed, loading, or admin role (admins don't need onboarding)
@@ -189,7 +209,7 @@ export default function OnboardingChecklist() {
                 bg={item.completed ? 'teal.50' : 'transparent'}
                 _hover={{ bg: item.completed ? 'teal.50' : 'gray.50' }}
                 cursor="pointer"
-                onClick={() => handleAction(item.actionPath)}
+                onClick={() => handleAction(item)}
                 transition="all 0.2s ease"
               >
                 <HStack spacing="3" flex="1">
@@ -224,7 +244,7 @@ export default function OnboardingChecklist() {
                     _hover={{ textDecoration: 'underline' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleAction(item.actionPath);
+                      handleAction(item);
                     }}
                   >
                     {item.actionText}
