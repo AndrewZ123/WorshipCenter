@@ -7,7 +7,7 @@ import { supabaseAdmin } from './supabase';
  */
 export async function requireActiveSubscription(
   request: NextRequest
-): Promise<boolean | NextResponse> {
+): Promise<true | NextResponse> {
   const token = request.headers.get('authorization')?.replace('Bearer ', '');
   
   if (!token) {

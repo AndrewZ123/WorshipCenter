@@ -221,6 +221,37 @@ export function checkRateLimit(
 }
 
 /**
+ * Best-effort client IP, used to build rate-limit keys.
+ * Vercel sets x-forwarded-for; fall back to x-real-ip, then a constant.
+ */
+export function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  return request.headers.get('x-real-ip') || 'unknown';
+}
+
+/**
+ * Standard 429 response for a denied checkRateLimit() result.
+ */
+export function rateLimitResponse(result: { remaining: number; resetAt: number }): NextResponse {
+  const retryAfter = Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000));
+  return NextResponse.json(
+    { error: 'Too many requests. Please try again later.', resetAt: result.resetAt },
+    {
+      status: 429,
+      headers: {
+        'X-RateLimit-Remaining': result.remaining.toString(),
+        'X-RateLimit-Reset': result.resetAt.toString(),
+        'Retry-After': retryAfter.toString(),
+      },
+    }
+  );
+}
+
+/**
  * Clear rate limit for an identifier (for testing)
  */
 export function clearRateLimit(identifier: string): void {

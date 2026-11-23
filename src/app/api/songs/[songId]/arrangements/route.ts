@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
 import { z } from 'zod';
 
@@ -13,6 +14,11 @@ export async function GET(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const arrangements = await db.songArrangements.getBySong(songId, user.church_id);
@@ -33,6 +39,11 @@ export async function POST(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     // Verify song belongs to user's church
@@ -86,6 +97,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
+    }
+
     const UpdateArrangementSchema = z.object({
       arrangementId: z.string().uuid('Invalid arrangement ID'),
       name: z.string().min(1).max(200).optional(),
@@ -125,6 +141,11 @@ export async function DELETE(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const DeleteArrangementSchema = z.object({

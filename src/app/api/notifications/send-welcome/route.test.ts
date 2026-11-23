@@ -26,6 +26,11 @@ function welcomeRequest(body: Record<string, unknown>, token?: string): NextRequ
 
 beforeEach(() => {
   fake.reset();
+  // Protected routes now require an active subscription after auth.
+  fake.setTableResult('subscriptions', {
+    data: { status: 'active', trial_end: null, current_period_end: null },
+    error: null,
+  });
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
 });

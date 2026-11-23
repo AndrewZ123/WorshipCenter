@@ -12,12 +12,18 @@
  * The specific missing configuration details are omitted to reduce information disclosure.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getRequestUser } from '@/lib/auth-middleware';
 import { isStripeConfigured } from '@/lib/stripe';
 import { isSupabaseAdminConfigured } from '@/lib/supabase';
 import { withRateLimit, RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 
-export const GET = withRateLimit(async () => {
+export const GET = withRateLimit(async (request: Request) => {
+  const user = await getRequestUser(request as NextRequest);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const stripeOk = isStripeConfigured();
   const supabaseOk = isSupabaseAdminConfigured();
 

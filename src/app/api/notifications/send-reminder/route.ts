@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceReminderEmail } from '@/lib/email-templates';
@@ -13,7 +14,7 @@ const SendReminderSchema = z.object({
   serviceTime: z.string().min(1),
 });
 
-function jsonResponse(data: any, status: number = 200): NextResponse {
+function jsonResponse(data: Record<string, unknown>, status: number = 200): NextResponse {
   return new NextResponse(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json' },
@@ -22,9 +23,19 @@ function jsonResponse(data: any, status: number = 200): NextResponse {
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = checkRateLimit(`send-reminder:${getClientIp(request)}`, 50, 60 * 60 * 1000);
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
+
     const user = await getRequestUser(request);
     if (!user) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(request);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const body = SendReminderSchema.parse(await request.json());

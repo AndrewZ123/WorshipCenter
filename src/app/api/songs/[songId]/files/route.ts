@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRequestUser } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
 import { validateFile } from '@/lib/validateFile';
 import { z } from 'zod';
@@ -19,6 +20,11 @@ export async function GET(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const files = await db.songFiles.getBySong(songId, user.church_id);
@@ -41,6 +47,11 @@ export async function POST(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     // Verify song belongs to church
@@ -144,6 +155,11 @@ export async function DELETE(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const body = DeleteFileSchema.parse(await req.json());

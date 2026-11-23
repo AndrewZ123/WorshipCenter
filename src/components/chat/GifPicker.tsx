@@ -8,6 +8,7 @@ import {
 } from '@chakra-ui/react';
 import { Search, ChevronDown } from 'lucide-react';
 import { apiUrl, parseJsonSafe } from '@/lib/api-base';
+import { supabase } from '@/lib/supabase';
 
 interface GifResult {
   id: string;
@@ -44,7 +45,12 @@ export default function GifPicker({ isOpen, onClose, onSelect, variant = 'modal'
     setSearched(true);
     setGiphyError('');
     try {
-      const res = await fetch(apiUrl(`/api/chat/giphy?q=${encodeURIComponent(q.trim())}`));
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(apiUrl(`/api/chat/giphy?q=${encodeURIComponent(q.trim())}`), {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {},
+      });
       const data = await parseJsonSafe(res);
       if (data.error === 'GIPHY API key not configured') {
         setGiphyError('GIPHY API key not configured. Add GIPHY_API_KEY to your environment variables.');

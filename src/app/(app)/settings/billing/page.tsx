@@ -70,7 +70,11 @@ export default function BillingPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(apiUrl('/api/billing/status'));
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch(apiUrl('/api/billing/status'), {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
         const data = await parseJsonSafe(res);
         if (!cancelled) setStripeReady(Boolean(data?.configured));
       } catch {

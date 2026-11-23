@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
@@ -7,6 +8,11 @@ export async function POST(request: NextRequest) {
     const user = await getRequestUser(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(request);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const { token } = await request.json();

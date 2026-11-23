@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { teamInvitationEmail } from '@/lib/email-templates';
@@ -13,9 +14,19 @@ const SendTeamInvitationSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = checkRateLimit(`send-team-invitation:${getClientIp(request)}`, 50, 60 * 60 * 1000);
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
+
     const user = await getRequestUser(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(request);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const body = SendTeamInvitationSchema.parse(await request.json());

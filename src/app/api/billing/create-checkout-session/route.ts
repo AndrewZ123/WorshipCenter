@@ -14,6 +14,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/auth-middleware';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { getStripe, PRICING, isStripeConfigured, getMissingStripeConfig, type PriceTier } from '@/lib/stripe';
 import { supabaseAdmin, isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
 import { env } from '@/lib/env';
@@ -34,6 +36,17 @@ function isValidStripeCustomerId(id: string | null | undefined): id is string {
 
 export async function POST(request: NextRequest) {
   try {
+    // ── 0. Rate limit ─────────────────────────────────────────────────────
+    // Checkout creates Stripe customers/sessions, so throttle by client IP.
+    const limit = checkRateLimit(
+      `billing-checkout:${getClientIp(request)}`,
+      RateLimitTiers.BILLING.requests,
+      RateLimitTiers.BILLING.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
+
     // ── 1. Validate Stripe is configured ──────────────────────────────────
     if (!isStripeConfigured()) {
       const missing = getMissingStripeConfig();
@@ -298,7 +311,7 @@ export async function POST(request: NextRequest) {
     console.log('[Checkout] Session created:', session.id);
 
     return NextResponse.json({ url: session.url });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Checkout] Unexpected error:', error);
     return NextResponse.json(
       { error: 'Failed to create checkout session. Please try again.' },

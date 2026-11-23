@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequestUser } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { assignmentDeclinedEmail } from '@/lib/email-templates';
@@ -30,6 +32,8 @@ a{display:inline-block;background:#0D9488;color:#fff!important;text-decoration:n
   );
 }
 
+// Public magic-link handler: the assignment ID in the emailed URL is the
+// credential, so this intentionally does not require a Bearer token.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ assignmentId: string }> }
@@ -104,15 +108,14 @@ export async function POST(
   { params }: { params: Promise<{ assignmentId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) {
+    const user = await getRequestUser(request);
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const subscriptionCheck = await requireActiveSubscription(request);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const { assignmentId } = await params;

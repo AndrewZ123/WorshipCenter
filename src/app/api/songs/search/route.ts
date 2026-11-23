@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
 
 // GET /api/songs/search?q=<query>&tags=tag1,tag2&key=C&artist=...&limit=20
@@ -8,6 +9,11 @@ export async function GET(req: NextRequest) {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const { searchParams } = new URL(req.url);

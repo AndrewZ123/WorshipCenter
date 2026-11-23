@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
 import { z } from 'zod';
 
@@ -13,6 +14,11 @@ export async function GET(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const versions = await db.songVersions.getBySong(songId, user.church_id);
@@ -33,6 +39,11 @@ export async function POST(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const CreateVersionSchema = z.object({
@@ -78,6 +89,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
+    }
+
     const RestoreVersionSchema = z.object({
       versionNumber: z.number().int().positive('Version number is required'),
     });
@@ -110,6 +126,11 @@ export async function DELETE(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const DeleteVersionSchema = z.object({

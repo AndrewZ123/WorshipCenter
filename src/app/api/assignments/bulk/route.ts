@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequestUser } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendAssignmentNotification } from '@/lib/notifications';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
@@ -20,15 +22,15 @@ const BulkAssignmentSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) {
+    const user = await getRequestUser(req);
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Expired trials must not keep using planning APIs.
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     const { data: userData } = await supabaseAdmin

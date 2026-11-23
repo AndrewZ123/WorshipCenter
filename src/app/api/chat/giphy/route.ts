@@ -1,8 +1,35 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
+
+interface GiphyGif {
+  id: string;
+  title: string;
+  images?: {
+    original?: { url?: string; width?: string; height?: string };
+    fixed_width?: { url?: string; width?: string; height?: string };
+  };
+}
 
 const GIPHY_API_KEY = process.env.GIPHY_API_KEY || process.env.NEXT_PUBLIC_GIPHY_API_KEY;
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  // GIF search is a paid upstream API — rate limit before doing any work.
+  const limit = checkRateLimit(`chat-giphy:${getClientIp(request)}`, 60, 60 * 1000);
+  if (!limit.allowed) {
+    return rateLimitResponse(limit);
+  }
+
+  const user = await getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const subscriptionCheck = await requireActiveSubscription(request);
+  if (subscriptionCheck !== true) {
+    return subscriptionCheck;
+  }
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q');
   const offset = parseInt(searchParams.get('offset') || '0', 10);
@@ -28,7 +55,7 @@ export async function GET(request: Request) {
     const response = await fetch(url.toString());
     const data = await response.json();
 
-    const results = (data.data || []).map((gif: any) => ({
+    const results = (data.data || []).map((gif: GiphyGif) => ({
       id: gif.id,
       title: gif.title,
       url: gif.images?.original?.url || '',

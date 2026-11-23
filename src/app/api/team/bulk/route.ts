@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getRequestUser } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
+import { supabaseAdmin } from '@/lib/supabase';
 import { z } from 'zod';
 
 // Bulk update roles
@@ -21,12 +23,17 @@ const BulkGroupAddSchema = z.object({
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const user = await getRequestUser(req);
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
+    }
+
+    const { data: userData } = await supabaseAdmin
       .from('users')
       .select('church_id, role')
       .eq('id', user.id)
@@ -52,7 +59,7 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('team_members')
         .update({ role: parsed.data.role })
         .in('id', parsed.data.memberIds)
@@ -76,7 +83,7 @@ export async function PATCH(req: NextRequest) {
       }
 
       // Verify group belongs to church
-      const { data: group } = await supabase
+      const { data: group } = await supabaseAdmin
         .from('member_groups')
         .select('id')
         .eq('id', parsed.data.groupId)
@@ -91,7 +98,7 @@ export async function PATCH(req: NextRequest) {
         team_member_id: id,
       }));
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('member_group_members')
         .upsert(rows, { onConflict: 'group_id,team_member_id' })
         .select('id');
@@ -112,12 +119,17 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const user = await getRequestUser(req);
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: userData } = await supabase
+    const subscriptionCheck = await requireActiveSubscription(req);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
+    }
+
+    const { data: userData } = await supabaseAdmin
       .from('users')
       .select('church_id, role')
       .eq('id', user.id)
@@ -138,7 +150,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Don't allow deleting yourself
-    const { data: currentMember } = await supabase
+    const { data: currentMember } = await supabaseAdmin
       .from('team_members')
       .select('id')
       .eq('user_id', user.id)
@@ -153,7 +165,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'No valid members to delete' }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('team_members')
       .delete()
       .in('id', safeIds)

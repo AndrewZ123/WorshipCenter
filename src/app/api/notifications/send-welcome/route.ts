@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
+import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
 import { welcomeEmail } from '@/lib/email-templates';
 
@@ -17,9 +18,19 @@ function jsonResponse(data: Record<string, unknown>, status: number = 200): Next
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = checkRateLimit(`send-welcome:${getClientIp(request)}`, 50, 60 * 60 * 1000);
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
+
     const authUser = await getRequestUser(request);
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const subscriptionCheck = await requireActiveSubscription(request);
+    if (subscriptionCheck !== true) {
+      return subscriptionCheck;
     }
 
     let body: WelcomeEmailRequest;

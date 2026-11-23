@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/auth-middleware';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 
 export async function POST(request: NextRequest) {
   try {
+    // Public endpoint — rate limit by client IP to prevent church-creation abuse.
+    const limit = checkRateLimit(
+      `auth-signup:${getClientIp(request)}`,
+      RateLimitTiers.SIGNUP.requests,
+      RateLimitTiers.SIGNUP.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
+
     const body = await request.json();
     const { churchName, userName, email, password, authUserId } = body;
 
@@ -112,10 +123,10 @@ export async function POST(request: NextRequest) {
       success: true,
       church_id: churchId,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[Signup API] Unexpected error:', err);
     return NextResponse.json(
-      { error: err.message || 'Internal server error' },
+      { error: err instanceof Error ? err.message : 'Internal server error' },
       { status: 500 }
     );
   }
