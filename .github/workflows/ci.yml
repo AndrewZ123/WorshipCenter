@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Dummy values only. Tests mock all network/Supabase/Resend access, but the
+# build needs the same env var names the app expects. Never add real secrets.
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://dummy-project.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: dummy-service-role-key
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  RESEND_API_KEY: dummy-resend-api-key
+  EMAIL_FROM: "WorshipCenter CI <ci@example.com>"
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npx next build
+
+      # Reported for visibility but intentionally non-blocking: main already
+      # carries a large eslint backlog (no-explicit-any / unused vars). Remove
+      # continue-on-error once that debt is cleared.
+      - name: Lint (reported, non-blocking until existing debt is cleared)
+        run: npm run lint
+        continue-on-error: true
