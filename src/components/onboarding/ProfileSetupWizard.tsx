@@ -8,6 +8,7 @@ import {
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/store';
+import { shouldOpenProfileSetup } from '@/lib/profile-setup';
 import { useTour } from '@/lib/tour/TourContext';
 import { VOLUNTEER_TOUR_STEPS, VOLUNTEER_MOBILE_TOUR_STEPS, getStepsForRole } from '@/lib/tour/steps';
 
@@ -34,8 +35,7 @@ export default function ProfileSetupWizard() {
     if (!user || !church) return;
     const key = `profile_setup_completed_${user.id}`;
     const completed = localStorage.getItem(key) === 'true';
-    const needsSetup = !user.name || !completed;
-    setIsOpen(needsSetup);
+    setIsOpen(shouldOpenProfileSetup({ hasName: Boolean(user.name), setupCompleted: completed }));
     if (user.name) setName(user.name);
   }, [user, church]);
 
@@ -88,7 +88,7 @@ export default function ProfileSetupWizard() {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={() => {}} closeOnOverlayClick={false} closeOnEsc={false} size="md" isCentered>
+    <Modal isOpen={isOpen} onClose={handleSkip} closeOnOverlayClick={false} size="md" isCentered>
       <ModalOverlay backdropBlur="sm" />
       <ModalContent borderRadius="2xl" mx="4">
         <ModalHeader fontWeight="700">
