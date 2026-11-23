@@ -6,6 +6,7 @@ import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { sendAssignmentNotification } from '@/lib/notifications';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceInvitationEmail } from '@/lib/email-templates';
+import { buildResponseUrls, createResponseToken } from '@/lib/assignment-response-tokens';
 import { z } from 'zod';
 
 const BulkAssignmentSchema = z.object({
@@ -155,8 +156,22 @@ export async function POST(req: NextRequest) {
 
       // Email
       if (member.email && emailConfigured && church) {
-        const acceptUrl = `${baseUrl}/api/assignments/${assignment.id}/confirm`;
-        const declineUrl = `${baseUrl}/api/assignments/${assignment.id}/decline`;
+        let acceptUrl = `${baseUrl}/api/assignments/${assignment.id}/confirm`;
+        let declineUrl = `${baseUrl}/api/assignments/${assignment.id}/decline`;
+
+        // Single-use tokenized links; fall back to legacy links if the token
+        // table is unavailable so invitations still go out.
+        try {
+          const rawToken = await createResponseToken(
+            assignment.id,
+            userData.church_id,
+            service.date
+          );
+          ({ confirmUrl: acceptUrl, declineUrl } = buildResponseUrls(rawToken));
+        } catch (error) {
+          console.error('[BulkAssignments] Response token creation failed:', error);
+        }
+
         const { html, text } = serviceInvitationEmail({
           memberName: member.name || 'Team Member',
           churchName: church.name,

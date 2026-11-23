@@ -8,6 +8,10 @@
 import { db } from './store';
 import { sendNotification, NotificationType } from './notifications';
 import { env } from './env';
+import { supabaseAdmin, isSupabaseAdminConfigured } from './supabase';
+import { sendEmail, isEmailConfigured } from './email';
+import { serviceReminderEmail } from './email-templates';
+import { buildResponseUrls, createResponseToken } from './assignment-response-tokens';
 import type { ServiceAssignment } from './types';
 
 interface ReminderSettings {
@@ -295,6 +299,264 @@ async function sendEscalations(churchId: string): Promise<void> {
   }
 }
 
+// ── Unconfirmed 3-day / 1-day response reminders ─────────────────────
+//
+// Volunteers who have not yet responded get a reminder exactly 3 days and
+// exactly 1 day before the service. Dates are compared in UTC calendar terms
+// (`YYYY-MM-DD` derived from `toISOString()`), which matches how the rest of
+// the reminder job reasons about service dates.
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export interface UnconfirmedReminderCounts {
+  /** Pending assignments on a 3-day or 1-day service that were considered. */
+  checked: number;
+  /** Reminder emails successfully sent. */
+  sent: number;
+  /** Already reminded, missing email, or missing church. */
+  skipped: number;
+  /** Token creation or email send failures (retried on the next run). */
+  failed: number;
+  /** Successful 3-day reminders. */
+  threeDay: number;
+  /** Successful 1-day reminders. */
+  oneDay: number;
+}
+
+function utcDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** UTC dates that are exactly 3 days and 1 day from `now`. */
+export function reminderTargetDates(now: Date = new Date()): {
+  threeDay: string;
+  oneDay: string;
+} {
+  const today = Date.parse(`${utcDateKey(now)}T00:00:00.000Z`);
+  return {
+    threeDay: utcDateKey(new Date(today + 3 * DAY_MS)),
+    oneDay: utcDateKey(new Date(today + 1 * DAY_MS)),
+  };
+}
+
+/** Which reminder kind a service date triggers today, if any. */
+export function reminderKindForServiceDate(
+  serviceDate: string,
+  now: Date = new Date()
+): '3d' | '1d' | null {
+  const key = (serviceDate || '').slice(0, 10);
+  const targets = reminderTargetDates(now);
+  if (key === targets.threeDay) return '3d';
+  if (key === targets.oneDay) return '1d';
+  return null;
+}
+
+interface ReminderServiceRow {
+  id: string;
+  title: string;
+  date: string;
+  time: string | null;
+  church_id: string;
+}
+
+interface ReminderAssignmentRow {
+  id: string;
+  service_id: string;
+  team_member_id: string;
+  role: string;
+  status: string;
+}
+
+interface ReminderMemberRow {
+  id: string;
+  name: string;
+  email: string | null;
+}
+
+interface ReminderChurchRow {
+  id: string;
+  name: string;
+}
+
+/**
+ * Send tokenized confirm/decline reminders to volunteers whose assignment is
+ * still pending exactly 3 days and 1 day before the service.
+ *
+ * - Only `pending` assignments are considered (the status check constraint
+ *   allows pending / confirmed / declined; there is no separate "unconfirmed").
+ * - `assignment_reminders_sent` makes the pass idempotent per (assignment, kind).
+ * - Each email contains fresh single-use links and never exposes other
+ *   volunteers' information.
+ */
+export async function sendUnconfirmedResponseReminders(
+  now: Date = new Date()
+): Promise<UnconfirmedReminderCounts> {
+  const counts: UnconfirmedReminderCounts = {
+    checked: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    threeDay: 0,
+    oneDay: 0,
+  };
+
+  if (!isSupabaseAdminConfigured()) {
+    return counts;
+  }
+
+  const { threeDay, oneDay } = reminderTargetDates(now);
+
+  const { data: services, error: servicesError } = await supabaseAdmin
+    .from('services')
+    .select('id, title, date, time, church_id')
+    .in('date', [threeDay, oneDay]);
+
+  if (servicesError) {
+    console.error('[Reminders] Failed to load reminder services:', servicesError.message);
+    counts.failed += 1;
+    return counts;
+  }
+
+  const serviceRows = (services || []) as ReminderServiceRow[];
+  if (serviceRows.length === 0) return counts;
+
+  const serviceById = new Map(serviceRows.map((service) => [service.id, service]));
+
+  const { data: assignments, error: assignmentsError } = await supabaseAdmin
+    .from('service_assignments')
+    .select('id, service_id, team_member_id, role, status')
+    .in('service_id', [...serviceById.keys()])
+    .eq('status', 'pending');
+
+  if (assignmentsError) {
+    console.error('[Reminders] Failed to load pending assignments:', assignmentsError.message);
+    counts.failed += 1;
+    return counts;
+  }
+
+  const pending = ((assignments || []) as ReminderAssignmentRow[]).filter((assignment) => {
+    if (assignment.status !== 'pending') return false;
+    const service = serviceById.get(assignment.service_id);
+    return Boolean(service && reminderKindForServiceDate(service.date, now));
+  });
+
+  counts.checked = pending.length;
+  if (pending.length === 0) return counts;
+
+  const { data: sentRows } = await supabaseAdmin
+    .from('assignment_reminders_sent')
+    .select('assignment_id, kind')
+    .in('assignment_id', pending.map((assignment) => assignment.id));
+
+  const alreadySent = new Set(
+    ((sentRows || []) as Array<{ assignment_id: string; kind: string }>).map(
+      (row) => `${row.assignment_id}:${row.kind}`
+    )
+  );
+
+  const { data: members } = await supabaseAdmin
+    .from('team_members')
+    .select('id, name, email')
+    .in('id', [...new Set(pending.map((assignment) => assignment.team_member_id))]);
+
+  const memberById = new Map(
+    ((members || []) as ReminderMemberRow[]).map((member) => [member.id, member])
+  );
+
+  const { data: churches } = await supabaseAdmin
+    .from('churches')
+    .select('id, name')
+    .in('id', [...new Set(serviceRows.map((service) => service.church_id))]);
+
+  const churchById = new Map(
+    ((churches || []) as ReminderChurchRow[]).map((church) => [church.id, church])
+  );
+
+  if (!(await isEmailConfigured())) {
+    counts.skipped += pending.length;
+    return counts;
+  }
+
+  for (const assignment of pending) {
+    const service = serviceById.get(assignment.service_id);
+    if (!service) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    const kind = reminderKindForServiceDate(service.date, now);
+    if (!kind) continue;
+
+    if (alreadySent.has(`${assignment.id}:${kind}`)) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    const member = memberById.get(assignment.team_member_id);
+    if (!member?.email) {
+      // No email address: skip silently instead of failing the whole run.
+      counts.skipped += 1;
+      continue;
+    }
+
+    const church = churchById.get(service.church_id);
+    if (!church) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    try {
+      const rawToken = await createResponseToken(assignment.id, service.church_id, service.date);
+      const { confirmUrl, declineUrl } = buildResponseUrls(rawToken);
+
+      const { html, text } = serviceReminderEmail({
+        memberName: member.name,
+        churchName: church.name,
+        serviceTitle: service.title,
+        serviceDate: service.date,
+        serviceTime: service.time || '',
+        role: assignment.role,
+        acceptUrl: confirmUrl,
+        declineUrl,
+      });
+
+      const result = await sendEmail({
+        to: member.email,
+        subject: `Reminder: Please respond for ${service.title}`,
+        html,
+        text,
+      });
+
+      if (!result.success) {
+        counts.failed += 1;
+        continue;
+      }
+
+      // Record only after the email is accepted so a transient failure is
+      // retried on the next run.
+      const { error: markError } = await supabaseAdmin
+        .from('assignment_reminders_sent')
+        .insert({ assignment_id: assignment.id, kind });
+
+      if (markError) {
+        console.error(
+          `[Reminders] Failed to record reminder for assignment ${assignment.id}:`,
+          markError.message
+        );
+      }
+
+      counts.sent += 1;
+      if (kind === '3d') counts.threeDay += 1;
+      else counts.oneDay += 1;
+    } catch (error) {
+      console.error(`[Reminders] Failed to remind assignment ${assignment.id}:`, error);
+      counts.failed += 1;
+    }
+  }
+
+  return counts;
+}
+
   /**
  * Main entry point for reminder job
  * Call this from a scheduled cron job
@@ -302,18 +564,22 @@ async function sendEscalations(churchId: string): Promise<void> {
  * Example cron schedule: every 15 minutes
  * node -e "require('./dist/lib/reminders.js').runReminders()"
  */
-export async function runReminders(): Promise<void> {
+export async function runReminders(): Promise<UnconfirmedReminderCounts> {
   try {
     console.log('[Reminders] Starting reminder job...');
-    
+
+    const unconfirmed = await sendUnconfirmedResponseReminders();
+
     // For multi-tenant setup, we'd get all churches
     // For now, we'll skip this as db.churches.getAll() doesn't exist
     // In a real implementation, you'd have a method to get all church IDs
     // or you'd pass specific church IDs to this function
-    
-    console.log('[Reminders] Warning: No churches to process (db.churches.getAll() not implemented)');
-    console.log('[Reminders] Reminder job completed with no changes');
-    
+
+    console.log(
+      `[Reminders] Unconfirmed reminders: ${unconfirmed.sent} sent, ${unconfirmed.skipped} skipped, ${unconfirmed.failed} failed`
+    );
+    return unconfirmed;
+
     // Example implementation for single church or specific church:
     // const churchId = 'your-church-id';
     // await sendInitialReminders(churchId);
@@ -329,12 +595,17 @@ export async function runReminders(): Promise<void> {
  * API route handler wrapper
  * This allows calling the reminder job via HTTP (useful for cron services)
  */
-export async function handleRemindersRequest(): Promise<{ success: boolean; message: string }> {
+export async function handleRemindersRequest(): Promise<{
+  success: boolean;
+  message: string;
+  reminders?: UnconfirmedReminderCounts;
+}> {
   try {
-    await runReminders();
+    const reminders = await runReminders();
     return {
       success: true,
       message: 'Reminders sent successfully',
+      reminders,
     };
   } catch (error) {
     console.error('[Reminders] Error in request handler:', error);

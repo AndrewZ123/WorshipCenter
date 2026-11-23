@@ -5,6 +5,7 @@ import { db } from '@/lib/store';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceInvitationEmail } from '@/lib/email-templates';
+import { buildResponseUrls, createResponseToken } from '@/lib/assignment-response-tokens';
 import { z } from 'zod';
 
 const SendInvitationSchema = z.object({
@@ -78,10 +79,23 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-    const acceptUrl = `${baseUrl}/api/assignments/${assignmentId}/confirm`;
-    const declineUrl = `${baseUrl}/api/assignments/${assignmentId}/decline`;
+    let acceptUrl = `${baseUrl}/api/assignments/${assignmentId}/confirm`;
+    let declineUrl = `${baseUrl}/api/assignments/${assignmentId}/decline`;
 
     const emailConfigured = await isEmailConfigured();
+
+    // Prefer single-use, tokenized accept/decline links. Fall back to the
+    // legacy id links if the token cannot be created (e.g. migration not yet
+    // applied) so invitations still go out.
+    if (emailConfigured) {
+      try {
+        const rawToken = await createResponseToken(assignmentId, churchId, serviceDate);
+        ({ confirmUrl: acceptUrl, declineUrl } = buildResponseUrls(rawToken));
+      } catch (error) {
+        console.error('[Send Invitation] Response token creation failed:', error);
+      }
+    }
+
     let emailSent = false;
 
     if (emailConfigured) {

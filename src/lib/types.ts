@@ -198,6 +198,29 @@ export interface ServiceAssignment {
   declined_at?: string;
 }
 
+/** Server-only token row for emailed volunteer accept/decline links. */
+export type AssignmentResponseAction = 'confirmed' | 'declined';
+
+export interface AssignmentResponseToken {
+  id: string;
+  assignment_id: string;
+  church_id: string;
+  token_hash: string;
+  expires_at: string;
+  used_at: string | null;
+  used_action: AssignmentResponseAction | null;
+  created_at?: string;
+}
+
+/** Idempotency ledger for unconfirmed assignment reminders. */
+export type AssignmentReminderKind = '3d' | '1d';
+
+export interface AssignmentReminderSent {
+  assignment_id: string;
+  kind: AssignmentReminderKind;
+  sent_at?: string;
+}
+
 export interface SongUsage {
   id: string;
   church_id: string;

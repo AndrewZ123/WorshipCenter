@@ -106,10 +106,19 @@ export function serviceInvitationEmail(p: ServiceInviteParams): { html: string; 
 interface ReminderParams {
   memberName: string; churchName: string; serviceTitle: string;
   serviceDate: string; serviceTime: string; role: string;
+  /** Optional single-use accept/decline links for unconfirmed reminders. */
+  acceptUrl?: string; declineUrl?: string;
 }
 export function serviceReminderEmail(p: ReminderParams): { html: string; text: string } {
   const date = formatDate(p.serviceDate);
   const role = formatRole(p.role);
+  const responseLinks = p.acceptUrl && p.declineUrl
+    ? `<a href="${p.acceptUrl}" class="cta">Yes, I Can Serve</a>
+    <div style="text-align:center"><a href="${p.declineUrl}" class="cta-secondary">Can't make it — let us know</a></div>`
+    : '';
+  const textLinks = p.acceptUrl && p.declineUrl
+    ? `\n\nAccept: ${p.acceptUrl}\nDecline: ${p.declineUrl}`
+    : '';
   const html = baseLayout(`
     <p>Hi ${firstName(p.memberName)},</p>
     <p>Quick reminder — you're serving at <strong>${p.churchName}</strong> soon!</p>
@@ -119,9 +128,10 @@ export function serviceReminderEmail(p: ReminderParams): { html: string; text: s
       ${detailRow('Time:', p.serviceTime)}
       ${detailRow('Role:', role)}
     </div>
+    ${responseLinks}
     <p style="font-size:13px;color:${GRAY_400}">Thanks for serving on the team.</p>
   `, p.churchName);
-  const text = `Reminder: You're serving ${role} at ${p.churchName}\nService: ${p.serviceTitle}\nDate: ${date}\nTime: ${p.serviceTime}`;
+  const text = `Reminder: You're serving ${role} at ${p.churchName}\nService: ${p.serviceTitle}\nDate: ${date}\nTime: ${p.serviceTime}${textLinks}`;
   return { html, text };
 }
 

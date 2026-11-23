@@ -17,6 +17,7 @@ import {
 } from '@chakra-ui/react';
 import { X, UserPlus, Users, Calendar, AlertTriangle } from 'lucide-react';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
+import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
 import type {
   Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate,
@@ -122,9 +123,9 @@ export default function ServiceSchedule({
     }
   }, [assignments, highlightedAssignmentId]);
 
-  const loadAssignments = async () => {
+  const loadAssignments = async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) setLoading(true);
       const data = await db.assignments.getByService(service.id, churchId);
       setAssignments(data);
     } catch (error) {
@@ -135,9 +136,45 @@ export default function ServiceSchedule({
         status: 'error',
       });
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
   };
+
+  // Live assignment status updates from volunteers responding to emailed
+  // confirm/decline links. Refetch on focus too so a leader who comes back to
+  // the tab sees the latest status without a manual reload.
+  useEffect(() => {
+    if (!service.id || !churchId) return;
+
+    let cancelled = false;
+    const channel = supabase
+      .channel(`service-assignments:${service.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'service_assignments',
+          filter: `service_id=eq.${service.id}`,
+        },
+        () => {
+          if (!cancelled) loadAssignments({ silent: true });
+        }
+      )
+      .subscribe();
+
+    const handleFocus = () => {
+      if (!cancelled) loadAssignments({ silent: true });
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', handleFocus);
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service.id, churchId]);
 
   const handleConfirm = async (assignmentId: string) => {
     try {
@@ -712,6 +749,11 @@ export default function ServiceSchedule({
             const isOwn = isOwnAssignment(assignment);
             const showActions = isOwn && assignment.status === 'pending';
             const blockout = assignment.team_member ? isBlockedOut(assignment.team_member.id) : undefined;
+            const statusTimestamp = assignment.status === 'confirmed'
+              ? assignment.confirmed_at
+              : assignment.status === 'declined'
+                ? assignment.declined_at
+                : undefined;
 
             return (
               <Box
@@ -749,10 +791,22 @@ export default function ServiceSchedule({
                           </Badge>
                         </Tooltip>
                       )}
-                      <StatusBadge
-                        status={mapAssignmentStatus(assignment.status)}
-                        size="sm"
-                      />
+                      <Tooltip
+                        label={
+                          statusTimestamp
+                            ? `${assignment.status === 'confirmed' ? 'Confirmed' : 'Declined'} ${new Date(statusTimestamp).toLocaleString()}`
+                            : ''
+                        }
+                        isDisabled={!statusTimestamp}
+                        hasArrow
+                      >
+                        <Box as="span" display="inline-flex">
+                          <StatusBadge
+                            status={mapAssignmentStatus(assignment.status)}
+                            size="sm"
+                          />
+                        </Box>
+                      </Tooltip>
                     </HStack>
                     <Text fontSize="xs" color={subTextColor} isTruncated>
                       {assignment.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}

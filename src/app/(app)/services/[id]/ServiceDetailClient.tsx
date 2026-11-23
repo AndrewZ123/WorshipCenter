@@ -819,7 +819,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     if (!church || !assignMemberId || !assignRole) return;
     
     try {
-      await store.assignments.create({
+      const createdAssignment = await store.assignments.create({
         service_id: serviceId,
         team_member_id: assignMemberId,
         role: assignRole,
@@ -828,12 +828,12 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       
       // Send invitation email to the assigned member
       const member = teamMembers.find(m => m.id === assignMemberId);
-      if (member?.email) {
+      if (member?.email && createdAssignment?.id) {
         fetch(apiUrl('/api/notifications/send-invitation'), {
           method: 'POST',
           headers: await getAuthHeaders(),
           body: JSON.stringify({
-            assignmentId: '',
+            assignmentId: createdAssignment.id,
             churchId: church.id,
             serviceTitle: service?.title || '',
             serviceDate: service?.date || '',
