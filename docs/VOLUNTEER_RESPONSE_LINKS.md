@@ -19,6 +19,25 @@ The `/api/reminders` job also emails volunteers whose assignment is still
 calendar days). `assignment_reminders_sent` records each `(assignment, kind)`
 pair so a reminder is never sent twice; failures are retried on the next run.
 
+## Other reminder kinds
+
+The same `/api/reminders` job also sends these emails, all tracked in
+`assignment_reminders_sent` per `(assignment, kind)`:
+
+- **Initial confirmation** (`initial`) — pending assignments created at least
+  48 hours ago on services that are still outside the 3-day/1-day window.
+- **Pre-service** (`pre_service`) — confirmed volunteers get an informational
+  "you're on" email; pending volunteers get the same email with fresh
+  accept/decline links within 48 hours of the service.
+- **Pre-rehearsal** (`pre_rehearsal`) — the same idea within 24 hours of a
+  service's rehearsal time, when one is set.
+- **Leader escalation** (`escalation`) — within 24 hours of the service,
+  church admins/leaders (and the service creator) receive the names and roles
+  of volunteers who still have not responded.
+
+These kinds share the recommended schedule below. No additional secret or cron
+job is required.
+
 ## Recommended schedule
 
 Run the reminder job once a day at 13:00 UTC (8 AM US Eastern):

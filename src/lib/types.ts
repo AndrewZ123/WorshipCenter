@@ -250,8 +250,14 @@ export interface ChurchSettings {
   auto_approve_swaps: boolean;
 }
 
-/** Idempotency ledger for unconfirmed assignment reminders. */
-export type AssignmentReminderKind = '3d' | '1d';
+/** Idempotency ledger for assignment reminder emails. */
+export type AssignmentReminderKind =
+  | '3d'
+  | '1d'
+  | 'initial'
+  | 'pre_rehearsal'
+  | 'pre_service'
+  | 'escalation';
 
 export interface AssignmentReminderSent {
   assignment_id: string;

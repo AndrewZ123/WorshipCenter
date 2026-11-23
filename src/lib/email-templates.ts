@@ -135,6 +135,75 @@ export function serviceReminderEmail(p: ReminderParams): { html: string; text: s
   return { html, text };
 }
 
+interface UpcomingReminderParams {
+  memberName: string; churchName: string; serviceTitle: string;
+  serviceDate: string; serviceTime: string; role: string;
+  kind: 'service' | 'rehearsal';
+  rehearsalTime?: string;
+  /** Optional single-use accept/decline links for unconfirmed assignments. */
+  acceptUrl?: string; declineUrl?: string;
+}
+export function upcomingServiceReminderEmail(p: UpcomingReminderParams): { html: string; text: string } {
+  const date = formatDate(p.serviceDate);
+  const role = formatRole(p.role);
+  const isRehearsal = p.kind === 'rehearsal';
+  const eventLabel = isRehearsal ? 'Rehearsal' : 'Service';
+  const eventTime = isRehearsal ? (p.rehearsalTime || p.serviceTime) : p.serviceTime;
+  const hasLinks = Boolean(p.acceptUrl && p.declineUrl);
+  const responseLinks = hasLinks
+    ? `<a href="${p.acceptUrl}" class="cta">Yes, I Can Serve</a>
+    <div style="text-align:center"><a href="${p.declineUrl}" class="cta-secondary">Can't make it — let us know</a></div>`
+    : '';
+  const textLinks = hasLinks
+    ? `\n\nAccept: ${p.acceptUrl}\nDecline: ${p.declineUrl}`
+    : '';
+  const html = baseLayout(`
+    <p>Hi ${firstName(p.memberName)},</p>
+    ${hasLinks
+      ? `<p>The ${eventLabel.toLowerCase()} is coming up. Please let us know if you can make it.</p>`
+      : `<p>You're on for this ${eventLabel.toLowerCase()}. Thanks for serving!</p>`}
+    <div class="detail-box">
+      ${detailRow(`${eventLabel}:`, p.serviceTitle)}
+      ${detailRow('Date:', date)}
+      ${detailRow('Time:', eventTime)}
+      ${detailRow('Role:', role)}
+    </div>
+    ${responseLinks}
+    <p style="font-size:13px;color:${GRAY_400}">Thanks for being part of the team.</p>
+  `, p.churchName);
+  const text = `${eventLabel} reminder: You're serving ${role} at ${p.churchName}\nService: ${p.serviceTitle}\nDate: ${date}\nTime: ${eventTime}${textLinks}`;
+  return { html, text };
+}
+
+interface LeaderEscalationParams {
+  churchName: string; serviceTitle: string; serviceDate: string;
+  serviceTime?: string;
+  pendingAssignments: Array<{ name: string; role: string }>;
+  scheduleUrl: string;
+}
+export function leaderEscalationEmail(
+  p: LeaderEscalationParams
+): { html: string; text: string } {
+  const date = formatDate(p.serviceDate);
+  const items = p.pendingAssignments
+    .map((assignment) => `<li><strong>${assignment.name}</strong> — ${formatRole(assignment.role)}</li>`)
+    .join('');
+  const textItems = p.pendingAssignments
+    .map((assignment) => `- ${assignment.name} (${formatRole(assignment.role)})`)
+    .join('\n');
+
+  const html = baseLayout(`
+    <p>Hi,</p>
+    <p>The following team members have not responded for <strong>${p.serviceTitle}</strong> on ${date}${p.serviceTime ? ` at ${p.serviceTime}` : ''}:</p>
+    <ul>${items}</ul>
+    <a href="${p.scheduleUrl}" class="cta">View Service Schedule</a>
+    <p>Please follow up with them so the schedule can be finalized.</p>
+  `, p.churchName);
+
+  const text = `Unconfirmed team members for ${p.serviceTitle} on ${date}${p.serviceTime ? ` at ${p.serviceTime}` : ''}:\n\n${textItems}\n\nView the schedule: ${p.scheduleUrl}`;
+  return { html, text };
+}
+
 interface ConfirmedParams {
   memberName: string; churchName: string; serviceTitle: string;
   serviceDate: string; serviceTime: string; role: string;

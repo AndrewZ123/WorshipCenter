@@ -1,18 +1,22 @@
 /**
  * Reminder Job Logic for WorshipCenter
- * 
+ *
  * This module handles automated reminders and escalations for service scheduling.
- * It's designed to be called from a scheduled cron job (e.g., every 15-60 minutes).
+ * It's designed to be called from a scheduled cron job (e.g., once a day).
  */
 
-import { db } from './store';
-import { sendNotification, NotificationType } from './notifications';
-import { env } from './env';
 import { supabaseAdmin, isSupabaseAdminConfigured } from './supabase';
 import { sendEmail, isEmailConfigured } from './email';
-import { serviceReminderEmail } from './email-templates';
-import { buildResponseUrls, createResponseToken } from './assignment-response-tokens';
-import type { ServiceAssignment } from './types';
+import {
+  serviceReminderEmail,
+  upcomingServiceReminderEmail,
+  leaderEscalationEmail,
+} from './email-templates';
+import {
+  appBaseUrl,
+  buildResponseUrls,
+  createResponseToken,
+} from './assignment-response-tokens';
 
 interface ReminderSettings {
   initialReminderHours: number;
@@ -35,268 +39,815 @@ function getReminderSettings(): ReminderSettings {
   };
 }
 
-/**
- * Find assignments that need initial confirmation reminders
- * 
- * Criteria:
- * - Status is 'pending'
- * - Created more than initialReminderHours ago
- * - No previous reminder has been sent (tracked via notification type)
- */
-async function findInitialReminderAssignments(churchId: string, settings: ReminderSettings): Promise<ServiceAssignment[]> {
-  const cutoffDate = new Date();
-  cutoffDate.setHours(cutoffDate.getHours() - settings.initialReminderHours);
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
-  // Get all services for this church, then get their assignments
-  const services = await db.services.getByChurch(churchId);
-  const allAssignments: ServiceAssignment[] = [];
-  
-  for (const service of services) {
-    const assignments = await db.assignments.getByService(service.id, churchId);
-    allAssignments.push(...assignments);
+export interface ReminderKindCounts {
+  checked: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+}
+
+export interface PreServiceReminderCounts {
+  preService: ReminderKindCounts;
+  preRehearsal: ReminderKindCounts;
+}
+
+export interface EscalationReminderCounts {
+  /** Services inside the escalation window that still have pending assignments. */
+  services: number;
+  /** Escalation emails successfully sent (one per leader/recipient). */
+  sent: number;
+  /** Services skipped because every pending assignment was already escalated,
+   * no leader had an email, or email is not configured. */
+  skipped: number;
+  /** Email or ledger failures (retried on the next run). */
+  failed: number;
+}
+
+export interface ReminderRunCounts extends UnconfirmedReminderCounts {
+  unconfirmed: UnconfirmedReminderCounts;
+  initial: ReminderKindCounts;
+  preService: ReminderKindCounts;
+  preRehearsal: ReminderKindCounts;
+  escalation: EscalationReminderCounts;
+}
+
+interface ReminderServiceRow {
+  id: string;
+  title: string;
+  date: string;
+  time: string | null;
+  church_id: string;
+  status?: string | null;
+  rehearsal_time?: string | null;
+  created_by?: string | null;
+}
+
+interface ReminderAssignmentRow {
+  id: string;
+  service_id: string;
+  team_member_id: string;
+  role: string;
+  status: string;
+  created_at?: string | null;
+}
+
+interface ReminderMemberRow {
+  id: string;
+  name: string;
+  email: string | null;
+}
+
+interface ReminderChurchRow {
+  id: string;
+  name: string;
+}
+
+interface ReminderUserRow {
+  id: string;
+  name: string;
+  email: string | null;
+  role: string;
+  church_id?: string | null;
+}
+
+function emptyKindCounts(): ReminderKindCounts {
+  return { checked: 0, sent: 0, skipped: 0, failed: 0 };
+}
+
+function utcDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function parseDateKeyMs(value: string | null | undefined): number | null {
+  const key = (value || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
+  const parsed = Date.parse(`${key}T00:00:00.000Z`);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseTimeParts(value: string | null | undefined): { hours: number; minutes: number } | null {
+  if (!value) return null;
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value.trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return { hours, minutes };
+}
+
+/** Service start in UTC. Falls back to the start of the service date. */
+function serviceDateTimeMs(service: ReminderServiceRow): number | null {
+  const dateMs = parseDateKeyMs(service.date);
+  if (dateMs === null) return null;
+  const time = parseTimeParts(service.time);
+  if (!time) return dateMs;
+  return dateMs + time.hours * HOUR_MS + time.minutes * 60 * 1000;
+}
+
+/** Rehearsal start in UTC, or null when the time is missing/unparseable. */
+function rehearsalDateTimeMs(service: ReminderServiceRow): number | null {
+  const value = service.rehearsal_time;
+  if (typeof value !== 'string' || !value.trim()) return null;
+
+  // Accept either a time of day (the usual shape) or a full timestamp.
+  if (/^\d{4}-\d{2}-\d{2}[T ]/.test(value)) {
+    const parsed = Date.parse(value.includes('T') ? value : value.replace(' ', 'T'));
+    return Number.isFinite(parsed) ? parsed : null;
   }
-  
-  return allAssignments.filter(assignment => {
-    if (!assignment.created_at) return false;
-    const createdAt = new Date(assignment.created_at);
-    return (
-      assignment.status === 'pending' &&
-      createdAt < cutoffDate
+
+  const dateMs = parseDateKeyMs(service.date);
+  const time = parseTimeParts(value);
+  if (dateMs === null || !time) return null;
+  return dateMs + time.hours * HOUR_MS + time.minutes * 60 * 1000;
+}
+
+function isWithinWindow(targetMs: number, now: Date, hours: number): boolean {
+  const diff = targetMs - now.getTime();
+  return diff > 0 && diff <= hours * HOUR_MS;
+}
+
+function isCompleted(service: ReminderServiceRow): boolean {
+  return service.status === 'completed';
+}
+
+async function loadUpcomingServices(now: Date): Promise<ReminderServiceRow[] | null> {
+  const { data, error } = await supabaseAdmin
+    .from('services')
+    .select('*')
+    .gte('date', utcDateKey(now))
+    .neq('status', 'completed')
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.error('[Reminders] Failed to load upcoming services:', error.message);
+    return null;
+  }
+
+  return ((data || []) as ReminderServiceRow[]).filter(
+    (service) => Boolean(service?.id) && !isCompleted(service)
+  );
+}
+
+async function loadReminderLedger(
+  assignmentIds: string[]
+): Promise<{ sent: Set<string>; error: unknown }> {
+  if (assignmentIds.length === 0) {
+    return { sent: new Set(), error: null };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('assignment_reminders_sent')
+    .select('assignment_id, kind')
+    .in('assignment_id', assignmentIds);
+
+  if (error) {
+    return { sent: new Set(), error };
+  }
+
+  const sent = new Set(
+    ((data || []) as Array<{ assignment_id: string; kind: string }>).map(
+      (row) => `${row.assignment_id}:${row.kind}`
+    )
+  );
+  return { sent, error: null };
+}
+
+async function loadMembers(teamMemberIds: string[]): Promise<Map<string, ReminderMemberRow>> {
+  if (teamMemberIds.length === 0) return new Map();
+  const { data } = await supabaseAdmin
+    .from('team_members')
+    .select('id, name, email')
+    .in('id', [...new Set(teamMemberIds)]);
+
+  return new Map(
+    ((data || []) as ReminderMemberRow[]).map((member) => [member.id, member])
+  );
+}
+
+async function loadChurches(churchIds: string[]): Promise<Map<string, ReminderChurchRow>> {
+  if (churchIds.length === 0) return new Map();
+  const { data } = await supabaseAdmin
+    .from('churches')
+    .select('id, name')
+    .in('id', [...new Set(churchIds)]);
+
+  return new Map(
+    ((data || []) as ReminderChurchRow[]).map((church) => [church.id, church])
+  );
+}
+
+/**
+ * Record a successful send. Unique violations mean another run already
+ * recorded this (assignment, kind) pair; they must not break the job.
+ */
+async function recordReminderSent(
+  assignmentId: string,
+  kind: '3d' | '1d' | 'initial' | 'pre_rehearsal' | 'pre_service' | 'escalation'
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('assignment_reminders_sent')
+    .insert({ assignment_id: assignmentId, kind });
+
+  if (!error) return;
+
+  if ((error as { code?: string }).code === '23505') {
+    console.warn(
+      `[Reminders] Reminder already recorded for assignment ${assignmentId} (${kind})`
     );
-  });
-}
-
-/**
- * Find upcoming services that need pre-rehearsal or pre-service reminders
- */
-async function findUpcomingServices(churchId: string, settings: ReminderSettings): Promise<any[]> {
-  const services = await db.services.getByChurch(churchId);
-  const now = new Date();
-  
-  return services.filter(service => {
-    const serviceDate = new Date(service.date);
-    const hoursUntilService = (serviceDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
-    // Return services in the next 72 hours (3 days)
-    return hoursUntilService > 0 && hoursUntilService < 72;
-  });
-}
-
-/**
- * Send initial confirmation reminder for pending assignments
- */
-async function sendInitialReminders(churchId: string): Promise<void> {
-  const settings = getReminderSettings();
-  const assignments = await findInitialReminderAssignments(churchId, settings);
-  
-  for (const assignment of assignments) {
-    // Get service and member details first
-    const service = await db.services.getById(assignment.service_id, churchId);
-    const member = await db.teamMembers.getById(assignment.team_member_id, churchId);
-    
-    if (!service || !member || !member.user_id) continue;
-    
-    // Check if we've already sent a reminder for this assignment
-    // We'll check user's notifications
-    const userNotifications = await db.notifications.getByUser(member.user_id);
-    const alreadySent = userNotifications.some(n => 
-      n.type === 'initial_reminder' && n.assignment_id === assignment.id
-    );
-    
-    if (alreadySent) continue;
-    
-    // Build notification
-    const roleLabel = assignment.role.split('_').map((w: string) => 
-      w.charAt(0).toUpperCase() + w.slice(1)
-    ).join(' ');
-    
-    const linkUrl = `${env.appUrl}/services/${service.id}/schedule?assignmentId=${assignment.id}`;
-    
-    await sendNotification({
-      userId: member.user_id,
-      type: NotificationType.ASSIGNMENT_REMINDER,
-      subject: 'Reminder: Please confirm your schedule',
-      body: `You're scheduled for ${roleLabel} at ${service.title} on ${service.date}. Please confirm or decline your availability.`,
-      linkUrl,
-      organizationId: churchId,
-      metadata: { assignmentId: assignment.id },
-    });
-    
-    console.log(`[Reminders] Sent initial reminder for assignment ${assignment.id}`);
+    return;
   }
+
+  console.error(
+    `[Reminders] Failed to record ${kind} reminder for assignment ${assignmentId}:`,
+    error.message
+  );
 }
 
 /**
- * Send pre-rehearsal and pre-service reminders
+ * Send an initial confirmation reminder to volunteers whose assignment has
+ * been pending for at least `initialReminderHours`, as long as the service is
+ * still far enough out that the 3-day / 1-day reminders have not taken over.
  */
-async function sendPreServiceReminders(churchId: string): Promise<void> {
+export async function sendInitialReminders(
+  now: Date = new Date()
+): Promise<ReminderKindCounts> {
+  const counts = emptyKindCounts();
+  if (!isSupabaseAdminConfigured()) return counts;
+
   const settings = getReminderSettings();
-  const upcomingServices = await findUpcomingServices(churchId, settings);
-  
-  for (const service of upcomingServices) {
-    const serviceDate = new Date(service.date);
-    const now = new Date();
-    const hoursUntilService = (serviceDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
-    // Get all assignments for this service
-    const assignments = await db.assignments.getByService(service.id, churchId);
-    const confirmedAndPending = assignments.filter(a => a.status === 'confirmed' || a.status === 'pending');
-    
-    // Pre-rehearsal reminder (if there's a rehearsal time)
-    if (service.rehearsal_time && typeof service.rehearsal_time === 'string') {
-      const rehearsalDate = new Date(`${service.date}T${service.rehearsal_time}`);
-      const hoursUntilRehearsal = (rehearsalDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-      
-      // Check if we should send pre-rehearsal reminder (within the reminder window)
-      if (hoursUntilRehearsal > 0 && hoursUntilRehearsal <= settings.preRehearsalReminderHours + 1) {
-        // Check if we've already sent by checking all users' notifications
-        const allSent = await Promise.all(
-          confirmedAndPending.map(async (assignment) => {
-            const member = await db.teamMembers.getById(assignment.team_member_id, churchId);
-            if (!member?.user_id) return true;
-            
-            const userNotifications = await db.notifications.getByUser(member.user_id);
-            return userNotifications.some(n => 
-              n.type === 'pre_rehearsal_reminder' && n.service_id === service.id
-            );
-          })
-        );
-        
-        if (allSent.every(sent => sent)) continue;
-        
-        for (const assignment of confirmedAndPending) {
-          const member = await db.teamMembers.getById(assignment.team_member_id, churchId);
-          if (!member || !member.user_id) continue;
-          
-          const roleLabel = assignment.role.split('_').map((w: string) => 
-            w.charAt(0).toUpperCase() + w.slice(1)
-          ).join(' ');
-          
-          await sendNotification({
-            userId: member.user_id,
-            type: NotificationType.REHEARSAL_REMINDER,
-            subject: `Rehearsal tomorrow: ${service.title}`,
-            body: `Rehearsal is at ${service.rehearsal_time} on ${service.date}. You're scheduled for ${roleLabel}.`,
-            linkUrl: `${env.appUrl}/services/${service.id}`,
-            organizationId: churchId,
-            metadata: { serviceId: service.id },
-          });
-        }
-        
-        console.log(`[Reminders] Sent pre-rehearsal reminder for service ${service.id}`);
-      }
-    }
-    
-    // Pre-service reminder
-    if (hoursUntilService > 0 && hoursUntilService <= settings.preServiceReminderHours + 1) {
-      // Check if we've already sent
-      const allSent = await Promise.all(
-        confirmedAndPending.map(async (assignment) => {
-          const member = await db.teamMembers.getById(assignment.team_member_id, churchId);
-          if (!member?.user_id) return true;
-          
-          const userNotifications = await db.notifications.getByUser(member.user_id);
-          return userNotifications.some(n => 
-            n.type === 'pre_service_reminder' && n.service_id === service.id
-          );
-        })
-      );
-      
-      if (allSent.every(sent => sent)) continue;
-      
-      for (const assignment of confirmedAndPending) {
-        const member = await db.teamMembers.getById(assignment.team_member_id, churchId);
-        if (!member || !member.user_id) continue;
-        
-        const roleLabel = assignment.role.split('_').map((w: string) => 
-          w.charAt(0).toUpperCase() + w.slice(1)
-        ).join(' ');
-        
-        await sendNotification({
-          userId: member.user_id,
-          type: NotificationType.SERVICE_REMINDER,
-          subject: `Service this weekend: ${service.title}`,
-          body: `Service is at ${service.time} on ${service.date}. You're scheduled for ${roleLabel}.`,
-          linkUrl: `${env.appUrl}/services/${service.id}`,
-          organizationId: churchId,
-          metadata: { serviceId: service.id },
-        });
-      }
-      
-      console.log(`[Reminders] Sent pre-service reminder for service ${service.id}`);
-    }
+  const services = await loadUpcomingServices(now);
+  if (services === null) {
+    counts.failed += 1;
+    return counts;
   }
-}
+  if (services.length === 0) return counts;
 
-/**
- * Send escalation notifications to leaders for unconfirmed assignments
- */
-async function sendEscalations(churchId: string): Promise<void> {
-  const settings = getReminderSettings();
-  const upcomingServices = await findUpcomingServices(churchId, settings);
-  
-  for (const service of upcomingServices) {
-    const serviceDate = new Date(service.date);
-    const now = new Date();
-    const hoursUntilService = (serviceDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
-    // Only escalate within escalation window
-    if (hoursUntilService <= 0 || hoursUntilService > settings.escalationHours) {
+  const serviceById = new Map(services.map((service) => [service.id, service]));
+
+  const { data: assignmentRows, error: assignmentsError } = await supabaseAdmin
+    .from('service_assignments')
+    .select('*')
+    .in('service_id', [...serviceById.keys()])
+    .eq('status', 'pending');
+
+  if (assignmentsError) {
+    console.error('[Reminders] Failed to load pending assignments:', assignmentsError.message);
+    counts.failed += 1;
+    return counts;
+  }
+
+  const pending = ((assignmentRows || []) as ReminderAssignmentRow[]).filter((assignment) => {
+    if (assignment.status !== 'pending') return false;
+    const service = serviceById.get(assignment.service_id);
+    if (!service) return false;
+    const serviceMs = serviceDateTimeMs(service);
+    return serviceMs !== null && serviceMs > now.getTime();
+  });
+
+  counts.checked = pending.length;
+  if (pending.length === 0) return counts;
+
+  const ledger = await loadReminderLedger(pending.map((assignment) => assignment.id));
+  if (ledger.error) {
+    console.error('[Reminders] Failed to load sent reminder ledger:', ledger.error);
+    counts.failed += 1;
+    return counts;
+  }
+
+  const { threeDay } = reminderTargetDates(now);
+  const cutoffMs = now.getTime() - settings.initialReminderHours * HOUR_MS;
+
+  const candidates: ReminderAssignmentRow[] = [];
+  for (const assignment of pending) {
+    const service = serviceById.get(assignment.service_id);
+    if (!service) {
+      counts.skipped += 1;
       continue;
     }
-    
-    // Check if we've already escalated
-    // We'll need to check all admin/worship leader users in the church
-    const users = await db.users.getByChurch(churchId);
-    const escalationCheck = await Promise.all(
-      users.map(async (user) => {
-        const userNotifications = await db.notifications.getByUser(user.id);
-        return userNotifications.some(n => 
-          n.type === 'escalation' && n.service_id === service.id
+
+    const createdAtMs = assignment.created_at ? Date.parse(assignment.created_at) : NaN;
+    if (!Number.isFinite(createdAtMs) || createdAtMs > cutoffMs) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    // The 3-day / 1-day unconfirmed reminders cover these services.
+    const serviceDateKey = (service.date || '').slice(0, 10);
+    if (serviceDateKey <= threeDay) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    if (
+      ledger.sent.has(`${assignment.id}:initial`) ||
+      ledger.sent.has(`${assignment.id}:3d`) ||
+      ledger.sent.has(`${assignment.id}:1d`)
+    ) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    candidates.push(assignment);
+  }
+
+  if (candidates.length === 0) return counts;
+
+  if (!(await isEmailConfigured())) {
+    counts.skipped += candidates.length;
+    return counts;
+  }
+
+  const memberById = await loadMembers(
+    candidates.map((assignment) => assignment.team_member_id)
+  );
+  const churchById = await loadChurches(
+    candidates.map((assignment) => serviceById.get(assignment.service_id)!.church_id)
+  );
+
+  for (const assignment of candidates) {
+    const service = serviceById.get(assignment.service_id);
+    if (!service) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    const member = memberById.get(assignment.team_member_id);
+    if (!member?.email) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    const church = churchById.get(service.church_id);
+    if (!church) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    try {
+      const rawToken = await createResponseToken(
+        assignment.id,
+        service.church_id,
+        service.date,
+        now
+      );
+      const { confirmUrl, declineUrl } = buildResponseUrls(rawToken);
+
+      const { html, text } = serviceReminderEmail({
+        memberName: member.name,
+        churchName: church.name,
+        serviceTitle: service.title,
+        serviceDate: service.date,
+        serviceTime: service.time || '',
+        role: assignment.role,
+        acceptUrl: confirmUrl,
+        declineUrl,
+      });
+
+      const result = await sendEmail({
+        to: member.email,
+        subject: `Reminder: Please respond for ${service.title}`,
+        html,
+        text,
+      });
+
+      if (!result.success) {
+        counts.failed += 1;
+        continue;
+      }
+
+      await recordReminderSent(assignment.id, 'initial');
+      counts.sent += 1;
+    } catch (error) {
+      console.error(`[Reminders] Failed to send initial reminder for ${assignment.id}:`, error);
+      counts.failed += 1;
+    }
+  }
+
+  return counts;
+}
+
+/**
+ * Send pre-service and pre-rehearsal reminders to confirmed and pending
+ * volunteers. Confirmed volunteers get an informational email; pending
+ * volunteers also get fresh single-use accept/decline links.
+ */
+export async function sendPreServiceReminders(
+  now: Date = new Date()
+): Promise<PreServiceReminderCounts> {
+  const counts: PreServiceReminderCounts = {
+    preService: emptyKindCounts(),
+    preRehearsal: emptyKindCounts(),
+  };
+
+  if (!isSupabaseAdminConfigured()) return counts;
+
+  const settings = getReminderSettings();
+  const services = await loadUpcomingServices(now);
+  if (services === null) {
+    counts.preService.failed += 1;
+    counts.preRehearsal.failed += 1;
+    return counts;
+  }
+  if (services.length === 0) return counts;
+
+  const serviceById = new Map(services.map((service) => [service.id, service]));
+  const kindsByService = new Map<string, Array<'pre_service' | 'pre_rehearsal'>>();
+
+  for (const service of services) {
+    const kinds: Array<'pre_service' | 'pre_rehearsal'> = [];
+
+    const serviceMs = serviceDateTimeMs(service);
+    if (serviceMs !== null && isWithinWindow(serviceMs, now, settings.preServiceReminderHours)) {
+      kinds.push('pre_service');
+    }
+
+    const rehearsalMs = rehearsalDateTimeMs(service);
+    if (
+      rehearsalMs !== null &&
+      isWithinWindow(rehearsalMs, now, settings.preRehearsalReminderHours)
+    ) {
+      kinds.push('pre_rehearsal');
+    }
+
+    if (kinds.length > 0) kindsByService.set(service.id, kinds);
+  }
+
+  if (kindsByService.size === 0) return counts;
+
+  const { data: assignmentRows, error: assignmentsError } = await supabaseAdmin
+    .from('service_assignments')
+    .select('*')
+    .in('service_id', [...kindsByService.keys()])
+    .in('status', ['confirmed', 'pending']);
+
+  if (assignmentsError) {
+    console.error('[Reminders] Failed to load upcoming assignments:', assignmentsError.message);
+    counts.preService.failed += 1;
+    counts.preRehearsal.failed += 1;
+    return counts;
+  }
+
+  const assignments = ((assignmentRows || []) as ReminderAssignmentRow[]).filter(
+    (assignment) =>
+      (assignment.status === 'confirmed' || assignment.status === 'pending') &&
+      kindsByService.has(assignment.service_id)
+  );
+
+  const ledger = await loadReminderLedger(assignments.map((assignment) => assignment.id));
+  if (ledger.error) {
+    console.error('[Reminders] Failed to load sent reminder ledger:', ledger.error);
+    counts.preService.failed += 1;
+    counts.preRehearsal.failed += 1;
+    return counts;
+  }
+
+  type Candidate = {
+    assignment: ReminderAssignmentRow;
+    service: ReminderServiceRow;
+    kind: 'pre_service' | 'pre_rehearsal';
+  };
+  const candidates: Candidate[] = [];
+
+  for (const assignment of assignments) {
+    const service = serviceById.get(assignment.service_id);
+    if (!service) continue;
+    const kinds = kindsByService.get(assignment.service_id) || [];
+
+    for (const kind of kinds) {
+      const kindCounts =
+        kind === 'pre_service' ? counts.preService : counts.preRehearsal;
+      kindCounts.checked += 1;
+
+      if (ledger.sent.has(`${assignment.id}:${kind}`)) {
+        kindCounts.skipped += 1;
+        continue;
+      }
+
+      candidates.push({ assignment, service, kind });
+    }
+  }
+
+  if (candidates.length === 0) return counts;
+
+  if (!(await isEmailConfigured())) {
+    for (const candidate of candidates) {
+      const kindCounts =
+        candidate.kind === 'pre_service' ? counts.preService : counts.preRehearsal;
+      kindCounts.skipped += 1;
+    }
+    return counts;
+  }
+
+  const memberById = await loadMembers(
+    candidates.map((candidate) => candidate.assignment.team_member_id)
+  );
+  const churchById = await loadChurches(
+    candidates.map((candidate) => candidate.service.church_id)
+  );
+
+  for (const candidate of candidates) {
+    const { assignment, service, kind } = candidate;
+    const kindCounts = kind === 'pre_service' ? counts.preService : counts.preRehearsal;
+
+    const member = memberById.get(assignment.team_member_id);
+    if (!member?.email) {
+      kindCounts.skipped += 1;
+      continue;
+    }
+
+    const church = churchById.get(service.church_id);
+    if (!church) {
+      kindCounts.skipped += 1;
+      continue;
+    }
+
+    try {
+      const needsResponse = assignment.status === 'pending';
+      let acceptUrl: string | undefined;
+      let declineUrl: string | undefined;
+
+      if (needsResponse) {
+        const rawToken = await createResponseToken(
+          assignment.id,
+          service.church_id,
+          service.date,
+          now
         );
-      })
+        ({ confirmUrl: acceptUrl, declineUrl } = buildResponseUrls(rawToken));
+      }
+
+      const { html, text } = upcomingServiceReminderEmail({
+        memberName: member.name,
+        churchName: church.name,
+        serviceTitle: service.title,
+        serviceDate: service.date,
+        serviceTime: service.time || '',
+        role: assignment.role,
+        kind: kind === 'pre_rehearsal' ? 'rehearsal' : 'service',
+        rehearsalTime: service.rehearsal_time || undefined,
+        acceptUrl,
+        declineUrl,
+      });
+
+      const subject =
+        kind === 'pre_rehearsal'
+          ? `${needsResponse ? 'Please respond' : "You're on"}: rehearsal for ${service.title}`
+          : `${needsResponse ? 'Please respond' : "You're on"}: ${service.title} is coming up`;
+
+      const result = await sendEmail({
+        to: member.email,
+        subject,
+        html,
+        text,
+      });
+
+      if (!result.success) {
+        kindCounts.failed += 1;
+        continue;
+      }
+
+      await recordReminderSent(assignment.id, kind);
+      kindCounts.sent += 1;
+    } catch (error) {
+      console.error(
+        `[Reminders] Failed to send ${kind} reminder for ${assignment.id}:`,
+        error
+      );
+      kindCounts.failed += 1;
+    }
+  }
+
+  return counts;
+}
+
+/** Convenience wrapper for tests/callers that only want rehearsal reminders. */
+export async function sendPreRehearsalReminders(
+  now: Date = new Date()
+): Promise<ReminderKindCounts> {
+  const counts = await sendPreServiceReminders(now);
+  return counts.preRehearsal;
+}
+
+/**
+ * Escalate still-pending assignments to church admins/leaders shortly before
+ * the service. The ledger records one `escalation` row per pending assignment
+ * included in a successfully sent email, so a newly pending assignment
+ * triggers a fresh escalation while old ones stay quiet.
+ */
+export async function sendEscalations(
+  now: Date = new Date()
+): Promise<EscalationReminderCounts> {
+  const counts: EscalationReminderCounts = {
+    services: 0,
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+  };
+
+  if (!isSupabaseAdminConfigured()) return counts;
+
+  const settings = getReminderSettings();
+  const services = await loadUpcomingServices(now);
+  if (services === null) {
+    counts.failed += 1;
+    return counts;
+  }
+  if (services.length === 0) return counts;
+
+  const inWindow = services.filter((service) => {
+    const serviceMs = serviceDateTimeMs(service);
+    return serviceMs !== null && isWithinWindow(serviceMs, now, settings.escalationHours);
+  });
+  if (inWindow.length === 0) return counts;
+
+  const serviceById = new Map(inWindow.map((service) => [service.id, service]));
+
+  const { data: assignmentRows, error: assignmentsError } = await supabaseAdmin
+    .from('service_assignments')
+    .select('*')
+    .in('service_id', [...serviceById.keys()])
+    .eq('status', 'pending');
+
+  if (assignmentsError) {
+    console.error('[Reminders] Failed to load pending assignments:', assignmentsError.message);
+    counts.failed += 1;
+    return counts;
+  }
+
+  const pendingByService = new Map<string, ReminderAssignmentRow[]>();
+  for (const assignment of (assignmentRows || []) as ReminderAssignmentRow[]) {
+    if (assignment.status !== 'pending') continue;
+    if (!serviceById.has(assignment.service_id)) continue;
+    const list = pendingByService.get(assignment.service_id) || [];
+    list.push(assignment);
+    pendingByService.set(assignment.service_id, list);
+  }
+
+  const servicesWithPending = inWindow.filter(
+    (service) => (pendingByService.get(service.id) || []).length > 0
+  );
+  counts.services = servicesWithPending.length;
+  if (servicesWithPending.length === 0) return counts;
+
+  const allPending = servicesWithPending.flatMap(
+    (service) => pendingByService.get(service.id) || []
+  );
+
+  const ledger = await loadReminderLedger(allPending.map((assignment) => assignment.id));
+  if (ledger.error) {
+    console.error('[Reminders] Failed to load sent reminder ledger:', ledger.error);
+    counts.failed += 1;
+    return counts;
+  }
+
+  if (!(await isEmailConfigured())) {
+    counts.skipped += servicesWithPending.length;
+    return counts;
+  }
+
+  const memberById = await loadMembers(
+    allPending.map((assignment) => assignment.team_member_id)
+  );
+  const churchById = await loadChurches(
+    servicesWithPending.map((service) => service.church_id)
+  );
+
+  const { data: churchUserRows } = await supabaseAdmin
+    .from('users')
+    .select('id, name, email, role, church_id')
+    .in('church_id', [...new Set(servicesWithPending.map((service) => service.church_id))]);
+
+  const allUsers = [...((churchUserRows || []) as ReminderUserRow[])];
+
+  // Include a service creator even if their role is not admin/leader, provided
+  // they were not already loaded with their church.
+  const knownUserIds = new Set(allUsers.map((user) => user.id));
+  const missingCreatorIds = [
+    ...new Set(
+      servicesWithPending
+        .map((service) => service.created_by)
+        .filter((id): id is string => Boolean(id) && !knownUserIds.has(id!))
+    ),
+  ];
+
+  if (missingCreatorIds.length > 0) {
+    const { data: creatorRows } = await supabaseAdmin
+      .from('users')
+      .select('id, name, email, role, church_id')
+      .in('id', missingCreatorIds);
+    allUsers.push(...((creatorRows || []) as ReminderUserRow[]));
+  }
+
+  const userById = new Map(allUsers.map((user) => [user.id, user]));
+
+  for (const service of servicesWithPending) {
+    const pending = pendingByService.get(service.id) || [];
+    const unmarked = pending.filter(
+      (assignment) => !ledger.sent.has(`${assignment.id}:escalation`)
     );
-    
-    if (escalationCheck.every(escalated => escalated)) continue;
-    
-    // Find pending assignments
-    const assignments = await db.assignments.getByService(service.id, churchId);
-    const pendingAssignments = assignments.filter(a => a.status === 'pending');
-    
-    if (pendingAssignments.length === 0) continue;
-    
-    // Build list of pending team members
-    const pendingMembers: string[] = [];
-    for (const assignment of pendingAssignments) {
-      const member = await db.teamMembers.getById(assignment.team_member_id, churchId);
-      if (member) {
-        const roleLabel = assignment.role.split('_').map((w: string) => 
-          w.charAt(0).toUpperCase() + w.slice(1)
-        ).join(' ');
-        pendingMembers.push(`${member.name} (${roleLabel})`);
+
+    if (unmarked.length === 0) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    const church = churchById.get(service.church_id);
+    if (!church) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    const leadersById = new Map<string, ReminderUserRow>();
+    for (const user of allUsers) {
+      if (
+        (user.church_id === service.church_id || !user.church_id) &&
+        (user.role === 'admin' || user.role === 'leader') &&
+        user.email
+      ) {
+        leadersById.set(user.id, user);
       }
     }
-    
-    // Notify worship leader/admin
-    // In a real implementation, you'd find the worship leader or admin for this church
-    // For now, we'll log this information
-    console.log(`[Reminders] Escalation needed for ${pendingMembers.length} pending assignments on ${service.date}`);
-    console.log(`[Reminders] Pending: ${pendingMembers.join(', ')}`);
-    
-    // TODO: Get worship leader user and send notification
-    // const worshipLeader = await getWorshipLeader(churchId);
-    // if (worshipLeader) {
-    //   await sendNotification({
-    //     userId: worshipLeader.id,
-    //     type: NotificationType.ESCALATION,
-    //     subject: `Unconfirmed team members for ${service.title}`,
-    //     body: `The following team members haven't confirmed yet:\n${pendingMembers.join('\n')}`,
-    //     linkUrl: `${env.appUrl}/services/${service.id}/schedule`,
-    //     organizationId: churchId,
-    //     metadata: { serviceId: service.id },
-    //   });
-    // }
+
+    if (service.created_by) {
+      const creator = userById.get(service.created_by);
+      if (creator?.email) leadersById.set(creator.id, creator);
+    }
+
+    if (leadersById.size === 0) {
+      // Leave the ledger untouched so a later run can retry once a leader is
+      // given an email address.
+      counts.skipped += 1;
+      continue;
+    }
+
+    const pendingForEmail = pending.map((assignment) => {
+      const member = memberById.get(assignment.team_member_id);
+      return {
+        assignment,
+        name: member?.name || 'Team member',
+        role: assignment.role,
+      };
+    });
+
+    const scheduleUrl = `${appBaseUrl()}/services/${service.id}?tab=schedule`;
+    let emailed = false;
+    let failed = false;
+
+    for (const leader of leadersById.values()) {
+      try {
+        const { html, text } = leaderEscalationEmail({
+          churchName: church.name,
+          serviceTitle: service.title,
+          serviceDate: service.date,
+          serviceTime: service.time || undefined,
+          pendingAssignments: pendingForEmail.map((item) => ({
+            name: item.name,
+            role: item.role,
+          })),
+          scheduleUrl,
+        });
+
+        const result = await sendEmail({
+          to: leader.email!,
+          subject: `Unconfirmed team members for ${service.title}`,
+          html,
+          text,
+        });
+
+        if (result.success) {
+          counts.sent += 1;
+          emailed = true;
+        } else {
+          counts.failed += 1;
+          failed = true;
+        }
+      } catch (error) {
+        console.error(
+          `[Reminders] Failed to send escalation for service ${service.id}:`,
+          error
+        );
+        counts.failed += 1;
+        failed = true;
+      }
+    }
+
+    if (!emailed) {
+      // Never mark assignments when no escalation email was accepted.
+      if (!failed) counts.skipped += 1;
+      continue;
+    }
+
+    for (const item of pendingForEmail) {
+      if (ledger.sent.has(`${item.assignment.id}:escalation`)) continue;
+      await recordReminderSent(item.assignment.id, 'escalation');
+      ledger.sent.add(`${item.assignment.id}:escalation`);
+    }
   }
+
+  return counts;
 }
 
 // ── Unconfirmed 3-day / 1-day response reminders ─────────────────────
@@ -305,8 +856,6 @@ async function sendEscalations(churchId: string): Promise<void> {
 // exactly 1 day before the service. Dates are compared in UTC calendar terms
 // (`YYYY-MM-DD` derived from `toISOString()`), which matches how the rest of
 // the reminder job reasons about service dates.
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface UnconfirmedReminderCounts {
   /** Pending assignments on a 3-day or 1-day service that were considered. */
@@ -321,10 +870,6 @@ export interface UnconfirmedReminderCounts {
   threeDay: number;
   /** Successful 1-day reminders. */
   oneDay: number;
-}
-
-function utcDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 /** UTC dates that are exactly 3 days and 1 day from `now`. */
@@ -349,33 +894,6 @@ export function reminderKindForServiceDate(
   if (key === targets.threeDay) return '3d';
   if (key === targets.oneDay) return '1d';
   return null;
-}
-
-interface ReminderServiceRow {
-  id: string;
-  title: string;
-  date: string;
-  time: string | null;
-  church_id: string;
-}
-
-interface ReminderAssignmentRow {
-  id: string;
-  service_id: string;
-  team_member_id: string;
-  role: string;
-  status: string;
-}
-
-interface ReminderMemberRow {
-  id: string;
-  name: string;
-  email: string | null;
-}
-
-interface ReminderChurchRow {
-  id: string;
-  name: string;
 }
 
 /**
@@ -443,33 +961,19 @@ export async function sendUnconfirmedResponseReminders(
   counts.checked = pending.length;
   if (pending.length === 0) return counts;
 
-  const { data: sentRows } = await supabaseAdmin
-    .from('assignment_reminders_sent')
-    .select('assignment_id, kind')
-    .in('assignment_id', pending.map((assignment) => assignment.id));
+  const ledger = await loadReminderLedger(pending.map((assignment) => assignment.id));
+  if (ledger.error) {
+    console.error('[Reminders] Failed to load sent reminder ledger:', ledger.error);
+    counts.failed += 1;
+    return counts;
+  }
+  const alreadySent = ledger.sent;
 
-  const alreadySent = new Set(
-    ((sentRows || []) as Array<{ assignment_id: string; kind: string }>).map(
-      (row) => `${row.assignment_id}:${row.kind}`
-    )
+  const memberById = await loadMembers(
+    pending.map((assignment) => assignment.team_member_id)
   );
-
-  const { data: members } = await supabaseAdmin
-    .from('team_members')
-    .select('id, name, email')
-    .in('id', [...new Set(pending.map((assignment) => assignment.team_member_id))]);
-
-  const memberById = new Map(
-    ((members || []) as ReminderMemberRow[]).map((member) => [member.id, member])
-  );
-
-  const { data: churches } = await supabaseAdmin
-    .from('churches')
-    .select('id, name')
-    .in('id', [...new Set(serviceRows.map((service) => service.church_id))]);
-
-  const churchById = new Map(
-    ((churches || []) as ReminderChurchRow[]).map((church) => [church.id, church])
+  const churchById = await loadChurches(
+    serviceRows.map((service) => service.church_id)
   );
 
   if (!(await isEmailConfigured())) {
@@ -506,7 +1010,12 @@ export async function sendUnconfirmedResponseReminders(
     }
 
     try {
-      const rawToken = await createResponseToken(assignment.id, service.church_id, service.date);
+      const rawToken = await createResponseToken(
+        assignment.id,
+        service.church_id,
+        service.date,
+        now
+      );
       const { confirmUrl, declineUrl } = buildResponseUrls(rawToken);
 
       const { html, text } = serviceReminderEmail({
@@ -534,16 +1043,7 @@ export async function sendUnconfirmedResponseReminders(
 
       // Record only after the email is accepted so a transient failure is
       // retried on the next run.
-      const { error: markError } = await supabaseAdmin
-        .from('assignment_reminders_sent')
-        .insert({ assignment_id: assignment.id, kind });
-
-      if (markError) {
-        console.error(
-          `[Reminders] Failed to record reminder for assignment ${assignment.id}:`,
-          markError.message
-        );
-      }
+      await recordReminderSent(assignment.id, kind);
 
       counts.sent += 1;
       if (kind === '3d') counts.threeDay += 1;
@@ -557,34 +1057,55 @@ export async function sendUnconfirmedResponseReminders(
   return counts;
 }
 
-  /**
+/**
+ * Run every reminder kind once. Exported with a `now` parameter so tests can
+ * freeze time; `runReminders` uses the real clock.
+ */
+export async function runAllReminderKinds(
+  now: Date = new Date()
+): Promise<ReminderRunCounts> {
+  const unconfirmed = await sendUnconfirmedResponseReminders(now);
+  const initial = await sendInitialReminders(now);
+  const preService = await sendPreServiceReminders(now);
+  const escalation = await sendEscalations(now);
+
+  return {
+    ...unconfirmed,
+    unconfirmed,
+    initial,
+    preService: preService.preService,
+    preRehearsal: preService.preRehearsal,
+    escalation,
+  };
+}
+
+/**
  * Main entry point for reminder job
  * Call this from a scheduled cron job
- * 
- * Example cron schedule: every 15 minutes
+ *
+ * Example cron schedule: once a day at 13:00 UTC
  * node -e "require('./dist/lib/reminders.js').runReminders()"
  */
-export async function runReminders(): Promise<UnconfirmedReminderCounts> {
+export async function runReminders(now: Date = new Date()): Promise<ReminderRunCounts> {
   try {
     console.log('[Reminders] Starting reminder job...');
 
-    const unconfirmed = await sendUnconfirmedResponseReminders();
-
-    // For multi-tenant setup, we'd get all churches
-    // For now, we'll skip this as db.churches.getAll() doesn't exist
-    // In a real implementation, you'd have a method to get all church IDs
-    // or you'd pass specific church IDs to this function
+    const reminders = await runAllReminderKinds(now);
 
     console.log(
-      `[Reminders] Unconfirmed reminders: ${unconfirmed.sent} sent, ${unconfirmed.skipped} skipped, ${unconfirmed.failed} failed`
+      `[Reminders] Unconfirmed: ${reminders.unconfirmed.sent} sent, ${reminders.unconfirmed.skipped} skipped, ${reminders.unconfirmed.failed} failed`
     );
-    return unconfirmed;
+    console.log(
+      `[Reminders] Initial: ${reminders.initial.sent} sent, ${reminders.initial.skipped} skipped`
+    );
+    console.log(
+      `[Reminders] Pre-service: ${reminders.preService.sent} sent, pre-rehearsal: ${reminders.preRehearsal.sent} sent`
+    );
+    console.log(
+      `[Reminders] Escalations: ${reminders.escalation.sent} sent across ${reminders.escalation.services} services`
+    );
 
-    // Example implementation for single church or specific church:
-    // const churchId = 'your-church-id';
-    // await sendInitialReminders(churchId);
-    // await sendPreServiceReminders(churchId);
-    // await sendEscalations(churchId);
+    return reminders;
   } catch (error) {
     console.error('[Reminders] Fatal error in reminder job:', error);
     throw error;
@@ -598,7 +1119,7 @@ export async function runReminders(): Promise<UnconfirmedReminderCounts> {
 export async function handleRemindersRequest(): Promise<{
   success: boolean;
   message: string;
-  reminders?: UnconfirmedReminderCounts;
+  reminders?: ReminderRunCounts;
 }> {
   try {
     const reminders = await runReminders();
