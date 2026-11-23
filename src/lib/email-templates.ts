@@ -157,6 +157,30 @@ export function assignmentConfirmedEmail(p: ConfirmedParams): { html: string; te
   return { html, text };
 }
 
+interface SwapParams {
+  memberName: string; churchName: string; serviceTitle: string;
+  serviceDate: string; serviceTime?: string; role: string;
+  headline: string; message: string; linkUrl: string;
+}
+export function assignmentSwapEmail(p: SwapParams): { html: string; text: string } {
+  const date = formatDate(p.serviceDate);
+  const role = formatRole(p.role);
+  const html = baseLayout(`
+    <p>Hi ${firstName(p.memberName)},</p>
+    <p>${p.headline}</p>
+    <div class="detail-box">
+      ${detailRow('Service:', p.serviceTitle)}
+      ${detailRow('Date:', date)}
+      ${p.serviceTime ? detailRow('Time:', p.serviceTime) : ''}
+      ${detailRow('Role:', role)}
+    </div>
+    <p>${p.message}</p>
+    <a href="${p.linkUrl}" class="cta">View Swap Request</a>
+  `, p.churchName);
+  const text = `${p.headline}\n\nService: ${p.serviceTitle}\nDate: ${date}\nRole: ${role}\n\n${p.message}\n\n${p.linkUrl}`;
+  return { html, text };
+}
+
 interface DeclinedParams {
   churchName: string; serviceTitle: string; memberName: string; role: string;
 }

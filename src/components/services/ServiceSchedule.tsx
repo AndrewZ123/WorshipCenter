@@ -15,13 +15,14 @@ import {
   Badge,
   Switch,
 } from '@chakra-ui/react';
-import { X, UserPlus, Users, Calendar, AlertTriangle, Sparkles } from 'lucide-react';
+import { X, UserPlus, Users, Calendar, AlertTriangle, Sparkles, ArrowLeftRight } from 'lucide-react';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
+import { useAuth } from '@/lib/auth';
 import type {
   Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate,
-  SchedulingConflict, ServiceRolePosition,
+  SchedulingConflict, ServiceRolePosition, AssignmentSwapSummary,
 } from '@/lib/types';
 import { deriveOpenSlots } from '@/lib/scheduling/autoFill';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -57,10 +58,14 @@ export default function ServiceSchedule({
   readOnly = false,
 }: ServiceScheduleProps) {
   const [assignments, setAssignments] = useState<ServiceAssignmentPopulated[]>([]);
+  const [swaps, setSwaps] = useState<AssignmentSwapSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [swapProcessing, setSwapProcessing] = useState<string | null>(null);
   const highlightedRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const { user } = useAuth();
+  const isLeader = user?.role === 'admin' || user?.role === 'leader';
 
   // Bulk assign state
   const [showBulkAdd, setShowBulkAdd] = useState(false);
@@ -162,6 +167,65 @@ export default function ServiceSchedule({
     }
   };
 
+  // Pending swaps for this service. Leaders see open + claimed requests and can
+  // approve/decline them inline; volunteers just see the badge on their row.
+  const loadSwaps = async () => {
+    try {
+      const response = await fetch(
+        apiUrl(`/api/swaps?status=pending&serviceId=${service.id}`),
+        { headers: await getAuthHeaders() }
+      );
+      if (!response.ok) return;
+      const data = await parseJsonSafe(response);
+      setSwaps(Array.isArray(data.swaps) ? data.swaps : []);
+    } catch (error) {
+      console.error('[ServiceSchedule] Failed to load swaps:', error);
+    }
+  };
+
+  const handleSwapDecision = async (swapId: string, action: 'approve' | 'decline') => {
+    try {
+      setSwapProcessing(swapId);
+      const response = await fetch(apiUrl(`/api/swaps/${swapId}/${action}`), {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+      });
+      if (!response.ok) {
+        const result = await parseJsonSafe(response).catch(() => ({}));
+        throw new Error(result.error || `Failed to ${action} swap`);
+      }
+      toast({
+        title: action === 'approve' ? 'Swap approved' : 'Swap declined',
+        description:
+          action === 'approve'
+            ? 'The assignment has moved to the teammate who claimed it.'
+            : 'The original assignment is unchanged.',
+        status: action === 'approve' ? 'success' : 'info',
+      });
+      await Promise.all([loadAssignments(), loadSwaps()]);
+    } catch (error) {
+      console.error('[ServiceSchedule] Swap decision failed:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : `Failed to ${action} swap`,
+        status: 'error',
+      });
+    } finally {
+      setSwapProcessing(null);
+    }
+  };
+
+  const swapByAssignment = useMemo(
+    () => new Map(swaps.map((swap) => [swap.assignment_id, swap])),
+    [swaps]
+  );
+
+  useEffect(() => {
+    if (!service.id || !churchId) return;
+    loadSwaps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [service.id, churchId]);
+
   // Live assignment status updates from volunteers responding to emailed
   // confirm/decline links. Refetch on focus too so a leader who comes back to
   // the tab sees the latest status without a manual reload.
@@ -180,13 +244,19 @@ export default function ServiceSchedule({
           filter: `service_id=eq.${service.id}`,
         },
         () => {
-          if (!cancelled) loadAssignments({ silent: true });
+          if (!cancelled) {
+            loadAssignments({ silent: true });
+            loadSwaps();
+          }
         }
       )
       .subscribe();
 
     const handleFocus = () => {
-      if (!cancelled) loadAssignments({ silent: true });
+      if (!cancelled) {
+        loadAssignments({ silent: true });
+        loadSwaps();
+      }
     };
     window.addEventListener('focus', handleFocus);
 
@@ -780,6 +850,7 @@ export default function ServiceSchedule({
             const highlighted = assignment.id === highlightedAssignmentId;
             const isOwn = isOwnAssignment(assignment);
             const showActions = isOwn && assignment.status === 'pending';
+            const swap = swapByAssignment.get(assignment.id);
             const blockout = assignment.team_member ? isBlockedOut(assignment.team_member.id) : undefined;
             const statusTimestamp = assignment.status === 'confirmed'
               ? assignment.confirmed_at
@@ -839,6 +910,26 @@ export default function ServiceSchedule({
                           />
                         </Box>
                       </Tooltip>
+                      {swap && (
+                        <Tooltip
+                          label={
+                            swap.status === 'claimed'
+                              ? `${swap.claimed_by?.name || 'A teammate'} claimed this swap — awaiting leader approval`
+                              : 'This volunteer is looking for a swap'
+                          }
+                        >
+                          <Badge
+                            variant="subtle"
+                            colorScheme={swap.status === 'claimed' ? 'blue' : 'yellow'}
+                            fontSize="xs"
+                            borderRadius="full"
+                            px="1.5"
+                          >
+                            <ArrowLeftRight size={10} style={{ display: 'inline', marginRight: 2 }} />
+                            {swap.status === 'claimed' ? 'Swap claimed' : 'Swap open'}
+                          </Badge>
+                        </Tooltip>
+                      )}
                     </HStack>
                     <Text fontSize="xs" color={subTextColor} isTruncated>
                       {assignment.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
@@ -870,6 +961,29 @@ export default function ServiceSchedule({
                         isDisabled={processing === assignment.id}
                       >
                         Decline
+                      </Button>
+                    </>
+                  )}
+                  {!readOnly && isLeader && swap && (
+                    <>
+                      {swap.status === 'claimed' && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => handleSwapDecision(swap.id, 'approve')}
+                          isDisabled={swapProcessing === swap.id}
+                          isLoading={swapProcessing === swap.id}
+                        >
+                          Approve swap
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleSwapDecision(swap.id, 'decline')}
+                        isDisabled={swapProcessing === swap.id}
+                      >
+                        Decline swap
                       </Button>
                     </>
                   )}

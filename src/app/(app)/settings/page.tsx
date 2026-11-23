@@ -32,6 +32,7 @@ import { FiCamera, FiUser, FiHome, FiHelpCircle, FiAlertTriangle } from 'react-i
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { supabase } from '@/lib/supabase';
+import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { useStore } from '@/lib/StoreContext';
 import { useTour } from '@/lib/tour/TourContext';
 import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
@@ -70,6 +71,9 @@ export default function SettingsPage() {
   const [newBlockoutReason, setNewBlockoutReason] = useState('');
   const [addingBlockout, setAddingBlockout] = useState(false);
   const [loadingPrefs, setLoadingPrefs] = useState(false);
+  const [autoApproveSwaps, setAutoApproveSwaps] = useState(false);
+  const [loadingSwapSettings, setLoadingSwapSettings] = useState(false);
+  const [savingSwapSettings, setSavingSwapSettings] = useState(false);
 
   // Admin management state
   const [admins, setAdmins] = useState<(AdminPermission & { users?: Partial<User> })[]>([]);
@@ -130,7 +134,58 @@ export default function SettingsPage() {
       }
     })();
   }, [church, user?.team_member_id]);
-  
+
+  // Swap settings (admins/leaders)
+  const isLeader = user?.role === 'admin' || user?.role === 'leader';
+  useEffect(() => {
+    if (!church || !isLeader) return;
+    (async () => {
+      try {
+        setLoadingSwapSettings(true);
+        const response = await fetch(apiUrl('/api/swaps/settings'), {
+          headers: await getAuthHeaders({ json: false }),
+        });
+        if (!response.ok) return;
+        const data = await parseJsonSafe(response);
+        setAutoApproveSwaps(data.autoApproveSwaps === true);
+      } catch (error) {
+        console.error('Error loading swap settings:', error);
+      } finally {
+        setLoadingSwapSettings(false);
+      }
+    })();
+  }, [church, isLeader]);
+
+  const handleToggleAutoApproveSwaps = async (value: boolean) => {
+    try {
+      setSavingSwapSettings(true);
+      setAutoApproveSwaps(value);
+      const response = await fetch(apiUrl('/api/swaps/settings'), {
+        method: 'PATCH',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ autoApproveSwaps: value }),
+      });
+      const data = await parseJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update swap settings');
+      }
+      toast({
+        title: value ? 'Auto-approve swaps enabled' : 'Auto-approve swaps disabled',
+        status: 'success',
+        duration: 2000,
+      });
+    } catch (error) {
+      setAutoApproveSwaps(!value);
+      toast({
+        title: 'Error updating swap settings',
+        description: error instanceof Error ? error.message : undefined,
+        status: 'error',
+      });
+    } finally {
+      setSavingSwapSettings(false);
+    }
+  };
+
   // Preferences & Blockout handlers
   const handleSavePreference = async () => {
     if (!church || !user?.team_member_id) return;
@@ -545,6 +600,48 @@ export default function SettingsPage() {
           >
             Save Church Settings
           </Button>
+        </VStack>
+      </CardBody>
+    </Card>
+  )}
+
+  {/* Swap settings (admins/leaders) */}
+  {isLeader && church && (
+    <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
+      <CardBody>
+        <VStack align="stretch" spacing={4}>
+          <HStack spacing={4}>
+            <Box p="3" borderRadius="lg" bg="teal.50" color="teal.600" flexShrink={0}>
+              <Calendar size={22} />
+            </Box>
+            <Box flex="1">
+              <Heading size="md" color={textColor}>Swap Requests</Heading>
+              <Text fontSize="sm" color={subtextColor} mt="1">
+                Control how volunteers hand off assignments to teammates.
+              </Text>
+            </Box>
+          </HStack>
+
+          <Divider />
+
+          <FormControl display="flex" alignItems="center" gap="3">
+            <Box flex="1">
+              <FormLabel htmlFor="auto-approve-swaps" mb="0" color={textColor}>
+                Auto-approve swaps
+              </FormLabel>
+              <FormHelperText mt="0" color={subtextColor}>
+                When a qualified teammate claims a swap, move the assignment immediately
+                instead of waiting for a leader.
+              </FormHelperText>
+            </Box>
+            <Switch
+              id="auto-approve-swaps"
+              colorScheme="teal"
+              isChecked={autoApproveSwaps}
+              isDisabled={loadingSwapSettings || savingSwapSettings}
+              onChange={(event) => handleToggleAutoApproveSwaps(event.target.checked)}
+            />
+          </FormControl>
         </VStack>
       </CardBody>
     </Card>

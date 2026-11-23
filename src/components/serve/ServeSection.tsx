@@ -14,6 +14,7 @@ import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import type { ServiceRolePosition, SignupRequestPopulated } from '@/lib/types';
 import { Calendar, Clock, Users, UserPlus, CheckCircle, AlertCircle, XCircle, Filter } from 'lucide-react';
 import { formatTime } from '@/lib/formatDate';
+import SwapSection from '@/components/serve/SwapSection';
 
 const ROLE_OPTIONS = [
   'worship_leader', 'vocals', 'acoustic', 'electric', 'keys', 'bass', 'drums',
@@ -206,6 +207,8 @@ export default function ServeSection() {
       </Flex>
 
       <Divider mb="4" borderColor={borderColor} />
+
+      <SwapSection />
 
       {/* My Requests */}
       {myRequests.length > 0 && (

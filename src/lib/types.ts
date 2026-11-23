@@ -212,6 +212,44 @@ export interface AssignmentResponseToken {
   created_at?: string;
 }
 
+/** Volunteer swap request state. Writes are service-role only. */
+export type AssignmentSwapStatus = 'open' | 'claimed' | 'approved' | 'declined' | 'cancelled';
+
+export interface AssignmentSwapRequest {
+  id: string;
+  church_id: string;
+  assignment_id: string;
+  requested_by: string;
+  claimed_by: string | null;
+  status: AssignmentSwapStatus;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+}
+
+/** Swap request shape returned by /api/swaps (no member emails). */
+export interface AssignmentSwapSummary {
+  id: string;
+  assignment_id: string;
+  status: AssignmentSwapStatus;
+  note: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  role: string;
+  service: { id: string; title: string; date: string; time: string };
+  requester: { id: string; name: string; avatar_url?: string | null };
+  claimed_by: { id: string; name: string; avatar_url?: string | null } | null;
+  can_claim: boolean;
+  is_mine: boolean;
+}
+
+export interface ChurchSettings {
+  church_id: string;
+  auto_approve_swaps: boolean;
+}
+
 /** Idempotency ledger for unconfirmed assignment reminders. */
 export type AssignmentReminderKind = '3d' | '1d';
 
