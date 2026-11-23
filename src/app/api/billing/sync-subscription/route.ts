@@ -3,6 +3,10 @@
  *
  * Manually syncs the subscription state from Stripe to our DB.
  * Used as a diagnostic/recovery tool when webhook may have been missed.
+ *
+ * Body (optional): { session_id?: string }
+ * When the DB row has no stripe_subscription_id yet, a Checkout Session id can
+ * be supplied to recover a missed checkout.session.completed webhook.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,6 +14,11 @@ import { getStripe, isStripeConfigured, getMissingStripeConfig } from '@/lib/str
 import { supabaseAdmin } from '@/lib/supabase';
 import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/auth-middleware';
 import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
+import {
+  activateSubscriptionFromCheckout,
+  syncSubscriptionRecord,
+} from '@/lib/billing-sync';
+import { stripeObjectId, type StripeSubscriptionLike } from '@/lib/stripe-subscription';
 import type { Subscription } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
@@ -66,10 +75,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
+    const churchId = profile.church_id as string;
+
     const { data: sub, error: subError } = await supabaseAdmin
       .from('subscriptions')
       .select('*')
-      .eq('church_id', profile.church_id)
+      .eq('church_id', churchId)
       .single();
 
     if (subError || !sub) {
@@ -78,52 +89,82 @@ export async function POST(request: NextRequest) {
 
     const subscription = sub as unknown as Subscription;
 
-    // If no Stripe subscription, nothing to sync
+    // Optional recovery path: confirm a completed Checkout Session.
+    let sessionId: string | null = null;
+    try {
+      const body = await request.json();
+      if (body && typeof body.session_id === 'string') {
+        sessionId = body.session_id;
+      }
+    } catch {
+      // No body is fine — this is an optional recovery parameter.
+    }
+
     if (!subscription.stripe_subscription_id) {
+      if (!sessionId) {
+        return NextResponse.json({
+          synced: false,
+          message: 'No Stripe subscription to sync. Free/trial plan.',
+          subscription,
+        });
+      }
+
+      if (!sessionId.startsWith('cs_')) {
+        return NextResponse.json({ error: 'Invalid checkout session id' }, { status: 400 });
+      }
+
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.status !== 'complete' || session.payment_status !== 'paid') {
+        return NextResponse.json(
+          {
+            error: 'Checkout is not complete yet. Try again in a moment.',
+            code: 'CHECKOUT_NOT_COMPLETE',
+          },
+          { status: 409 }
+        );
+      }
+
+      const sessionChurchId = session.metadata?.church_id;
+      const sessionCustomerId = stripeObjectId(session.customer);
+      const ownsSession = sessionChurchId
+        ? sessionChurchId === churchId
+        : Boolean(sessionCustomerId) &&
+          sessionCustomerId === subscription.stripe_customer_id;
+
+      if (!ownsSession) {
+        return NextResponse.json(
+          { error: 'This checkout session does not belong to your account.' },
+          { status: 403 }
+        );
+      }
+
+      const result = await activateSubscriptionFromCheckout(supabaseAdmin, stripe, session, {
+        churchId,
+      });
+
+      if (!result.ok) {
+        return NextResponse.json({ error: 'Failed to sync' }, { status: 500 });
+      }
+
       return NextResponse.json({
-        synced: false,
-        message: 'No Stripe subscription to sync. Free/trial plan.',
-        subscription: subscription,
+        synced: true,
+        message: 'Subscription activated from checkout session.',
+        subscription: result.subscription,
       });
     }
 
     // ── Fetch from Stripe ─────────────────────────────────────────────────
     const stripeSub = await stripe.subscriptions.retrieve(
       subscription.stripe_subscription_id
-    ) as any;
+    );
 
-    const currentPeriodEnd = new Date(stripeSub.current_period_end * 1000).toISOString();
-    const currentPeriodStart = new Date(stripeSub.current_period_start * 1000).toISOString();
-    // Map Stripe status → DB-safe status. The DB CHECK constraint allows only:
-    // 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'.
-    // Unknown Stripe statuses default to 'canceled' to avoid constraint violations.
-    const validStatuses = ['trialing', 'active', 'past_due', 'canceled', 'incomplete'];
-    let status: string = subscription.status;
-    if (validStatuses.includes(stripeSub.status)) {
-      status = stripeSub.status;
-    } else if (stripeSub.status) {
-      console.warn(`[Sync] Unmapped Stripe status "${stripeSub.status}" — defaulting to "canceled"`);
-      status = 'canceled';
-    }
+    const result = await syncSubscriptionRecord(
+      supabaseAdmin,
+      stripeSub as unknown as StripeSubscriptionLike
+    );
 
-    const canceledAt = stripeSub.canceled_at
-      ? new Date(stripeSub.canceled_at * 1000).toISOString()
-      : null;
-
-    // ── Update DB ─────────────────────────────────────────────────────────
-    const { error: updateError } = await supabaseAdmin
-      .from('subscriptions')
-      .update({
-        status,
-        current_period_start: currentPeriodStart,
-        current_period_end: currentPeriodEnd,
-        canceled_at: canceledAt,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('church_id', profile.church_id);
-
-    if (updateError) {
-      console.error('[Sync] Failed to update:', updateError);
+    if (!result.ok) {
+      console.error('[Sync] Failed to update subscription');
       return NextResponse.json({ error: 'Failed to sync' }, { status: 500 });
     }
 
@@ -131,7 +172,7 @@ export async function POST(request: NextRequest) {
     const { data: updated } = await supabaseAdmin
       .from('subscriptions')
       .select('*')
-      .eq('church_id', profile.church_id)
+      .eq('church_id', churchId)
       .single();
 
     return NextResponse.json({
@@ -139,7 +180,7 @@ export async function POST(request: NextRequest) {
       message: 'Subscription synced with Stripe.',
       subscription: updated,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Sync] Error:', error);
     return NextResponse.json(
       { error: 'Failed to sync subscription.' },

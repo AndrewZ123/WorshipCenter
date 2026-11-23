@@ -5,7 +5,7 @@
  *
  * Key events handled:
  * - checkout.session.completed → Activate subscription
- * - customer.subscription.updated → Sync subscription changes
+ * - customer.subscription.created/updated → Sync subscription changes
  * - customer.subscription.deleted → Mark subscription as canceled
  * - invoice.payment_failed → Mark subscription as past_due
  *
@@ -20,19 +20,13 @@ import { supabaseAdmin } from '@/lib/supabase';
 import type Stripe from 'stripe';
 import { env } from '@/lib/env';
 import { StripeWebhookEventSchema, invalidInputResponse } from '@/lib/validation';
-import type { SubscriptionStatus } from '@/lib/types';
+import {
+  activateSubscriptionFromCheckout,
+  syncSubscriptionRecord,
+} from '@/lib/billing-sync';
 
 // Disable body parsing — we need the raw body for signature verification
 export const runtime = 'nodejs';
-
-interface SubscriptionPeriodFields {
-  id: string;
-  status: string;
-  metadata?: { church_id?: string; price_type?: string } | null;
-  current_period_start: number;
-  current_period_end: number;
-  canceled_at?: number | null;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,25 +72,35 @@ export async function POST(request: NextRequest) {
     console.log('[Webhook] Received event:', event.type, event.id);
 
     // ── 3. Route to handler ───────────────────────────────────────────────
+    // Handlers return false only when a write that should be retried failed.
+    // Mapping problems (e.g. missing church metadata) are acknowledged so
+    // Stripe does not retry an event that can never succeed.
+    let ok = true;
+
     switch (event.type) {
       case 'checkout.session.completed':
-        await handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
+        ok = await handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
         break;
 
+      case 'customer.subscription.created':
       case 'customer.subscription.updated':
-        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        ok = await handleSubscriptionChanged(event.data.object as Stripe.Subscription);
         break;
 
       case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        ok = await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
 
       case 'invoice.payment_failed':
-        await handlePaymentFailed(event.data.object as Stripe.Invoice);
+        ok = await handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
 
       default:
         console.log('[Webhook] Unhandled event type:', event.type);
+    }
+
+    if (!ok) {
+      return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
     }
 
     return NextResponse.json({ received: true });
@@ -114,153 +118,55 @@ export async function POST(request: NextRequest) {
  * When checkout completes, we have a new subscription.
  * Extract the subscription details and activate in our DB.
  */
-async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
+async function handleCheckoutComplete(session: Stripe.Checkout.Session): Promise<boolean> {
   console.log('[Webhook] Checkout completed:', session.id);
 
-  const churchId = session.metadata?.church_id;
-  const priceType = session.metadata?.price_type || 'monthly';
-
-  if (!churchId) {
-    console.error('[Webhook] No church_id in checkout session metadata');
-    return;
+  const stripe = getStripe();
+  if (!stripe) {
+    console.error('[Webhook] Stripe not initialized');
+    return false;
   }
 
-  // Get the subscription from Stripe
-  const subscriptionId = session.subscription as string;
-  if (!subscriptionId) {
-    console.error('[Webhook] No subscription ID in checkout session');
-    return;
+  const result = await activateSubscriptionFromCheckout(supabaseAdmin, stripe, session);
+
+  if (!result.ok) {
+    console.error('[Webhook] Failed to activate subscription in DB:', result.error);
+    return false;
   }
 
-  const stripe = getStripe()!;
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId) as unknown as {
-    current_period_start: number;
-    current_period_end: number;
-  };
-
-  // Calculate period end
-  const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
-  const currentPeriodStart = new Date(subscription.current_period_start * 1000).toISOString();
-
-  console.log('[Webhook] Activating subscription for church:', churchId, {
-    subscriptionId,
-    priceType,
-    currentPeriodEnd,
-  });
-
-  // Update our DB — activate the subscription
-  const { error } = await supabaseAdmin
-    .from('subscriptions')
-    .update({
-      status: 'active',
-      stripe_subscription_id: subscriptionId,
-      stripe_customer_id: session.customer as string,
-      price_type: priceType,
-      current_period_start: currentPeriodStart,
-      current_period_end: currentPeriodEnd,
-      canceled_at: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('church_id', churchId);
-
-  if (error) {
-    console.error('[Webhook] Failed to activate subscription in DB:', error);
-  } else {
-    console.log('[Webhook] Subscription activated successfully for church:', churchId);
+  if (result.churchId) {
+    console.log('[Webhook] Subscription activated successfully for church:', result.churchId);
   }
+
+  return true;
 }
 
 /**
- * Subscription was updated (plan change, renewal, etc.)
+ * Subscription was created or updated (plan change, renewal, etc.)
  */
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const sub = subscription as unknown as SubscriptionPeriodFields;
-  console.log('[Webhook] Subscription updated:', sub.id);
+async function handleSubscriptionChanged(subscription: Stripe.Subscription): Promise<boolean> {
+  console.log('[Webhook] Subscription changed:', subscription.id);
+  const result = await syncSubscriptionRecord(supabaseAdmin, subscription);
 
-  const churchId = sub.metadata?.church_id;
-  if (!churchId) {
-    console.error('[Webhook] No church_id in subscription metadata');
-    return;
+  if (!result.ok) {
+    console.error('[Webhook] Failed to sync subscription in DB:', result.error);
+    return false;
   }
 
-  const currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString();
-  const currentPeriodStart = new Date(sub.current_period_start * 1000).toISOString();
-
-  // Determine our status from Stripe status
-  const incomingStatus = mapStripeStatus(sub.status);
-  const priceType = sub.metadata?.price_type || 'monthly';
-
-  // If subscription is canceled at period end, record that
-  const canceledAt = sub.canceled_at
-    ? new Date(sub.canceled_at * 1000).toISOString()
-    : null;
-
-  // ── Protect against downgrading active → trialing ───────────────────────
-  // When a Stripe Price has trial_period_days configured, Stripe creates the
-  // subscription in 'trialing' status. Our checkout.session.completed handler
-  // correctly sets status='active' because the user has already paid, but the
-  // subsequent customer.subscription.updated event carries Stripe's 'trialing'
-  // status.  Without this guard, paying users would be incorrectly displayed
-  // as being on a free trial.
-  let effectiveStatus = incomingStatus;
-  if (incomingStatus === 'trialing') {
-    const { data: existing } = await supabaseAdmin
-      .from('subscriptions')
-      .select('status')
-      .eq('church_id', churchId)
-      .maybeSingle();
-
-    if (existing?.status === 'active') {
-      console.log(
-        '[Webhook] Skipping trialing→active downgrade for church:',
-        churchId,
-        '(already active via checkout.session.completed)',
-      );
-      effectiveStatus = 'active';
-    }
-  }
-
-  console.log('[Webhook] Updating subscription:', {
-    churchId,
-    incomingStatus,
-    effectiveStatus,
-    priceType,
-    currentPeriodEnd,
-    canceledAt,
-  });
-
-  const { error } = await supabaseAdmin
-    .from('subscriptions')
-    .update({
-      status: effectiveStatus,
-      price_type: priceType,
-      current_period_start: currentPeriodStart,
-      current_period_end: currentPeriodEnd,
-      canceled_at: canceledAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('church_id', churchId);
-
-  if (error) {
-    console.error('[Webhook] Failed to update subscription in DB:', error);
-  }
+  return true;
 }
 
 /**
  * Subscription was fully deleted (after cancellation period ended)
  */
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<boolean> {
   console.log('[Webhook] Subscription deleted:', subscription.id);
 
   const churchId = subscription.metadata?.church_id;
   if (!churchId) {
     console.error('[Webhook] No church_id in subscription metadata');
-    return;
+    return true;
   }
-
-  // Downgrade to free trial
-  const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 14);
 
   const { error } = await supabaseAdmin
     .from('subscriptions')
@@ -276,13 +182,16 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
   if (error) {
     console.error('[Webhook] Failed to delete subscription in DB:', error);
+    return false;
   }
+
+  return true;
 }
 
 /**
  * Payment failed — mark as past_due so user knows to update payment
  */
-async function handlePaymentFailed(invoice: Stripe.Invoice) {
+async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<boolean> {
   console.log('[Webhook] Payment failed for customer:', invoice.customer);
 
   // Find subscription by customer ID
@@ -294,13 +203,13 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 
   if (findError || !sub) {
     console.error('[Webhook] Could not find subscription for customer:', invoice.customer);
-    return;
+    return true;
   }
 
   const churchId = (sub as { church_id?: string }).church_id;
   if (!churchId) {
     console.error('[Webhook] Subscription row has no church_id for customer:', invoice.customer);
-    return;
+    return true;
   }
 
   const { error } = await supabaseAdmin
@@ -313,41 +222,8 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 
   if (error) {
     console.error('[Webhook] Failed to mark subscription as past_due:', error);
+    return false;
   }
-}
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Helpers
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Maps a Stripe subscription status to our internal SubscriptionStatus type.
- * Our DB has a CHECK constraint that only allows:
- *   'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete'
- * Returning an unmapped value (like 'paused' or a raw Stripe status) would
- * violate the constraint and crash the webhook update.
- */
-function mapStripeStatus(stripeStatus: string): SubscriptionStatus {
-  switch (stripeStatus) {
-    case 'active':
-      return 'active';
-    case 'past_due':
-      return 'past_due';
-    case 'canceled':
-      return 'canceled';
-    case 'unpaid':
-      // Treat unpaid as canceled — access is revoked
-      return 'canceled';
-    case 'trialing':
-      return 'trialing';
-    case 'incomplete':
-      return 'incomplete';
-    case 'incomplete_expired':
-      return 'canceled';
-    default:
-      // Never return the raw Stripe status — that would violate our DB CHECK
-      // constraint. Default to the safest non-active status.
-      console.warn('[Webhook] Unknown Stripe status, defaulting to canceled:', stripeStatus);
-      return 'canceled';
-  }
+  return true;
 }
