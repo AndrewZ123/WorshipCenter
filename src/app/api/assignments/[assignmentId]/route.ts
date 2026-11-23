@@ -4,6 +4,8 @@ import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
 import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { AssignmentParamsSchema, invalidInputResponse } from '@/lib/validation';
+import { isPushConfigured, sendPushNotification } from '@/lib/push';
+import { assignmentRemovedPush } from '@/lib/push-events';
 
 export async function DELETE(
   request: NextRequest,
@@ -51,7 +53,7 @@ export async function DELETE(
 
     const { data: assignment } = await supabaseAdmin
       .from('service_assignments')
-      .select('id, service_id')
+      .select('id, service_id, role, team_member_id, team_members(user_id)')
       .eq('id', assignmentId)
       .single();
 
@@ -61,7 +63,7 @@ export async function DELETE(
 
     const { data: service } = await supabaseAdmin
       .from('services')
-      .select('id')
+      .select('id, title, date, time')
       .eq('id', assignment.service_id)
       .eq('church_id', userData.church_id)
       .single();
@@ -78,6 +80,24 @@ export async function DELETE(
     if (deleteError) {
       console.error('[Delete] Error:', deleteError);
       return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
+    }
+
+    // Let the removed volunteer know — fire-and-forget, no-op unless push is on.
+    const member = Array.isArray((assignment as { team_members?: unknown }).team_members)
+      ? ((assignment as { team_members: Array<{ user_id?: string | null }> }).team_members[0] ?? null)
+      : ((assignment as { team_members?: { user_id?: string | null } | null }).team_members ?? null);
+
+    if (isPushConfigured() && member?.user_id) {
+      void sendPushNotification(
+        member.user_id,
+        assignmentRemovedPush({
+          serviceTitle: service.title,
+          serviceDate: service.date,
+          serviceId: service.id,
+        })
+      ).catch(() => {
+        // Push failures must never fail the delete.
+      });
     }
 
     return NextResponse.json({ success: true });

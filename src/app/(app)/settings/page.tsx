@@ -28,7 +28,7 @@ import {
   Stack,
   Switch,
 } from '@chakra-ui/react';
-import { FiCamera, FiUser, FiHome, FiHelpCircle, FiAlertTriangle } from 'react-icons/fi';
+import { FiCamera, FiUser, FiHome, FiHelpCircle, FiAlertTriangle, FiBell } from 'react-icons/fi';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { supabase } from '@/lib/supabase';
@@ -41,6 +41,14 @@ import { useRouter } from 'next/navigation';
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { db } from '@/lib/store';
 import { getDisplayChurchSlug } from '@/lib/church-slug';
+import {
+  getPushPermissionState,
+  isNativePushAvailable,
+  isPushTokenRegistered,
+  registerPushNotifications,
+  unregisterPushNotifications,
+  type PushPermissionState,
+} from '@/lib/capacitor-push';
 import type { TeamMemberPreference, TeamMemberBlockoutDate, AdminPermission, User } from '@/lib/types';
 
 export default function SettingsPage() {
@@ -74,6 +82,12 @@ export default function SettingsPage() {
   const [autoApproveSwaps, setAutoApproveSwaps] = useState(false);
   const [loadingSwapSettings, setLoadingSwapSettings] = useState(false);
   const [savingSwapSettings, setSavingSwapSettings] = useState(false);
+
+  // iOS push preference (native build only)
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushPermission, setPushPermission] = useState<PushPermissionState>('unsupported');
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   // Admin management state
   const [admins, setAdmins] = useState<(AdminPermission & { users?: Partial<User> })[]>([]);
@@ -114,6 +128,55 @@ export default function SettingsPage() {
       setChurchName(church.name);
     }
   }, [user, church]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const supported = isNativePushAvailable();
+      if (cancelled) return;
+      setPushSupported(supported);
+      if (!supported) return;
+
+      const permission = await getPushPermissionState();
+      if (cancelled) return;
+      setPushPermission(permission);
+      setPushEnabled(permission === 'granted' && isPushTokenRegistered());
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleTogglePush = async (enabled: boolean) => {
+    setPushBusy(true);
+    try {
+      if (enabled) {
+        const result = await registerPushNotifications({ requestPermission: true });
+        const permission = await getPushPermissionState();
+        setPushPermission(permission);
+        setPushEnabled(result === 'registered');
+        toast({
+          title: result === 'registered' ? 'Push notifications enabled' : 'Notifications not enabled',
+          description:
+            result === 'permission_denied'
+              ? 'Allow notifications for WorshipCenter in iOS Settings, then try again.'
+              : result === 'registered'
+                ? 'You will get assignment and mention alerts on this iPhone.'
+                : undefined,
+          status: result === 'registered' ? 'success' : 'warning',
+          duration: 4000,
+        });
+      } else {
+        await unregisterPushNotifications();
+        setPushEnabled(false);
+        toast({ title: 'Push notifications disabled', status: 'info', duration: 3000 });
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   // Load preferences and blockout dates for the logged-in user
   useEffect(() => {
@@ -1017,6 +1080,37 @@ export default function SettingsPage() {
       </HStack>
     </CardBody>
   </Card>
+
+  {pushSupported && (
+    <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
+      <CardBody>
+        <VStack align="stretch" spacing={4}>
+          <HStack spacing={4}>
+            <Box p="3" borderRadius="lg" bg="teal.50" color="teal.600" flexShrink={0}>
+              <FiBell size={22} />
+            </Box>
+            <Box flex="1">
+              <Heading size="md" color={textColor}>Push Notifications</Heading>
+              <Text fontSize="sm" color={subtextColor} mt="1">
+                Get assignment changes and chat mentions on this iPhone.
+              </Text>
+              {pushPermission === 'denied' && (
+                <Text fontSize="sm" color="orange.500" mt="1">
+                  Notifications are blocked for WorshipCenter. Enable them in iOS Settings → Notifications.
+                </Text>
+              )}
+            </Box>
+            <Switch
+              colorScheme="teal"
+              isChecked={pushEnabled}
+              isDisabled={pushBusy || pushPermission === 'denied'}
+              onChange={(event) => handleTogglePush(event.target.checked)}
+            />
+          </HStack>
+        </VStack>
+      </CardBody>
+    </Card>
+  )}
 
   {/* Support Section */}
   <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">

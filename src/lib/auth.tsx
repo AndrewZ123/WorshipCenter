@@ -634,6 +634,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      // Remove the device token while the session is still authenticated.
+      const { unregisterPushNotifications } = await import('@/lib/capacitor-push');
+      await unregisterPushNotifications();
+    } catch {
+      // Push cleanup is best-effort.
+    }
+
+    try {
       await supabase.auth.signOut();
     } catch (err) {
       console.warn('[Auth] Sign out request failed; local session cleared:', err);

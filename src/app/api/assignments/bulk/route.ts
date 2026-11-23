@@ -4,6 +4,8 @@ import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
 import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { sendAssignmentNotification } from '@/lib/notifications';
+import { isPushConfigured, sendPushNotification } from '@/lib/push';
+import { assignmentCreatedPush } from '@/lib/push-events';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceInvitationEmail } from '@/lib/email-templates';
 import { buildResponseUrls, createResponseToken } from '@/lib/assignment-response-tokens';
@@ -152,6 +154,21 @@ export async function POST(req: NextRequest) {
         }).catch((err) =>
           console.error('[BulkAssignments] notification error:', err)
         );
+
+        // Push is a no-op unless PUSH_ENABLED and APNs are configured.
+        if (isPushConfigured() && member.user_id !== user.id) {
+          void sendPushNotification(
+            member.user_id,
+            assignmentCreatedPush({
+              role: assignment.role,
+              serviceTitle: service.title,
+              serviceDate: service.date,
+              serviceId,
+            })
+          ).catch(() => {
+            // Push failures must never fail the assignment write.
+          });
+        }
       }
 
       // Email

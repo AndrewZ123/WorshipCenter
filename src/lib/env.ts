@@ -72,9 +72,41 @@ const ENV_VAR_DEFS = {
     public: false,
   },
 
-  // Push Notifications (Firebase Cloud Messaging)
+  // Push Notifications (APNs — iPhone only)
+  PUSH_ENABLED: {
+    description: 'Server-side flag. Push sends are a no-op unless this is exactly "true"',
+    required: false, // Optional - push notifications silently skip if not enabled
+    public: false,
+  },
+  APNS_KEY_ID: {
+    description: 'Apple APNs Auth Key ID (from the .p8 key in Apple Developer)',
+    required: false,
+    public: false,
+  },
+  APNS_TEAM_ID: {
+    description: 'Apple Developer Team ID used as the APNs JWT issuer',
+    required: false,
+    public: false,
+  },
+  APNS_BUNDLE_ID: {
+    description: 'iOS bundle identifier used as the APNs topic (com.worshipcenter.app)',
+    required: false,
+    public: false,
+  },
+  APNS_PRIVATE_KEY: {
+    description: 'Contents of the APNs Auth Key (.p8)',
+    required: false,
+    public: false,
+  },
+  APNS_PRODUCTION: {
+    description: 'APNs environment: "true" for production, "false" for sandbox',
+    required: false,
+    public: false,
+  },
+
+  // Legacy Firebase Cloud Messaging (unused — retained for config compatibility)
   FCM_SERVER_KEY: {
-    description: 'Firebase Cloud Messaging server key for push notifications',
+    description: 'Deprecated: FCM server key. APNs is used for iPhone push.',
     required: false, // Optional - push notifications silently skip if not configured
     public: false,
   },

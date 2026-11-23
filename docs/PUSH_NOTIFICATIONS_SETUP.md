@@ -1,5 +1,10 @@
 # Push Notifications Setup Guide
 
+> **Deprecated:** the app now sends iPhone push directly to APNs (no Firebase).
+> Use [`docs/push-notifications.md`](./push-notifications.md) for current setup.
+> This document is kept only as historical reference for an FCM setup that is
+> no longer used by the server.
+
 ## Overview
 
 Push notifications flow:

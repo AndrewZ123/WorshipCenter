@@ -1,127 +1,138 @@
-import { supabaseAdmin } from '@/lib/supabase';
+/**
+ * Push notification sender.
+ *
+ * iOS delivery goes directly to APNs (see `src/lib/apns.ts`). Push is entirely
+ * gated by `PUSH_ENABLED=true` plus complete APNs credentials; otherwise every
+ * send is a no-op. Web and Android have no push transport here.
+ */
 
-interface PushNotificationPayload {
+import { supabaseAdmin } from '@/lib/supabase';
+import {
+  getApnsConfig,
+  getMissingPushConfig,
+  isPushEnabled,
+  sendApnsNotification,
+} from '@/lib/apns';
+
+export interface PushNotificationPayload {
   title: string;
   body: string;
   data?: Record<string, string>;
+  badge?: number;
 }
 
-interface PushSendResult {
+export interface PushSendResult {
   success: boolean;
-  error?: string;
+  sent: number;
+  errors: string[];
+  /** Present when the send was intentionally skipped. */
+  skipped?: 'not_configured';
 }
 
-let fcmConfigured: boolean | null = null;
-
-function isFcmConfigured(): boolean {
-  if (fcmConfigured !== null) return fcmConfigured;
-  fcmConfigured = !!(process.env.FCM_SERVER_KEY);
-  if (!fcmConfigured) {
-    console.warn('[Push] FCM_SERVER_KEY not configured — push notifications disabled');
-  }
-  return fcmConfigured;
+interface DeviceTokenRow {
+  id: string;
+  token: string;
 }
 
-async function getActiveDeviceTokens(userId: string): Promise<Array<{ token: string; platform: string }>> {
+async function getActiveIosDeviceTokens(userId: string): Promise<DeviceTokenRow[]> {
   const { data, error } = await supabaseAdmin
     .from('device_tokens')
-    .select('token, platform')
+    .select('id, token')
     .eq('user_id', userId)
+    .eq('platform', 'ios')
     .eq('is_active', true);
 
   if (error) {
-    console.error('[Push] Failed to fetch device tokens:', error);
     return [];
   }
 
-  return data || [];
+  return (data || []) as DeviceTokenRow[];
 }
 
-async function sendFcmMessage(token: string, payload: PushNotificationPayload, platform: string): Promise<PushSendResult> {
-  if (!isFcmConfigured()) {
-    return { success: false, error: 'FCM not configured' };
-  }
-
-  const message: Record<string, unknown> = {
-    to: token,
-    notification: {
-      title: payload.title,
-      body: payload.body,
-    },
-    data: payload.data || {},
-  };
-
-  if (platform === 'ios') {
-    message.content_available = true;
-    message.priority = 'high';
-  }
-
+async function deactivateToken(id: string): Promise<void> {
   try {
-    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `key=${process.env.FCM_SERVER_KEY}`,
-      },
-      body: JSON.stringify(message),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      return { success: false, error: `FCM error ${response.status}: ${text}` };
-    }
-
-    return { success: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return { success: false, error: message };
+    await supabaseAdmin
+      .from('device_tokens')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+  } catch {
+    // Token cleanup is best-effort; never surface this to the request path.
   }
 }
 
+/**
+ * Sends a push to every active iOS device token for a user.
+ *
+ * This function never throws. Delivery failures are captured in the result so
+ * callers can fire-and-forget after a successful database write.
+ */
 export async function sendPushNotification(
   userId: string,
-  payload: PushNotificationPayload
-): Promise<{ success: boolean; sent: number; errors: string[] }> {
-  const tokens = await getActiveDeviceTokens(userId);
+  payload: PushNotificationPayload,
+  options: { data?: Record<string, string> } = {}
+): Promise<PushSendResult> {
+  try {
+    if (!isPushEnabled() || !getApnsConfig()) {
+      return { success: true, sent: 0, errors: [], skipped: 'not_configured' };
+    }
 
-  if (tokens.length === 0) {
-    return { success: true, sent: 0, errors: [] };
+    const tokens = await getActiveIosDeviceTokens(userId);
+    if (tokens.length === 0) {
+      return { success: true, sent: 0, errors: [] };
+    }
+
+    const data = { ...(payload.data || {}), ...(options.data || {}) };
+    const deepLink = data.url || data.link_url;
+
+    const results = await Promise.all(
+      tokens.map(async (row) => {
+        const result = await sendApnsNotification(row.token, {
+          title: payload.title,
+          body: payload.body,
+          badge: payload.badge,
+          url: deepLink,
+        });
+
+        if (result.invalidToken) {
+          await deactivateToken(row.id);
+        }
+
+        return result;
+      })
+    );
+
+    const sent = results.filter((result) => result.ok).length;
+    const errors = results
+      .filter((result) => !result.ok)
+      .map((result) => result.reason || result.error || 'apns_send_failed');
+
+    return { success: errors.length === 0, sent, errors };
+  } catch {
+    // Never let a push failure break the caller's request.
+    return { success: false, sent: 0, errors: ['push_send_failed'] };
   }
-
-  const results = await Promise.all(
-    tokens.map(({ token, platform }) => sendFcmMessage(token, payload, platform))
-  );
-
-  const sent = results.filter((r) => r.success).length;
-  const errors = results.filter((r) => !r.success).map((r) => r.error!).filter(Boolean);
-
-  return {
-    success: errors.length === 0,
-    sent,
-    errors,
-  };
 }
 
 export function isPushConfigured(): boolean {
-  return isFcmConfigured();
+  return isPushEnabled() && getApnsConfig() !== null;
 }
 
 export async function getPushConfigStatus(): Promise<{
   configured: boolean;
-  hasServerKey: boolean;
+  enabled: boolean;
   missingVariables: string[];
   instructions: string;
 }> {
-  const hasServerKey = !!process.env.FCM_SERVER_KEY;
-  const missingVariables: string[] = [];
-  if (!hasServerKey) missingVariables.push('FCM_SERVER_KEY');
+  const enabled = isPushEnabled();
+  const missingVariables = getMissingPushConfig();
+  const configured = missingVariables.length === 0;
 
   return {
-    configured: hasServerKey,
-    hasServerKey,
+    configured,
+    enabled,
     missingVariables,
-    instructions: missingVariables.length > 0
-      ? `Add FCM_SERVER_KEY to .env.local and Vercel environment variables. Get it from Firebase Console → Project Settings → Cloud Messaging → Server Key.`
-      : 'Push notification service is fully configured.',
+    instructions: configured
+      ? 'APNs push is configured.'
+      : 'Set PUSH_ENABLED=true and all APNs variables (APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_PRIVATE_KEY, APNS_PRODUCTION). Push is a no-op until then. See docs/push-notifications.md.',
   };
 }

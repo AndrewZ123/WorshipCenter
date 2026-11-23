@@ -40,31 +40,24 @@ export async function POST(request: NextRequest) {
 
     const { token, platform } = parsedBody.data;
 
-    const { data: existing } = await supabaseAdmin
+    // A device token is globally unique. Upserting binds it to the caller and
+    // re-activates it if this device previously signed out under another user.
+    const { error: upsertError } = await supabaseAdmin
       .from('device_tokens')
-      .select('id')
-      .eq('token', token)
-      .maybeSingle();
-
-    if (existing) {
-      await supabaseAdmin
-        .from('device_tokens')
-        .update({
-          user_id: user.id,
-          platform,
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id);
-    } else {
-      await supabaseAdmin
-        .from('device_tokens')
-        .insert({
+      .upsert(
+        {
           user_id: user.id,
           token,
           platform,
           is_active: true,
-        });
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'token' }
+      );
+
+    if (upsertError) {
+      console.error('[Push Register] Failed to store device token:', upsertError.message);
+      return NextResponse.json({ error: 'Failed to register device' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

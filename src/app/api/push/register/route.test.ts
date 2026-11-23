@@ -67,7 +67,7 @@ describe('POST /api/push/register', () => {
     expect(
       fake
         .operationsFor('device_tokens')
-        .some((op) => ['insert', 'update'].includes(op.method))
+        .some((op) => ['insert', 'update', 'upsert'].includes(op.method))
     ).toBe(false);
   });
 
@@ -82,14 +82,16 @@ describe('POST /api/push/register', () => {
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(fake.operationsFor('device_tokens')).toContainEqual({
       table: 'device_tokens',
-      method: 'insert',
+      method: 'upsert',
       args: [
         {
           user_id: 'user-1',
           token: 'device-token-1',
           platform: 'ios',
           is_active: true,
+          updated_at: expect.any(String),
         },
+        { onConflict: 'token' },
       ],
     });
   });

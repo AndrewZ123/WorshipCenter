@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, MessageCircle, ArrowDown } from 'lucide-react';
 import Avatar from '@/components/ui/Avatar';
 import { db } from '@/lib/store';
+import { notifyPushEvent } from '@/lib/push-events-client';
 import type { User } from '@/lib/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -345,6 +346,14 @@ export function ServiceChat({ serviceId, churchId, currentUser, isDemo = false }
 
     try {
       const message = await db.serviceChat.createMessage(serviceId, churchId, currentUser.id, content);
+
+      if (
+        message &&
+        content.includes('@') &&
+        /^[0-9a-f-]{36}$/i.test(message.id)
+      ) {
+        void notifyPushEvent({ type: 'mention', messageId: message.id, kind: 'service' });
+      }
 
       setMessages((prev) => {
         const withoutTemp = prev.filter((m) => m.id !== tempId);

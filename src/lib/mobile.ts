@@ -72,9 +72,11 @@ export async function initMobile(): Promise<void> {
   });
 
   // ── Push notifications ────────────────────────────────────
+  // Only attach tap/foreground listeners here. Permission is requested later
+  // from an explicit user action in Settings, not on a cold launch.
   try {
-    const { registerPushNotifications } = await import('@/lib/capacitor-push');
-    await registerPushNotifications();
+    const { initPushNotificationListeners } = await import('@/lib/capacitor-push');
+    await initPushNotificationListeners();
   } catch {
     /* push plugin not available — ignore */
   }

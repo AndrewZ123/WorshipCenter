@@ -91,6 +91,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, sessionState.checked, sessionState.hasSession, router, pathname]);
 
+  // Silently refresh an already-granted APNs token after sign-in. This never
+  // prompts; the explicit Settings toggle requests permission.
+  React.useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+
+    import('@/lib/capacitor-push')
+      .then(({ registerPushNotifications }) => {
+        if (!cancelled) void registerPushNotifications();
+      })
+      .catch(() => {
+        // Push is optional.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Push taps and universal links both dispatch this event.
+  React.useEffect(() => {
+    const handleDeepLink = (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) {
+        router.push(path);
+      }
+    };
+
+    window.addEventListener('mobile-deep-link', handleDeepLink);
+    return () => window.removeEventListener('mobile-deep-link', handleDeepLink);
+  }, [router]);
+
   // Session is restored from localStorage synchronously (see auth.tsx init),
   // so loading is only true on the very first visit or after logout.
   // No spinner flash on page refresh or tab navigation.

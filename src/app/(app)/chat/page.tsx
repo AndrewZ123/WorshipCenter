@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { db } from '@/lib/store';
+import { notifyPushEvent } from '@/lib/push-events-client';
 import { supabase } from '@/lib/supabase';
 import {
   Box, Text, HStack, VStack, Spinner, Center, useColorModeValue,
@@ -211,6 +212,14 @@ export default function ChatPage() {
     if (!activeChannel || !user?.id) return;
     const newMsg = await db.channels.sendMessage(activeChannel.id, user.id, content);
     setMessages((prev) => [...prev, newMsg]);
+
+    if (
+      content.includes('@') &&
+      typeof newMsg?.id === 'string' &&
+      /^[0-9a-f-]{36}$/i.test(newMsg.id)
+    ) {
+      void notifyPushEvent({ type: 'mention', messageId: newMsg.id, kind: 'channel' });
+    }
   };
 
   const handleEdit = async (messageId: string, content: string) => {

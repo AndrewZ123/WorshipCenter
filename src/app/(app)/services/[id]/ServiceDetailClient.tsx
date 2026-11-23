@@ -22,6 +22,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 import { formatRelativeDate, formatServiceDate, isTodayOrFutureCalendarDate } from '@/lib/formatDate';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
+import { notifyPushEvent } from '@/lib/push-events-client';
 import { supabase } from '@/lib/supabase';
 import { ServiceChat } from '@/components/services/ServiceChat';
 import ServiceSchedule from '@/components/services/ServiceSchedule';
@@ -346,7 +347,13 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
       // an existing Completed value back to Draft.
       const isUpcoming = isTodayOrFutureCalendarDate(serviceDate);
       const statusToSave: ServiceStatus = isUpcoming && status === 'completed' ? 'draft' : status;
+      const scheduleChanged = Boolean(
+        service && (service.date !== date || service.time !== time)
+      );
       await store.services.update(serviceId, church.id, { title, date, time, status: statusToSave, notes });
+      if (scheduleChanged) {
+        void notifyPushEvent({ type: 'schedule_changed', serviceId });
+      }
       setEditing(false);
       await loadData();
 
@@ -825,6 +832,10 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         role: assignRole,
         status: 'pending',
       });
+
+      if (createdAssignment?.id) {
+        void notifyPushEvent({ type: 'assignment_created', assignmentId: createdAssignment.id });
+      }
       
       // Send invitation email to the assigned member
       const member = teamMembers.find(m => m.id === assignMemberId);
