@@ -15,12 +15,12 @@ import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { useStore } from '@/lib/StoreContext';
 import type { Service, ServiceTemplate, ServiceDebriefPopulated } from '@/lib/types';
-import ServiceDetailClient from './[id]/ServiceDetailClient';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { getServiceBadgeStatus } from '@/lib/service-status';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
-import { formatServiceDate } from '@/lib/formatDate';
+import { formatServiceDate, formatTime } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
@@ -59,8 +59,6 @@ export default function ServicesPage() {
 
   // Templates
   const [templates, setTemplates] = useState<ServiceTemplate[]>([]);
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-  const [selectedServiceTab, setSelectedServiceTab] = useState<string | undefined>(undefined);
   const [showTemplates, setShowTemplates] = useState(false);
   const templateCreateModal = useDisclosure();
   const generateModal = useDisclosure();
@@ -198,7 +196,7 @@ export default function ServicesPage() {
         generateModal.onClose();
         setGenerateTemplateId(null);
         setGenerateDate('');
-        setSelectedServiceId(svc.id);
+        router.push(`/services/${svc.id}`);
       }
     } catch {
       toast({ title: 'Error generating service', status: 'error', duration: 3000 });
@@ -254,16 +252,6 @@ export default function ServicesPage() {
       <Center minH="50vh">
         <Spinner size="xl" color="teal.500" />
       </Center>
-    );
-  }
-
-  if (selectedServiceId) {
-    return (
-      <ServiceDetailClient
-        serviceId={selectedServiceId}
-        onBack={() => { setSelectedServiceId(null); setSelectedServiceTab(undefined); }}
-        initialTab={selectedServiceTab}
-      />
     );
   }
 
@@ -398,7 +386,7 @@ export default function ServicesPage() {
                       <Text fontWeight="600" color={textColor} noOfLines={1}>{tpl.title}</Text>
                       <HStack spacing="1" color={subtextColor}>
                         <Clock size={14} />
-                        <Text fontSize="sm">{tpl.time}</Text>
+                        <Text fontSize="sm">{formatTime(tpl.time)}</Text>
                       </HStack>
                       <Text fontSize="xs" color={subtextColor} flexShrink={0}>{tpl.items.length} items</Text>
                     </HStack>
@@ -485,7 +473,7 @@ export default function ServicesPage() {
                     cursor="pointer" 
                     _hover={{ bg: hoverBg }} 
                     transition="background 0.15s ease" 
-                    onClick={() => setSelectedServiceId(service.id)}
+                    onClick={() => router.push(`/services/${service.id}`)}
                     borderLeft="3px solid transparent"
                     _focusWithin={{ borderLeftColor: 'teal.500' }}
                     sx={{ '&:hover': { borderLeftColor: 'teal.300' } }}
@@ -497,8 +485,8 @@ export default function ServicesPage() {
                       </HStack>
                     </Td>
                     <Td fontWeight="600" color={textColor}>{service.title}</Td>
-                    <Td color={subtextColor}>{service.time}</Td>
-                    <Td><StatusBadge status={service.status} size="sm" /></Td>
+                    <Td color={subtextColor}>{formatTime(service.time)}</Td>
+                    <Td><StatusBadge status={getServiceBadgeStatus(service)} size="sm" /></Td>
                     <Td onClick={(e) => e.stopPropagation()}>
                       {!isReadOnly && (
                         <Menu>
@@ -541,7 +529,7 @@ export default function ServicesPage() {
                   transform: 'translateY(-1px)',
                 }}
                 transition="all 0.15s ease" 
-                onClick={() => setSelectedServiceId(service.id)}
+                onClick={() => router.push(`/services/${service.id}`)}
               >
                 <CardBody py="3" px="4">
                   <Flex justify="space-between" align="start">
@@ -552,11 +540,11 @@ export default function ServicesPage() {
                         <Text fontSize="sm">{formatServiceDate(service.date)}</Text>
                         <Text fontSize="sm">·</Text>
                         <Clock size={14} />
-                        <Text fontSize="sm">{service.time}</Text>
+                        <Text fontSize="sm">{formatTime(service.time)}</Text>
                       </HStack>
                     </Box>
                     <HStack spacing="2">
-                      <StatusBadge status={service.status} size="sm" />
+                      <StatusBadge status={getServiceBadgeStatus(service)} size="sm" />
                       {!isReadOnly && (
                         <Box onClick={(e) => e.stopPropagation()}>
                           <Menu>

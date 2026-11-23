@@ -121,6 +121,21 @@ export default function ChatPage() {
     if (!channelId || !church) return;
     try {
       const members = await db.channels.getMembers(channelId);
+
+      // Public channels are church-wide, but older channels (especially
+      // General) were created without membership rows. Fall back to the
+      // church's user list so the count is not misleadingly 0. Private
+      // channels still only show explicit members.
+      const channel = activeChannelRef.current;
+      if (members.length === 0 && channel && !channel.is_private) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('id, name, email, avatar_url, role')
+          .eq('church_id', church.id);
+        setChannelMembers(users || []);
+        return;
+      }
+
       const { data: users } = await supabase
         .from('users')
         .select('id, name, email, avatar_url, role')
@@ -270,7 +285,7 @@ export default function ChatPage() {
     return (
       <Center minH="80dvh">
         <VStack spacing="4">
-          <MessageCircle size={48} color="gray.300" />
+          <MessageCircle size={48} color="var(--chakra-colors-gray-300)" />
           <Text fontSize="lg" fontWeight="600" color="gray.500">Chat isn&apos;t set up yet</Text>
           <Text fontSize="sm" color={subtextColor} textAlign="center" maxW="300px">
             No channels found. An admin needs to create the first channel to get started.
@@ -345,7 +360,7 @@ export default function ChatPage() {
                     Announcement
                   </Badge>
                 ) : (
-                  <Hash size={16} color="gray.400" />
+                  <Hash size={16} color="var(--chakra-colors-gray-400)" />
                 )}
                 <Text fontWeight="600" fontSize="sm">{activeChannel?.name || 'Select a channel'}</Text>
               </HStack>
@@ -363,7 +378,7 @@ export default function ChatPage() {
               {!activeChannel ? (
                 <Center h="full" flex="1">
                   <VStack spacing="4">
-                    <MessageCircle size={48} color="gray.300" />
+                    <MessageCircle size={48} color="var(--chakra-colors-gray-300)" />
                     <Text fontSize="lg" fontWeight="600" color="gray.500">Select a channel</Text>
                   </VStack>
                 </Center>

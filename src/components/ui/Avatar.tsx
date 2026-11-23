@@ -5,15 +5,16 @@ import { Box, Text, Image } from '@chakra-ui/react';
 
 /**
  * Deterministic color generator based on name
- * Cycles through: teal, violet, blue, amber, rose
+ * Cycles through colors that exist in this app's Chakra theme. Using an
+ * unknown token (e.g. `violet.500`) leaves the circle with no background.
  */
 function getAvatarColor(name: string): string {
   const colors = [
-    'teal.500',    // teal-600 equivalent
-    'violet.500',
+    'teal.500',
+    'purple.500',
     'blue.500',
-    'amber.500',
-    'rose.500',
+    'orange.500',
+    'pink.500',
   ];
   
   // Simple hash function

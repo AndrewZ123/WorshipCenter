@@ -20,6 +20,7 @@ import type { TeamMember, Service } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
+import { formatRelativeDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
@@ -70,11 +71,13 @@ export default function TeamPage() {
     if (!church) return;
     try {
       setLoading(true);
-      const all = await store.teamMembers.getByChurch(church.id);
+      const [all, allServices] = await Promise.all([
+        store.teamMembers.getByChurch(church.id),
+        store.services.getByChurch(church.id),
+      ]);
       all.sort((a, b) => a.name.localeCompare(b.name));
       setMembers(all);
-      setServices(await store.services.getByChurch(church.id));
-    } catch (error) {
+      setServices(allServices);    } catch (error) {
       console.error('Error loading team:', error);
       toast({ title: 'Error loading data', status: 'error', duration: 3000 });
     } finally {
@@ -328,25 +331,8 @@ export default function TeamPage() {
     }
   };
 
-  const formatRelativeDate = (d: string | null) => {
-    if (!d) return 'Never scheduled';
-    try {
-      const date = new Date(d + 'T00:00:00');
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 0) return 'Today';
-      if (diffDays === 1) return 'Yesterday';
-      if (diffDays < 7) return `${diffDays} days ago`;
-      if (diffDays < 14) return '1 week ago';
-      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-      if (diffDays < 60) return '1 month ago';
-      return `${Math.floor(diffDays / 30)} months ago`;
-    } catch { 
-      return d; 
-    }
-  };
+  const formatLastScheduled = (d: string | null) =>
+    d ? formatRelativeDate(d) : 'Never scheduled';
 
   if (loading) {
     return (
@@ -431,9 +417,9 @@ export default function TeamPage() {
                         <HStack spacing="2" align="center">
                           <Text fontWeight="600" color={headingColor}>{member.name}</Text>
                           {member.user_id ? (
-                            <CheckCircle2 size={14} color="green.500" />
+                            <CheckCircle2 size={14} color="var(--chakra-colors-green-500)" />
                           ) : (
-                            <Clock size={14} color="gray.400" />
+                            <Clock size={14} color="var(--chakra-colors-gray-400)" />
                           )}
                         </HStack>
                       </HStack>
@@ -452,7 +438,7 @@ export default function TeamPage() {
                     <Td>
                       <HStack spacing="2">
                         <Calendar size={14} color="var(--chakra-colors-gray-400)" />
-                        <Text color={subtextColor} fontSize="sm">{formatRelativeDate(lastScheduledMap[member.id])}</Text>
+                        <Text color={subtextColor} fontSize="sm">{formatLastScheduled(lastScheduledMap[member.id])}</Text>
                       </HStack>
                     </Td>
                     <Td onClick={(e) => e.stopPropagation()}>
@@ -529,9 +515,9 @@ export default function TeamPage() {
                         <HStack spacing="2" align="center">
                           <Text fontWeight="600" color={headingColor}>{member.name}</Text>
                           {member.user_id ? (
-                            <CheckCircle2 size={14} color="green.500" />
+                            <CheckCircle2 size={14} color="var(--chakra-colors-green-500)" />
                           ) : (
-                            <Clock size={14} color="gray.400" />
+                            <Clock size={14} color="var(--chakra-colors-gray-400)" />
                           )}
                         </HStack>
                         <HStack spacing="1" mt="1" flexWrap="wrap">
@@ -544,7 +530,7 @@ export default function TeamPage() {
                         </HStack>
                         <HStack spacing="2" mt="2">
                           <Calendar size={12} color="var(--chakra-colors-gray-400)" />
-                          <Text fontSize="xs" color="gray.400">{formatRelativeDate(lastScheduledMap[member.id])}</Text>
+                          <Text fontSize="xs" color="gray.400">{formatLastScheduled(lastScheduledMap[member.id])}</Text>
                         </HStack>
                       </Box>
                     </HStack>

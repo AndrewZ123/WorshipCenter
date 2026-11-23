@@ -177,13 +177,12 @@ export default function ChannelBottomSheet({
             <Button
               leftIcon={<Plus size={16} />}
               size="md"
-              variant="ghost"
+              variant="outline"
+              colorScheme="teal"
               w="full"
               justifyContent="flex-start"
-              color={sectionColor}
-              _hover={{ color: 'teal.500', bg: hoverBg }}
               onClick={() => { setQuery(''); onCreateClick(); onClose(); }}
-              fontWeight="500"
+              fontWeight="600"
               h="44px"
               borderRadius="lg"
             >

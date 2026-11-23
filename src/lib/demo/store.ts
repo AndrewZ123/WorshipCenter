@@ -811,6 +811,7 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         }));
       },
       addMember: async (_channelId: string, _userId: string): Promise<any> => null,
+      syncPublicChannelMembers: async (_channelId: string, _churchId: string): Promise<number> => 0,
       removeMember: async (_channelId: string, _userId: string): Promise<boolean> => true,
       getMessages: async (_channelId: string, _limit?: number, _offset?: number): Promise<any[]> => {
         const demo = getDemoContext();

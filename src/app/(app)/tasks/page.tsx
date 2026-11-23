@@ -122,8 +122,8 @@ export default function MyTasksPage() {
 
       {/* Search */}
       <InputGroup mb="6">
-        <InputLeftElement pointerEvents="none">
-          <Search size={16} color={iconColor} />
+        <InputLeftElement pointerEvents="none" color={iconColor}>
+          <Search size={16} aria-hidden="true" />
         </InputLeftElement>
         <Input
           placeholder="Search tasks..."
@@ -131,6 +131,7 @@ export default function MyTasksPage() {
           onChange={(e) => setSearch(e.target.value)}
           borderRadius="lg"
           bg={cardBg}
+          pl="10"
         />
       </InputGroup>
 
@@ -208,7 +209,9 @@ export default function MyTasksPage() {
                             <HStack spacing="3" mt="2" flexWrap="wrap">
                               {task.service && (
                                 <HStack spacing="1">
-                                  <Calendar size={12} color={iconColor} />
+                                  <Box as="span" color={iconColor} display="inline-flex">
+                                    <Calendar size={12} aria-hidden="true" />
+                                  </Box>
                                   <Text fontSize="xs" color={subtextColor}>
                                     {formatServiceDate(task.service.date)} · {task.service.title}
                                   </Text>
@@ -280,7 +283,9 @@ export default function MyTasksPage() {
                           </Text>
                           {task.service && (
                             <HStack spacing="1" mt="1">
-                                  <Calendar size={12} color={iconColor} />
+                              <Box as="span" color={iconColor} display="inline-flex">
+                                <Calendar size={12} aria-hidden="true" />
+                              </Box>
                               <Text fontSize="xs" color={subtextColor}>
                                 {formatServiceDate(task.service.date)} · {task.service.title}
                               </Text>

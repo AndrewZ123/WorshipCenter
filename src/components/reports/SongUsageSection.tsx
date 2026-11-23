@@ -11,10 +11,10 @@ import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
 import type { Song, Service, SongUsage, ServiceItem } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
-import { formatShortDate } from '@/lib/formatDate';
+import { formatShortDate, isFutureCalendarDate } from '@/lib/formatDate';
 
 import {
-  Download, Calendar, Music, X
+  Download, Music, X
 } from 'lucide-react';
 
 export default function SongUsageSection() {
@@ -50,16 +50,18 @@ export default function SongUsageSection() {
     try {
       setLoadError(false);
       setLoading(true);
-      setAllUsage(await store.songUsage.getByChurch(church.id));
-      setSongs(await store.songs.getByChurch(church.id));
-      const svcs = await store.services.getByChurch(church.id);
+      const [usage, allSongs, svcs] = await Promise.all([
+        store.songUsage.getByChurch(church.id),
+        store.songs.getByChurch(church.id),
+        store.services.getByChurch(church.id),
+      ]);
+      setAllUsage(usage);
+      setSongs(allSongs);
       setServices(svcs);
-      const items: ServiceItem[] = [];
-      for (const svc of svcs) {
-        const svcItems = await store.serviceItems.getByService(svc.id);
-        items.push(...svcItems);
-      }
-      setAllServiceItems(items);
+      const svcItems = await Promise.all(
+        svcs.map((svc) => store.serviceItems.getByService(svc.id))
+      );
+      setAllServiceItems(svcItems.flat());
     } catch (error) {
       console.error('Error loading usage:', error);
       setLoadError(true);
@@ -84,6 +86,7 @@ export default function SongUsageSection() {
         const keyUsed = serviceItem?.key || song?.default_key || '';
         return {
           date: u.date,
+          upcoming: isFutureCalendarDate(u.date),
           serviceTitle: service?.title || 'Unknown',
           serviceId: u.service_id,
           songTitle: song?.title || 'Unknown',
@@ -123,7 +126,6 @@ export default function SongUsageSection() {
       return;
     }
     const now = new Date();
-    const to = now.toISOString().split('T')[0];
     let from: string;
     if (preset === '6months') {
       const d = new Date(now);
@@ -133,7 +135,8 @@ export default function SongUsageSection() {
       from = `${now.getFullYear()}-01-01`;
     }
     setDateFrom(from);
-    setDateTo(to);
+    // Do not cap the upper bound at today: upcoming service usage is valid.
+    setDateTo('');
   };
 
   if (authLoading) {
@@ -205,37 +208,31 @@ export default function SongUsageSection() {
           <HStack spacing="4" flexWrap="wrap">
             <Box flex="1" minW="140px">
               <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" mb="2">From</Text>
-              <HStack>
-                <Calendar size={16} color="var(--chakra-colors-gray-400)" />
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  bg="gray.50"
-                  size="sm"
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor="gray.200"
-                  _focus={{ borderColor: 'teal.400', ring: '2px', ringColor: 'teal.100' }}
-                />
-              </HStack>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                bg="gray.50"
+                size="sm"
+                borderRadius="lg"
+                border="1px solid"
+                borderColor="gray.200"
+                _focus={{ borderColor: 'teal.400', ring: '2px', ringColor: 'teal.100' }}
+              />
             </Box>
             <Box flex="1" minW="140px">
               <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase" mb="2">To</Text>
-              <HStack>
-                <Calendar size={16} color="var(--chakra-colors-gray-400)" />
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  bg="gray.50"
-                  size="sm"
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor="gray.200"
-                  _focus={{ borderColor: 'teal.400', ring: '2px', ringColor: 'teal.100' }}
-                />
-              </HStack>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                bg="gray.50"
+                size="sm"
+                borderRadius="lg"
+                border="1px solid"
+                borderColor="gray.200"
+                _focus={{ borderColor: 'teal.400', ring: '2px', ringColor: 'teal.100' }}
+              />
             </Box>
           </HStack>
 
@@ -312,7 +309,14 @@ export default function SongUsageSection() {
                     }}
                     transition="all 0.15s"
                   >
-                    <Td fontSize="sm">{formatShortDate(row.date)}</Td>
+                    <Td fontSize="sm">
+                      <HStack spacing="2">
+                        <Text>{formatShortDate(row.date)}</Text>
+                        {row.upcoming && (
+                          <Badge colorScheme="teal" variant="subtle" fontSize="xs" borderRadius="full">Upcoming</Badge>
+                        )}
+                      </HStack>
+                    </Td>
                     <Td fontSize="sm">
                       <Text
                         fontWeight="500"
@@ -356,7 +360,9 @@ export default function SongUsageSection() {
                     <Music size={14} color="var(--chakra-colors-teal-500)" />
                     <Text fontWeight="600" color={headingColor}>{row.songTitle}</Text>
                   </HStack>
-                  <Text fontSize="sm" color={subtextColor}>{formatShortDate(row.date)}</Text>
+                  <Text fontSize="sm" color={subtextColor}>
+                    {formatShortDate(row.date)}{row.upcoming ? ' · Upcoming' : ''}
+                  </Text>
                 </HStack>
                 <HStack spacing="3" flexWrap="wrap">
                   <Text

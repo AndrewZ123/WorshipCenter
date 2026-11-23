@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
 import type { ServiceTemplate } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { formatTime } from '@/lib/formatDate';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -152,7 +153,7 @@ export default function TemplatesPage() {
                       <Tag size="sm" colorScheme="brand" variant="subtle">
                         <TagLabel>{DAYS[template.day_of_week]}</TagLabel>
                       </Tag>
-                      <Text fontSize="sm" color="gray.500">{template.time}</Text>
+                      <Text fontSize="sm" color="gray.500">{formatTime(template.time)}</Text>
                     </HStack>
                   </Box>
                 </HStack>

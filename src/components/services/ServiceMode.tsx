@@ -351,7 +351,7 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
             <VStack spacing="0" align="start">
               <Text fontSize={{ base: 'md', md: 'lg' }} fontWeight="bold" noOfLines={1}>{service.title}</Text>
               <Text fontSize="xs" color={subtextColor}>
-                {formatServiceDate(service.date)} {service.time && `· ${service.time}`}
+                {formatServiceDate(service.date, service.time)}
               </Text>
             </VStack>
           </HStack>

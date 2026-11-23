@@ -8,6 +8,7 @@ import {
   ModalHeader, ModalBody, ModalCloseButton, ModalFooter, FormControl,
   FormLabel, VStack, useToast, Badge, Card, CardBody, IconButton,
   Menu, MenuButton, MenuList, MenuItem, useColorModeValue, Spinner, Center,
+  InputGroup, InputLeftElement,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
@@ -18,6 +19,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import SongDetailClient from './[id]/SongDetailClient';
 import { parseChordPro } from '@/lib/chordpro';
 import type { ChordProParsed } from '@/lib/chordpro';
+import { summarizeSongUsageDates } from '@/lib/song-usage';
 
 // Lucide icons
 import { 
@@ -85,10 +87,13 @@ export default function SongsPage() {
     if (!church) return;
     try {
       setLoading(true);
-      const allSongs = await store.songs.getByChurch(church.id);
+      const [allSongs, usage] = await Promise.all([
+        store.songs.getByChurch(church.id),
+        store.songUsage.getByChurch(church.id),
+      ]);
       allSongs.sort((a: Song, b: Song) => a.title.localeCompare(b.title));
       setSongs(allSongs);
-      setAllUsage(await store.songUsage.getByChurch(church.id));
+      setAllUsage(usage);
     } catch (error) {
       console.error('Error loading songs:', error);
       toast({ title: 'Error loading data', status: 'error', duration: 3000 });
@@ -98,12 +103,17 @@ export default function SongsPage() {
   };
 
   const usageMap = useMemo(() => {
-    const map: Record<string, { count: number; lastUsed: string | null }> = {};
+    const datesBySong: Record<string, string[]> = {};
     allUsage.forEach((u) => {
-      if (!map[u.song_id]) map[u.song_id] = { count: 0, lastUsed: null };
-      map[u.song_id].count++;
-      if (!map[u.song_id].lastUsed || u.date > map[u.song_id].lastUsed!) map[u.song_id].lastUsed = u.date;
+      if (!datesBySong[u.song_id]) datesBySong[u.song_id] = [];
+      datesBySong[u.song_id].push(u.date);
     });
+
+    const map: Record<string, { count: number; lastUsed: string | null; nextScheduled: string | null }> = {};
+    for (const [songId, dates] of Object.entries(datesBySong)) {
+      const { lastUsed, nextScheduled } = summarizeSongUsageDates(dates);
+      map[songId] = { count: dates.length, lastUsed, nextScheduled };
+    }
     return map;
   }, [allUsage]);
 
@@ -134,7 +144,7 @@ export default function SongsPage() {
     if (!matchesSearch) return false;
     if (filterRecent) {
       const usage = usageMap[s.id];
-      if (!usage?.lastUsed || usage.lastUsed < threeMonthsAgo) return false;
+      if (!usage?.nextScheduled && (!usage?.lastUsed || usage.lastUsed < threeMonthsAgo)) return false;
     }
     return true;
   });
@@ -151,8 +161,11 @@ export default function SongsPage() {
     if (!usage || usage.count === 0) {
       return { color: 'gray.400', label: 'Not used' };
     }
-    const lastUsedDate = usage.lastUsed ? new Date(usage.lastUsed) : null;
-    const weeksAgo = lastUsedDate ? Math.floor((Date.now() - lastUsedDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) : null;
+    if (usage.nextScheduled) {
+      return { color: 'teal.500', label: 'Scheduled' };
+    }
+    const lastUsedDate = usage.lastUsed ? new Date(usage.lastUsed + 'T00:00:00') : null;
+    const weeksAgo = lastUsedDate ? Math.max(0, Math.floor((Date.now() - lastUsedDate.getTime()) / (7 * 24 * 60 * 60 * 1000))) : null;
     
     if (usage.count >= 6 && weeksAgo !== null && weeksAgo < 8) {
       return { color: 'red.500', label: 'Overplayed' };
@@ -239,23 +252,25 @@ export default function SongsPage() {
 
       {/* Search and Filter */}
       <Flex mb="5" gap="3" flexWrap="wrap" align="stretch" direction={{ base: 'column', md: 'row' }}>
-        <Box position="relative" flex="1" minW="200px">
-          <Box position="absolute" left="3" top="50%" transform="translateY(-50%)" color={iconColor}>
-            <Search size={16} />
-          </Box>
-          <Input 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-            placeholder="Search by title, artist, or tag..." 
-            bg={cardBg} 
-            size="md" 
-            pl="10"
-            borderRadius="lg"
-            border="1px solid"
-            borderColor={borderColor}
-            aria-label="Search songs"
-            _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 2px rgba(56, 178, 172, 0.2)' }}
-          />
+        <Box flex="1" minW="200px">
+          <InputGroup>
+            <InputLeftElement pointerEvents="none" color={iconColor}>
+              <Search size={16} aria-hidden="true" />
+            </InputLeftElement>
+            <Input 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              placeholder="Search by title, artist, or tag..." 
+              bg={cardBg} 
+              size="md" 
+              pl="10"
+              borderRadius="lg"
+              border="1px solid"
+              borderColor={borderColor}
+              aria-label="Search songs"
+              _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 2px rgba(56, 178, 172, 0.2)' }}
+            />
+          </InputGroup>
         </Box>
         <Box 
           display="flex" 
@@ -379,9 +394,14 @@ export default function SongsPage() {
                         <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md" px="2" py="0.5">{song.default_key}</Badge>
                       </Td>
                       <Td>
-                        <HStack spacing="2">
-                          <Box w="2" h="2" borderRadius="full" bg={health.color} />
-                          <Text color={subtextColor} fontSize="sm">{formatDate(usage?.lastUsed || null)}</Text>
+                        <HStack spacing="2" align="start">
+                          <Box w="2" h="2" mt="1.5" borderRadius="full" bg={health.color} flexShrink={0} />
+                          <Box>
+                            <Text color={subtextColor} fontSize="sm">{formatDate(usage?.lastUsed || null)}</Text>
+                            {usage?.nextScheduled && (
+                              <Text color="teal.600" fontSize="xs">Scheduled {formatDate(usage.nextScheduled)}</Text>
+                            )}
+                          </Box>
                         </HStack>
                       </Td>
                       <Td isNumeric>

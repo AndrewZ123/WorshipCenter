@@ -96,23 +96,56 @@ export async function getAuthHeaders(
  * authenticated request. The session can still be hydrating on first mount,
  * so a single getSession() call is not reliable.
  *
- * Returns null only after all attempts are exhausted (definitely signed out).
+ * Returns immediately when a token is already available. If auth is still
+ * hydrating, it listens for the session event and gives up after a short,
+ * bounded wait instead of stacking long retry loops in front of the UI.
+ *
+ * Returns null only when the wait is exhausted (definitely signed out or auth
+ * never hydrated).
  */
 export async function waitForAccessToken(
-  options: { attempts?: number; delayMs?: number } = {}
+  options: { attempts?: number; delayMs?: number; timeoutMs?: number } = {}
 ): Promise<string | null> {
-  const attempts = Math.max(1, options.attempts ?? 5);
+  const immediate = await getAccessToken();
+  if (immediate) return immediate;
+
+  // Keep the legacy retry options working for callers that pass them, but
+  // cap the overall wait so a stuck session cannot block a page for seconds.
+  const attempts = Math.max(1, options.attempts ?? 4);
   const delayMs = Math.max(0, options.delayMs ?? 250);
+  const timeoutMs = Math.max(
+    0,
+    options.timeoutMs ?? Math.min(1500, attempts * delayMs)
+  );
 
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    const token = await getAccessToken();
-    if (token) return token;
-    if (attempt < attempts - 1 && delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+  if (typeof window === 'undefined' || timeoutMs === 0) return null;
+
+  return new Promise<string | null>((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let unsubscribe = () => {};
+
+    const finish = (token: string | null) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+      resolve(token);
+    };
+
+    try {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.access_token) finish(session.access_token);
+      });
+      unsubscribe = () => data.subscription.unsubscribe();
+
+      timer = setTimeout(async () => {
+        finish(await getAccessToken());
+      }, timeoutMs);
+    } catch {
+      finish(null);
     }
-  }
-
-  return null;
+  });
 }
 
 /**

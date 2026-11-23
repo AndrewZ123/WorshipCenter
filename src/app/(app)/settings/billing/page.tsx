@@ -18,8 +18,17 @@ import { useSubscription } from '@/lib/useSubscription';
 import { PRICING } from '@/lib/stripe';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiUrl, parseJsonSafe, waitForAccessToken } from '@/lib/api-base';
+import {
+  apiUrl,
+  getAccessToken,
+  parseJsonSafe,
+  waitForAccessToken,
+} from '@/lib/api-base';
 import { Box, SimpleGrid } from '@chakra-ui/react';
+import { getBillingPeriodText, getPlanCtaLabel } from '@/lib/billing-display';
+
+const BRAND_TEAL = '#0D9488';
+const BRAND_TEAL_DARK = '#0b8278';
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
 
@@ -71,9 +80,11 @@ export default function BillingPage() {
     let cancelled = false;
     (async () => {
       try {
-        // The Supabase session can still be hydrating on first mount. Wait for
-        // it instead of silently leaving stripeReady=false forever.
-        const accessToken = await waitForAccessToken();
+        // The Supabase session can still be hydrating on first mount. Prefer a
+        // token that is already available and only wait briefly if it is not.
+        const accessToken =
+          (await getAccessToken()) ||
+          (await waitForAccessToken({ attempts: 3, delayMs: 150 }));
         if (cancelled) return;
         if (!accessToken) {
           setStripeStatusError('signed_out');
@@ -251,9 +262,27 @@ export default function BillingPage() {
     );
   }
 
-  const showPricingCards = stripeReady; // Always show pricing when Stripe is configured
+  const showPricingCards = stripeReady || stripeStatusLoading;
   const showManageButton = isActive && !isCanceled && !isTrialing;
   const currentPlan = subscription?.price_type || null;
+  const hasSubscription = Boolean(subscription);
+  const planActionsDisabled = checkoutLoading || !stripeReady;
+
+  const planCta = (priceType: 'monthly' | 'yearly') =>
+    getPlanCtaLabel({
+      priceType,
+      currentPlan,
+      isActive,
+      isTrialing,
+      hasSubscription,
+    });
+
+  const billingPeriodText = getBillingPeriodText({
+    priceType: subscription?.price_type,
+    isTrialing,
+    trialEnd: subscription?.trial_end,
+    formatDate,
+  });
 
   return (
     <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="720px" mx="auto">
@@ -357,7 +386,7 @@ export default function BillingPage() {
                 Billing Period
               </p>
               <p style={{ fontSize: '15px', fontWeight: 600, color: '#2d3748' }}>
-                {subscription?.price_type === 'yearly' ? 'Yearly' : subscription?.price_type === 'monthly' ? 'Monthly' : '—'}
+                {billingPeriodText}
               </p>
             </div>
             <div>
@@ -386,12 +415,12 @@ export default function BillingPage() {
               onClick={handleManage}
               disabled={portalLoading}
               style={{
-                padding: '12px 24px', backgroundColor: '#3182ce', color: '#fff',
+                padding: '12px 24px', backgroundColor: BRAND_TEAL, color: '#fff',
                 border: 'none', borderRadius: '8px', cursor: 'pointer',
                 fontWeight: 600, fontSize: '14px', transition: 'all 0.2s',
               }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#2c5282'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#3182ce'}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = BRAND_TEAL_DARK}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = BRAND_TEAL}
             >
               {portalLoading ? 'Loading...' : 'Manage Subscription'}
             </button>
@@ -469,25 +498,31 @@ export default function BillingPage() {
               </ul>
               <button
                 onClick={() => handleSubscribe('monthly')}
-                disabled={checkoutLoading || currentPlan === 'monthly'}
+                disabled={planActionsDisabled || currentPlan === 'monthly'}
                 style={{
                   width: '100%', padding: '14px 24px',
-                  backgroundColor: currentPlan === 'monthly' ? '#e2e8f0' : checkoutLoading ? '#e2e8f0' : '#3182ce',
-                  color: currentPlan === 'monthly' ? '#a0aec0' : checkoutLoading ? '#a0aec0' : '#fff',
+                  backgroundColor: currentPlan === 'monthly' ? '#e2e8f0' : planActionsDisabled ? '#e2e8f0' : BRAND_TEAL,
+                  color: currentPlan === 'monthly' ? '#a0aec0' : planActionsDisabled ? '#a0aec0' : '#fff',
                   border: 'none', borderRadius: '8px',
                   cursor: currentPlan === 'monthly' ? 'default' : 'pointer',
                   fontWeight: 600, fontSize: '14px',
                   transition: 'all 0.2s',
                 }}
               >
-                {currentPlan === 'monthly' ? 'Current Plan' : checkoutLoading ? 'Processing...' : isActive ? 'Switch to Monthly' : 'Start Free Trial'}
+                {currentPlan === 'monthly'
+                  ? 'Current Plan'
+                  : !stripeReady
+                    ? 'Checking…'
+                    : checkoutLoading
+                      ? 'Processing...'
+                      : planCta('monthly')}
               </button>
             </div>
 
             {/* Yearly */}
             <div style={{
               padding: '28px', borderRadius: '12px',
-              border: currentPlan === 'yearly' ? '2px solid #38a169' : '2px solid #3182ce',
+              border: currentPlan === 'yearly' ? '2px solid #38a169' : `2px solid ${BRAND_TEAL}`,
               textAlign: 'center', position: 'relative',
               backgroundColor: currentPlan === 'yearly' ? '#f0fff4' : '#fff',
               transition: 'all 0.2s',
@@ -504,7 +539,7 @@ export default function BillingPage() {
               ) : (
                 <span style={{
                   position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)',
-                  backgroundColor: '#3182ce', color: '#fff', fontSize: '11px', fontWeight: 700,
+                  backgroundColor: BRAND_TEAL, color: '#fff', fontSize: '11px', fontWeight: 700,
                   padding: '4px 12px', borderRadius: '9999px', textTransform: 'uppercase',
                   letterSpacing: '0.05em',
                 }}>
@@ -522,7 +557,7 @@ export default function BillingPage() {
                   /year
                 </span>
               </div>
-              <p style={{ fontSize: '13px', color: '#3182ce', fontWeight: 600, marginBottom: '20px' }}>
+              <p style={{ fontSize: '13px', color: BRAND_TEAL, fontWeight: 600, marginBottom: '20px' }}>
                 Save $58 (2 months free)
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', textAlign: 'left' }}>
@@ -540,25 +575,31 @@ export default function BillingPage() {
                     alignItems: 'center',
                     gap: '8px',
                   }}>
-                    <span style={{ color: '#3182ce', fontSize: '16px' }}>✓</span>
+                    <span style={{ color: BRAND_TEAL, fontSize: '16px' }}>✓</span>
                     {feature}
                   </li>
                 ))}
               </ul>
               <button
                 onClick={() => handleSubscribe('yearly')}
-                disabled={checkoutLoading || currentPlan === 'yearly'}
+                disabled={planActionsDisabled || currentPlan === 'yearly'}
                 style={{
                   width: '100%', padding: '14px 24px',
-                  backgroundColor: currentPlan === 'yearly' ? '#e2e8f0' : checkoutLoading ? '#e2e8f0' : '#3182ce',
-                  color: currentPlan === 'yearly' ? '#a0aec0' : checkoutLoading ? '#a0aec0' : '#fff',
+                  backgroundColor: currentPlan === 'yearly' ? '#e2e8f0' : planActionsDisabled ? '#e2e8f0' : BRAND_TEAL,
+                  color: currentPlan === 'yearly' ? '#a0aec0' : planActionsDisabled ? '#a0aec0' : '#fff',
                   border: 'none', borderRadius: '8px',
                   cursor: currentPlan === 'yearly' ? 'default' : 'pointer',
                   fontWeight: 600, fontSize: '14px',
                   transition: 'all 0.2s',
                 }}
               >
-                {currentPlan === 'yearly' ? 'Current Plan' : checkoutLoading ? 'Processing...' : isActive ? 'Switch to Yearly' : 'Start Free Trial'}
+                {currentPlan === 'yearly'
+                  ? 'Current Plan'
+                  : !stripeReady
+                    ? 'Checking…'
+                    : checkoutLoading
+                      ? 'Processing...'
+                      : planCta('yearly')}
               </button>
             </div>
           </SimpleGrid>

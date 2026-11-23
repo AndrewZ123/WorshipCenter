@@ -123,7 +123,9 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             borderRadius="md"
             spacing="2"
           >
-            <Church size={16} color={iconColor} />
+            <Box as="span" color={iconColor} display="inline-flex" flexShrink={0}>
+              <Church size={16} aria-hidden="true" />
+            </Box>
             <Text fontSize="sm" fontWeight="500" color={textColor} noOfLines={1}>
               {church.name}
             </Text>

@@ -17,9 +17,10 @@ import { useStore } from '@/lib/StoreContext';
 import type { Service, ServiceItem, TeamMember, ServiceAssignment, ServiceStatus, Song, ServiceDebriefPopulated } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { getServiceBadgeStatus } from '@/lib/service-status';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
-import { formatServiceDate } from '@/lib/formatDate';
+import { formatRelativeDate, formatServiceDate, isTodayOrFutureCalendarDate } from '@/lib/formatDate';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { ServiceChat } from '@/components/services/ServiceChat';
@@ -37,7 +38,7 @@ import { computeKeyChange, computeItemAdded, computeItemRemoved, formatChangesSu
 // Lucide icons
 import { 
   ArrowLeft, MoreVertical, Copy, Trash2, Edit, Plus,
-  Music, AlignLeft, Send, Calendar, Clock,
+  Music, AlignLeft, Send, Calendar,
   BookOpen, UserCheck, MessageSquare, Calendar as CalendarIcon,
   ListMusic, Users, ListChecks, Monitor, Printer, CheckSquare,
   Star, UserPlus, Share2, Link2, Link2Off
@@ -177,22 +178,6 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
   const roleLabel = (r: string) => r.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-  const getCountdownText = (dateStr: string) => {
-    if (!dateStr) return '';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(dateStr + 'T00:00:00');
-    target.setHours(0, 0, 0, 0);
-    const diffMs = target.getTime() - today.getTime();
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays > 0) return `in ${diffDays} days`;
-    const pastDays = Math.abs(diffDays);
-    if (pastDays === 1) return 'Yesterday';
-    return `${pastDays} days ago`;
-  };
-
   // Configure drag-and-drop sensors with mobile-optimized settings
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -285,7 +270,16 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     try {
       setLoading(true);
       console.log('[ServiceDetail] Loading service:', serviceId, 'church:', church.id);
-      const svc = await store.services.getById(serviceId, church.id);
+      // Independent reads run together so the detail page does not wait on a
+      // serial service → items → assignments → songs → team chain.
+      const [svc, itemsData, assignmentsData, songsData, members] = await Promise.all([
+        store.services.getById(serviceId, church.id),
+        store.serviceItems.getByService(serviceId),
+        store.assignments.getByService(serviceId, church.id),
+        store.songs.getByChurch(church.id),
+        store.teamMembers.getByChurch(church.id),
+      ]);
+
       if (svc) {
         console.log('[ServiceDetail] Service found:', svc.id, svc.title);
         setService(svc);
@@ -300,16 +294,9 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         return;
       }
 
-      const [itemsData, assignmentsData, songsData] = await Promise.all([
-        store.serviceItems.getByService(serviceId),
-        store.assignments.getByService(serviceId, church.id),
-        store.songs.getByChurch(church.id),
-      ]);
       setItems(itemsData.sort((a, b) => a.position - b.position));
       setAssignments(assignmentsData);
       setSongs(songsData);
-
-      const members = await store.teamMembers.getByChurch(church.id);
       setTeamMembers(members);
     } catch (error) {
       console.error('Error loading service:', error);
@@ -328,12 +315,16 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
     try {
       const prevStatus = service?.status;
+      const serviceDate = date || service?.date || '';
+      // Never auto-mark a future service as completed (e.g. debrief/logging
+      // side effects). The display helper also guards against stale rows.
+      const isUpcoming = isTodayOrFutureCalendarDate(serviceDate);
       await store.services.update(serviceId, church.id, { title, date, time, status, notes });
       setEditing(false);
       await loadData();
 
-      // Auto-prompt debrief when service is marked completed
-      if (status === 'completed' && prevStatus !== 'completed') {
+      // Auto-prompt debrief when a past service is marked completed
+      if (!isUpcoming && status === 'completed' && prevStatus !== 'completed') {
         setShowDebriefForm(true);
         // Log song usage for CCLI reporting (this populates the table that
         // powers the CSV export in Reporting — it was never called before,
@@ -342,7 +333,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
           await store.songUsage.createForService(
             serviceId,
             church.id,
-            date || service?.date || new Date().toISOString().slice(0, 10)
+            serviceDate || new Date().toISOString().slice(0, 10)
           );
         } catch (e) {
           console.error('[SongUsage] Failed to log song usage:', e);
@@ -367,7 +358,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                     user_id: member.user_id,
                     type: 'debrief_request',
                     title: `Debrief requested — ${title || service?.title || ''}`,
-                    message: `Please submit your debrief for ${title || service?.title || ''} on ${date || service?.date || ''}`,
+                    message: `Please submit your debrief for ${title || service?.title || ''} on ${serviceDate}`,
                     service_id: serviceId,
                     read: false,
                     link_url: `/services/${serviceId}?tab=debrief`,
@@ -911,7 +902,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   }
 
   return (
-    <Box px={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" w="full" mx="auto" overflowX="hidden">
+    <Box px={{ base: '4', md: '8' }} pt={{ base: '4', md: '8' }} pb={{ base: '4', md: '8' }} maxW="900px" w="full" mx="auto" overflowX="hidden">
       {/* Header */}
       <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
         <HStack spacing="3" flex="1">
@@ -930,10 +921,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
             </Text>
             <HStack spacing="2" mt="1" color={subtextColor}>
               <Calendar size={14} />
-              <Text fontSize="sm">{formatServiceDate(service?.date || '')}</Text>
-              <Text fontSize="sm">·</Text>
-              <Clock size={14} />
-              <Text fontSize="sm">{service?.time}</Text>
+              <Text fontSize="sm">{formatServiceDate(service?.date || '', service?.time)}</Text>
             </HStack>
           </Box>
         </HStack>
@@ -1312,9 +1300,9 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       {/* Status + Countdown */}
                       <Flex justify="space-between" align="center" wrap="wrap" gap="2">
                         <HStack spacing="3">
-                          <StatusBadge status={service.status} size="md" />
+                          <StatusBadge status={getServiceBadgeStatus(service)} size="md" />
                           <Text fontSize="sm" color={subtextColor} fontWeight="500">
-                            {getCountdownText(service.date)}
+                            {formatRelativeDate(service.date)}
                           </Text>
                         </HStack>
                       </Flex>

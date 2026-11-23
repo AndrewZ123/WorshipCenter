@@ -16,6 +16,8 @@ import { useStore } from '@/lib/StoreContext';
 import type { Song, SongFile, SongUsage, Service } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
+import { summarizeSongUsageDates } from '@/lib/song-usage';
+import { isFutureCalendarDate } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
@@ -155,8 +157,20 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
     if (totalUsageCount === 0) {
       return { color: 'gray.400', label: 'Not used yet', dot: '⚪' };
     }
-    const lastUsedDate = recentServices[0]?.date ? new Date(recentServices[0].date) : null;
-    const weeksAgo = lastUsedDate ? Math.floor((Date.now() - lastUsedDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) : null;
+    const { lastUsed, nextScheduled } = summarizeSongUsageDates(
+      allUsage.map((u) => u.date)
+    );
+    if (nextScheduled) {
+      return {
+        color: 'teal.500',
+        label: `Scheduled — next used ${formatDate(nextScheduled)}`,
+        dot: '🟢',
+      };
+    }
+    const lastUsedDate = lastUsed ? new Date(lastUsed + 'T00:00:00') : null;
+    const weeksAgo = lastUsedDate
+      ? Math.max(0, Math.floor((Date.now() - lastUsedDate.getTime()) / (7 * 24 * 60 * 60 * 1000)))
+      : null;
     
     if (totalUsageCount >= 6 && weeksAgo !== null && weeksAgo < 8) {
       return { color: 'red.500', label: 'Overplayed — used 6+ times recently', dot: '🔴' };
@@ -561,7 +575,14 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                         onClick={() => router.push(`/services/${entry.service.id}`)}
                         transition="all 0.15s"
                       >
-                        <Td fontSize="sm">{formatDate(entry.date)}</Td>
+                        <Td fontSize="sm">
+                          <HStack spacing="2">
+                            <Text>{formatDate(entry.date)}</Text>
+                            {isFutureCalendarDate(entry.date) && (
+                              <Badge colorScheme="teal" variant="subtle" fontSize="xs" borderRadius="full">Upcoming</Badge>
+                            )}
+                          </HStack>
+                        </Td>
                         <Td fontSize="sm">
                           <Text color="teal.600" fontWeight="500" _hover={{ textDecoration: 'underline' }}>{entry.service.title}</Text>
                         </Td>
@@ -595,7 +616,10 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                         <Calendar size={16} color="var(--chakra-colors-gray-400)" />
                         <Text color="teal.600" fontWeight="600" noOfLines={1}>{entry.service.title}</Text>
                       </HStack>
-                      <Text fontSize="sm" color={subtextColor}>{formatDate(entry.date)}</Text>
+                      <Text fontSize="sm" color={subtextColor}>
+                        {formatDate(entry.date)}
+                        {isFutureCalendarDate(entry.date) ? ' · Upcoming' : ''}
+                      </Text>
                     </HStack>
                   </Box>
                 ))}

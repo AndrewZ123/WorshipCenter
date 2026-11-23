@@ -58,6 +58,11 @@ export default function ChannelCreateModal({ isOpen, onClose, churchId, userId, 
 
       if (isPrivate && selectedMembers.length > 0) {
         await Promise.all(selectedMembers.map((uid) => db.channels.addMember(channel.id, uid)));
+      } else if (!isPrivate) {
+        // Public channels are church-wide. Best-effort: if RLS/table errors
+        // prevent membership rows, the chat page still falls back to all
+        // church users for public channels.
+        await db.channels.syncPublicChannelMembers(channel.id, churchId);
       }
 
       toast({ title: 'Channel created', status: 'success', duration: 2000 });

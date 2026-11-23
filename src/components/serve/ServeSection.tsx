@@ -13,6 +13,7 @@ import { useStore } from '@/lib/StoreContext';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import type { ServiceRolePosition, SignupRequestPopulated } from '@/lib/types';
 import { Calendar, Clock, Users, UserPlus, CheckCircle, AlertCircle, XCircle, Filter } from 'lucide-react';
+import { formatTime } from '@/lib/formatDate';
 
 const ROLE_OPTIONS = [
   'worship_leader', 'vocals', 'acoustic', 'electric', 'keys', 'bass', 'drums',
@@ -306,7 +307,7 @@ export default function ServeSection() {
                       </HStack>
                       <HStack spacing="1.5">
                         <Clock size={14} />
-                        <Text fontSize="sm">{pos.services.time}</Text>
+                        <Text fontSize="sm">{formatTime(pos.services.time)}</Text>
                       </HStack>
                       <HStack spacing="1.5">
                         <Users size={14} />
@@ -352,7 +353,7 @@ export default function ServeSection() {
                   <HStack spacing="3" mt="1" color="teal.600" fontSize="sm">
                     <Text>{selectedPosition.services.date}</Text>
                     <Text>·</Text>
-                    <Text>{selectedPosition.services.time}</Text>
+                    <Text>{formatTime(selectedPosition.services.time)}</Text>
                     <Text>·</Text>
                     <Text>{selectedPosition.role.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</Text>
                   </HStack>

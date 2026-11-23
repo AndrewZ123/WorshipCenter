@@ -12,9 +12,9 @@ import { usePermissions } from '@/lib/PermissionsContext';
 import { useStore } from '@/lib/StoreContext';
 import type { Service, Song, TeamMember, ServiceItem, RehearsalStats } from '@/lib/types';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { getServiceBadgeStatus } from '@/lib/service-status';
 import { formatServiceDate, formatShortDate, getGreeting } from '@/lib/formatDate';
 import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist';
-import ServiceDetailClient from '@/app/(app)/services/[id]/ServiceDetailClient';
 
 // Lucide icons
 import { 
@@ -92,11 +92,11 @@ import ServeSection from '@/components/serve/ServeSection';
           <Box>
             <HStack spacing="3" mb="1">
               <Text fontWeight="700" fontSize="lg" color={textColor}>{svc.title}</Text>
-              <StatusBadge status={svc.status} size="sm" />
+              <StatusBadge status={getServiceBadgeStatus(svc)} size="sm" />
             </HStack>
             <HStack spacing="2" color={subtextColor}>
               <Clock size={14} />
-              <Text fontSize="sm">{formatServiceDate(svc.date)} · {svc.time}</Text>
+              <Text fontSize="sm">{formatServiceDate(svc.date, svc.time)}</Text>
             </HStack>
           </Box>
           <HStack spacing="4" fontSize="sm" color={subtextColor}>
@@ -205,7 +205,6 @@ export default function DashboardPage() {
   const [, setHasData] = useState(false);
   const [, setDismissedPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -213,42 +212,47 @@ export default function DashboardPage() {
 
       try {
         setLoading(true);
-        let svcs: Service[];
+        const isVolunteer = permissions.isVolunteer;
 
-        if (permissions.isVolunteer) {
+        // Independent reads start together instead of forming a serial chain.
+        const assignmentsPromise = isVolunteer && user?.team_member_id
+          ? store.assignments.getByTeamMember(user.team_member_id, church.id)
+          : Promise.resolve([]);
+        const myTasksPromise = user?.team_member_id
+          ? store.tasks.getMyTasks(church.id, user.team_member_id)
+          : Promise.resolve([]);
+
+        const [allServices, allSongs, members, myTasksData, assignments] = await Promise.all([
+          store.services.getByChurch(church.id),
+          store.songs.getByChurch(church.id),
+          store.teamMembers.getByChurch(church.id),
+          myTasksPromise,
+          assignmentsPromise,
+        ]);
+
+        let svcs = allServices;
+        if (isVolunteer) {
           // Volunteers only see services they have assignments or tasks for
-          svcs = [];
-          if (user?.team_member_id) {
-            const assignments = await store.assignments.getByTeamMember(user.team_member_id, church.id);
-            const serviceIds = new Set<string>();
-            for (const a of assignments) {
-              if (a.service_id) serviceIds.add(a.service_id);
-            }
-            const tasks = await store.tasks.getMyTasks(church.id, user.team_member_id);
-            for (const t of tasks) {
-              if (t.service_id) serviceIds.add(t.service_id);
-            }
-            const allSvc = await store.services.getByChurch(church.id);
-            svcs = allSvc.filter((s: Service) => serviceIds.has(s.id));
+          const serviceIds = new Set<string>();
+          for (const a of assignments) {
+            if (a.service_id) serviceIds.add(a.service_id);
           }
-        } else {
-          svcs = await store.services.getByChurch(church.id);
+          for (const t of myTasksData) {
+            if (t.service_id) serviceIds.add(t.service_id);
+          }
+          svcs = allServices.filter((s: Service) => serviceIds.has(s.id));
         }
 
         svcs.sort((a: Service, b: Service) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         setServices(svcs);
-        const allSongs = await store.songs.getByChurch(church.id);
         setSongs(allSongs);
-        setTeamMembers(await store.teamMembers.getByChurch(church.id));
-
-        // Fetch this user's tasks (needs matching team member record)
+        setTeamMembers(members);
         if (user?.team_member_id) {
-          const tasks = await store.tasks.getMyTasks(church.id, user.team_member_id);
-          setMyTasks(tasks);
+          setMyTasks(myTasksData);
         }
 
-        setHasData(svcs.length > 0 || allSongs.length > 0 || teamMembers.length > 0);
+        setHasData(svcs.length > 0 || allSongs.length > 0 || members.length > 0);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
         toast({
@@ -320,10 +324,6 @@ export default function DashboardPage() {
     );
   }
 
-  if (selectedServiceId) {
-    return <ServiceDetailClient serviceId={selectedServiceId} onBack={() => setSelectedServiceId(null)} />;
-  }
-
   return (
     <Box p={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} maxW="1100px" w="full" mx="auto" overflowX="hidden">
       {/* Greeting Header */}
@@ -373,7 +373,7 @@ export default function DashboardPage() {
                     cursor="pointer"
                     _hover={{ bg: hoverBg }}
                     transition="all 0.15s ease"
-                    onClick={() => setSelectedServiceId(task.service_id)}
+                    onClick={() => task.service_id && router.push(`/services/${task.service_id}`)}
                     justify="space-between"
                   >
                     <HStack spacing="3">
@@ -412,7 +412,7 @@ export default function DashboardPage() {
           </Flex>
           <VStack spacing="3" align="stretch">
             {upcomingServices.map((svc) => (
-              <ServiceCard key={svc.id} svc={svc} onClick={() => setSelectedServiceId(svc.id)} />
+              <ServiceCard key={svc.id} svc={svc} onClick={() => router.push(`/services/${svc.id}`)} />
             ))}
           </VStack>
         </Box>
@@ -424,7 +424,7 @@ export default function DashboardPage() {
           <Text fontSize="lg" fontWeight="600" color={textColor} mb="4">This Week</Text>
           <VStack spacing="3" align="stretch">
             {thisWeekServices.map((svc) => (
-              <ServiceCard key={svc.id} svc={svc} onClick={() => setSelectedServiceId(svc.id)} />
+              <ServiceCard key={svc.id} svc={svc} onClick={() => router.push(`/services/${svc.id}`)} />
             ))}
           </VStack>
         </Box>
@@ -545,7 +545,7 @@ export default function DashboardPage() {
                   cursor="pointer"
                   _hover={{ bg: hoverBg }}
                   transition="all 0.15s ease"
-                  onClick={() => setSelectedServiceId(svc.id)}
+                  onClick={() => router.push(`/services/${svc.id}`)}
                   justify="space-between"
                 >
                   <HStack spacing="3">
@@ -554,7 +554,7 @@ export default function DashboardPage() {
                     </Text>
                     <Text fontWeight="600" color={textColor}>{svc.title}</Text>
                   </HStack>
-                  <StatusBadge status={svc.status} size="sm" />
+                  <StatusBadge status={getServiceBadgeStatus(svc)} size="sm" />
                 </HStack>
                 {i < recentServices.length - 1 && <Divider />}
               </Box>

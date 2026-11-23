@@ -15,6 +15,7 @@ import { useStore } from '@/lib/StoreContext';
 import type { ServiceTemplate, ServiceItem } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import SortableItem from '@/components/ui/SortableItem';
+import { formatTime } from '@/lib/formatDate';
 
 // Lucide icons
 import { 
@@ -184,7 +185,7 @@ export default function TemplateEditorClient() {
           <Heading size="lg" fontWeight="700">Edit Template: {template.title}</Heading>
           <HStack mt="1" spacing="2">
             <Tag size="sm" colorScheme="brand" variant="subtle"><TagLabel>{DAYS[template.day_of_week]}</TagLabel></Tag>
-            <Text color="gray.500" fontSize="sm">{template.time}</Text>
+            <Text color="gray.500" fontSize="sm">{formatTime(template.time)}</Text>
           </HStack>
         </Box>
         <Button variant="ghost" colorScheme="red" size="sm" onClick={deleteTemplateConfirm.onOpen}>Delete Template</Button>

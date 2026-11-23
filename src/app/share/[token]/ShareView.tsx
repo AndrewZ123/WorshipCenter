@@ -3,6 +3,7 @@
 import { Box, Text, VStack, HStack, Badge, useColorModeValue } from '@chakra-ui/react';
 import type { Service, Church, ServiceItem, Song, ServiceAssignment, TeamMember } from '@/lib/types';
 import { Calendar, Clock, Music, FileText, Users } from 'lucide-react';
+import { formatTime } from '@/lib/formatDate';
 
 interface ShareData {
   service: Service;
@@ -94,7 +95,7 @@ export default function ShareView({ data, isDemo }: { data: ShareData | null; is
           </HStack>
           <HStack spacing="1.5">
             <Clock size={14} />
-            <Text>{service.time}</Text>
+            <Text>{formatTime(service.time)}</Text>
           </HStack>
           <Badge colorScheme={STATUS_COLORS[service.status]} variant="subtle" fontSize="xs" px="2" py="0.5" borderRadius="full">
             {service.status.charAt(0).toUpperCase() + service.status.slice(1)}

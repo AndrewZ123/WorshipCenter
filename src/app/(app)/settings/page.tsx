@@ -39,6 +39,7 @@ import { Sparkles, Calendar, Plus, Trash2, Shield, UserPlus } from 'lucide-react
 import { useRouter } from 'next/navigation';
 import { useConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { db } from '@/lib/store';
+import { getDisplayChurchSlug } from '@/lib/church-slug';
 import type { TeamMemberPreference, TeamMemberBlockoutDate, AdminPermission, User } from '@/lib/types';
 
 export default function SettingsPage() {
@@ -95,6 +96,10 @@ export default function SettingsPage() {
   const borderColor = useColorModeValue('gray.200', 'gray.600');
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.600', 'gray.400');
+  const displaySlug = church
+    ? getDisplayChurchSlug(church.slug, church.name, church.id)
+    : '';
+  const hasStoredSlug = Boolean(church?.slug?.trim());
   
   useEffect(() => {
     if (user) {
@@ -519,13 +524,16 @@ export default function SettingsPage() {
                 <FormControl>
                   <FormLabel color={textColor}>Church URL Slug</FormLabel>
                   <Input
-                    value={church.slug}
+                    value={displaySlug}
                     isReadOnly
                     bg={useColorModeValue('gray.50', 'gray.700')}
                     color={subtextColor}
+                    aria-label="Church URL slug (read-only)"
                   />
                   <FormHelperText color={subtextColor}>
-                    The unique identifier for your church. Cannot be changed.
+                    {hasStoredSlug
+                      ? 'The unique identifier for your church. Cannot be changed.'
+                      : 'Generated from your church name. Cannot be changed.'}
                   </FormHelperText>
                 </FormControl>
                 

@@ -64,6 +64,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(() => !user);
   const pendingAuthId = React.useRef<string | null>(null);
 
+  // Safety valve: if Supabase never emits an auth event (stuck hydration,
+  // locked storage, offline), do not leave every page on “Loading…” forever.
+  // Pages already render a retry state once loading=false and church is null.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading((prev) => (prev ? false : prev));
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Refs that mirror state — readable inside the onAuthStateChange closure
   // without causing re-subscriptions. This prevents the stale-closure bug
   // where TOKEN_REFRESHED events would bypass the "already loaded" guard

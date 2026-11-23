@@ -654,7 +654,7 @@ function Header({
             {service.title}
           </Text>
           <Text fontSize="xs" color={subtextColor} noOfLines={1}>
-            {formatServiceDate(service.date)} {service.time && `· ${service.time}`}
+            {formatServiceDate(service.date, service.time)}
           </Text>
         </VStack>
       </HStack>

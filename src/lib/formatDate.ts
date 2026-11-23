@@ -4,6 +4,52 @@
  */
 
 /**
+ * Convert a date (or `YYYY-MM-DD` string) to a timezone-safe calendar-day
+ * index. Date-only strings are read as calendar dates instead of UTC
+ * instants, so a service on `2026-11-29` never shifts to the previous day.
+ *
+ * Returns null for invalid input.
+ */
+export function getCalendarDayIndex(date: Date | string): number | null {
+  if (typeof date === 'string') {
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (dateOnly) {
+      return Date.UTC(
+        Number(dateOnly[1]),
+        Number(dateOnly[2]) - 1,
+        Number(dateOnly[3])
+      ) / (1000 * 60 * 60 * 24);
+    }
+  }
+
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return null;
+
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) /
+    (1000 * 60 * 60 * 24);
+}
+
+/** True when the date is strictly after today (calendar-day comparison). */
+export function isFutureCalendarDate(
+  date: Date | string,
+  now: Date = new Date()
+): boolean {
+  const day = getCalendarDayIndex(date);
+  const today = getCalendarDayIndex(now);
+  return day !== null && today !== null && day > today;
+}
+
+/** True when the date is today or later (calendar-day comparison). */
+export function isTodayOrFutureCalendarDate(
+  date: Date | string,
+  now: Date = new Date()
+): boolean {
+  const day = getCalendarDayIndex(date);
+  const today = getCalendarDayIndex(now);
+  return day !== null && today !== null && day >= today;
+}
+
+/**
  * Format a service date with day of week and time
  * Output: "Sunday, March 23 · 9:00 AM"
  */
@@ -34,38 +80,59 @@ export function formatServiceDate(date: Date | string, time?: string): string {
 
 /**
  * Format a relative date
- * Output: "2 weeks ago", "3 days ago", "Today", "Yesterday"
+ * Output: "Today", "Tomorrow", "in 6 days", "Yesterday", "3 days ago",
+ * "2 weeks ago"
  */
-export function formatRelativeDate(date: Date | string): string {
-  // Handle ISO timestamps (contains T) vs date-only strings
-  const d = typeof date === 'string' 
-    ? new Date(date.includes('T') ? date : date + 'T00:00:00')
-    : date;
-  const now = new Date();
-  
-  // Reset to start of day for accurate comparison
-  const dateStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
-  const diffTime = nowStart.getTime() - dateStart.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  
+export function formatRelativeDate(
+  date: Date | string,
+  now: Date = new Date()
+): string {
+  const day = getCalendarDayIndex(date);
+  const today = getCalendarDayIndex(now);
+  if (day === null || today === null) {
+    return typeof date === 'string' ? date : '';
+  }
+
+  // Positive when the date is in the past.
+  const diffDays = today - day;
+
   if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 14) return '1 week ago';
-  if (diffDays < 30) {
-    const weeks = Math.floor(diffDays / 7);
-    return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+
+  if (diffDays > 0) {
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 14) return '1 week ago';
+    if (diffDays < 30) {
+      const weeks = Math.floor(diffDays / 7);
+      return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
+    }
+    if (diffDays < 60) return '1 month ago';
+    if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30);
+      return `${months} ${months === 1 ? 'month' : 'months'} ago`;
+    }
+
+    const years = Math.floor(diffDays / 365);
+    return `${years} ${years === 1 ? 'year' : 'years'} ago`;
   }
-  if (diffDays < 60) return '1 month ago';
-  if (diffDays < 365) {
-    const months = Math.floor(diffDays / 30);
-    return `${months} ${months === 1 ? 'month' : 'months'} ago`;
+
+  // Future dates: never render "-6 days ago".
+  const futureDays = Math.abs(diffDays);
+  if (futureDays === 1) return 'Tomorrow';
+  if (futureDays < 7) return `in ${futureDays} days`;
+  if (futureDays < 14) return 'in 1 week';
+  if (futureDays < 30) {
+    const weeks = Math.floor(futureDays / 7);
+    return `in ${weeks} ${weeks === 1 ? 'week' : 'weeks'}`;
   }
-  
-  const years = Math.floor(diffDays / 365);
-  return `${years} ${years === 1 ? 'year' : 'years'} ago`;
+  if (futureDays < 60) return 'in 1 month';
+  if (futureDays < 365) {
+    const months = Math.floor(futureDays / 30);
+    return `in ${months} ${months === 1 ? 'month' : 'months'}`;
+  }
+
+  const years = Math.floor(futureDays / 365);
+  return `in ${years} ${years === 1 ? 'year' : 'years'}`;
 }
 
 /**

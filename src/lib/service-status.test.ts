@@ -1,16 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { classifyServiceStatus, countServiceStatuses } from './service-status';
+import {
+  classifyServiceStatus,
+  countServiceStatuses,
+  getServiceBadgeStatus,
+} from './service-status';
 
 const now = new Date('2026-06-15T12:00:00.000Z');
 
 describe('classifyServiceStatus', () => {
-  it('counts a future-dated completed service as completed, not planned', () => {
+  it('never buckets a future completed service as completed', () => {
     expect(
       classifyServiceStatus({ status: 'completed', date: '2026-07-01' }, now)
-    ).toBe('completed');
+    ).toBe('upcomingPlanned');
+    expect(
+      getServiceBadgeStatus({ status: 'completed', date: '2026-07-01' }, now)
+    ).toBe('draft');
   });
 
-  it('counts only future draft services as upcoming planned', () => {
+  it('treats a service dated today as upcoming, not completed', () => {
+    expect(
+      classifyServiceStatus({ status: 'completed', date: '2026-06-15' }, now)
+    ).toBe('upcomingPlanned');
+    expect(
+      classifyServiceStatus({ status: 'finalized', date: '2026-06-15' }, now)
+    ).toBe('upcomingFinalized');
+  });
+
+  it('counts future draft services as upcoming planned and past drafts as past', () => {
     expect(
       classifyServiceStatus({ status: 'draft', date: '2026-07-01' }, now)
     ).toBe('upcomingPlanned');
@@ -23,17 +39,55 @@ describe('classifyServiceStatus', () => {
     expect(
       classifyServiceStatus({ status: 'finalized', date: '2026-07-01' }, now)
     ).toBe('upcomingFinalized');
+    expect(
+      getServiceBadgeStatus({ status: 'finalized', date: '2026-07-01' }, now)
+    ).toBe('finalized');
+  });
+
+  it('only marks past services completed when their status is completed', () => {
+    expect(
+      classifyServiceStatus({ status: 'completed', date: '2026-05-01' }, now)
+    ).toBe('completed');
+    expect(
+      getServiceBadgeStatus({ status: 'completed', date: '2026-05-01' }, now)
+    ).toBe('completed');
+    expect(
+      classifyServiceStatus({ status: 'finalized', date: '2026-05-01' }, now)
+    ).toBe('past');
+  });
+
+  it('compares date-only strings as calendar dates, not UTC instants', () => {
+    // A late-evening local `now` must not push tomorrow's service into the past.
+    const lateNow = new Date(2026, 5, 15, 23, 30, 0);
+    expect(
+      classifyServiceStatus({ status: 'completed', date: '2026-06-16' }, lateNow)
+    ).toBe('upcomingPlanned');
   });
 });
 
 describe('countServiceStatuses', () => {
-  it('does not put future completed services in an upcoming bucket', () => {
+  it('keeps a single future draft service planned so the report totals add up', () => {
+    const counts = countServiceStatuses(
+      [{ status: 'completed', date: '2026-06-21' }],
+      now
+    );
+
+    expect(counts).toEqual({
+      completed: 0,
+      past: 0,
+      upcomingPlanned: 1,
+      upcomingFinalized: 0,
+    });
+  });
+
+  it('does not put future completed services in the completed or past buckets', () => {
     const counts = countServiceStatuses(
       [
         { status: 'completed', date: '2026-07-01' },
         { status: 'draft', date: '2026-07-02' },
         { status: 'finalized', date: '2026-07-03' },
         { status: 'finalized', date: '2026-01-01' },
+        { status: 'completed', date: '2026-02-01' },
       ],
       now
     );
@@ -41,7 +95,7 @@ describe('countServiceStatuses', () => {
     expect(counts).toEqual({
       completed: 1,
       past: 1,
-      upcomingPlanned: 1,
+      upcomingPlanned: 2,
       upcomingFinalized: 1,
     });
   });

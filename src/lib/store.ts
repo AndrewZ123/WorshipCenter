@@ -105,6 +105,39 @@ const sanitizeInput = {
 };
 
 /**
+ * Best-effort membership rows for a public (non-private) channel. Never
+ * throws: a missing table or RLS denial must not break channel creation.
+ */
+async function addChurchUsersToPublicChannel(
+  channelId: string,
+  churchId: string
+): Promise<number> {
+  try {
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('church_id', churchId);
+    if (usersError || !users?.length) return 0;
+
+    const rows = users.map((u: { id: string }) => ({
+      channel_id: channelId,
+      user_id: u.id,
+    }));
+    const { error } = await supabase
+      .from('chat_channel_members')
+      .upsert(rows, { onConflict: 'channel_id,user_id', ignoreDuplicates: true });
+    if (error) {
+      console.warn('[Channels] Could not add church users to public channel:', error);
+      return 0;
+    }
+    return rows.length;
+  } catch (error) {
+    console.warn('[Channels] Could not add church users to public channel:', error);
+    return 0;
+  }
+}
+
+/**
  * CRITICAL: All getById methods MUST verify church_id to prevent cross-tenant data access.
  * This is a defense-in-depth measure. RLS policies should be the primary security layer,
  * but application-level checks provide an additional safety net.
@@ -2152,8 +2185,17 @@ export const db = {
           .maybeSingle();
         return (retry || null) as any;
       }
+
+      // Public channels are implicitly church-wide, but the members table is
+      // empty for channels created without explicit membership rows. Add the
+      // existing church users when the insert is allowed; the UI still falls
+      // back to the church user list if RLS/table errors prevent this.
+      if (data?.id) {
+        await addChurchUsersToPublicChannel(data.id, churchId);
+      }
       return data as any;
     },
+    syncPublicChannelMembers: addChurchUsersToPublicChannel,
     getMembers: async (channelId: string) => {
       const { data } = await supabase
         .from('chat_channel_members')

@@ -17,7 +17,6 @@ export default function ChannelList({ channels, activeChannelId, onSelect, canCr
   const activeBg = useColorModeValue('teal.50', 'rgba(13,148,136,0.15)');
   const activeColor = useColorModeValue('teal.700', 'teal.300');
   const hoverBg = useColorModeValue('gray.50', 'gray.700');
-  const subtextColor = useColorModeValue('gray.400', 'gray.500');
   const sectionColor = useColorModeValue('gray.500', 'gray.400');
 
   const safe = channels.filter(Boolean);
@@ -96,13 +95,12 @@ export default function ChannelList({ channels, activeChannelId, onSelect, canCr
           <Button
             leftIcon={<Plus size={16} />}
             size="sm"
-            variant="ghost"
+            variant="outline"
+            colorScheme="teal"
             w="full"
             justifyContent="flex-start"
-            color={subtextColor}
-            _hover={{ color: 'teal.500', bg: hoverBg }}
             onClick={onCreateClick}
-            fontWeight="500"
+            fontWeight="600"
           >
             Create Channel
           </Button>
