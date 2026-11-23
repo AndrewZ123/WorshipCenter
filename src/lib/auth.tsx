@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { User, Church } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { apiBaseUrl, getRedirectUrl, parseJsonSafe } from '@/lib/api-base';
+import { shouldIgnoreAuthEvent } from '@/lib/auth-session';
 
 export interface SignupResult {
   success: boolean;
@@ -67,6 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(() => !user);
   const [signedOut, setSignedOut] = useState(false);
   const pendingAuthId = React.useRef<string | null>(null);
+  // Mirrors `signedOut` for the onAuthStateChange closure, which is subscribed
+  // once on mount and would otherwise capture a stale value.
+  const signedOutRef = React.useRef(false);
+  // True while login/signup/join is in flight. Only the SIGNED_IN it produces
+  // may clear `signedOut`; leftover session events must not.
+  const explicitAuthRef = React.useRef(false);
 
   // Safety valve: if Supabase never emits an auth event (stuck hydration,
   // locked storage, offline), do not leave every page on “Loading…” forever.
@@ -94,12 +101,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     churchRef.current = church;
   }, [church]);
-
-  // A successfully restored/logged-in profile always clears the explicit
-  // sign-out flag, including after the login page mounts.
   useEffect(() => {
-    if (user) setSignedOut(false);
-  }, [user]);
+    signedOutRef.current = signedOut;
+  }, [signedOut]);
+
+  // Update the sign-out flag and its ref together. The ref must change
+  // immediately so a session event arriving before the next render is ignored.
+  const markSignedOut = useCallback((value: boolean) => {
+    signedOutRef.current = value;
+    setSignedOut(value);
+  }, []);
 
   // Shallow JSON equality check to avoid spurious state updates
   const isSameData = (a: unknown, b: unknown) => {
@@ -113,6 +124,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Load Profile from Supabase
   const loadProfile = useCallback(async (authUserId: string, useCache = true): Promise<'success' | 'not_found' | 'error' | 'aborted'> => {
+    // An explicit sign-out wins over any profile load, including one that was
+    // already in flight when logout() ran. Only an explicit login/signup/join
+    // may load a profile while the signed-out flag is set.
+    if (signedOutRef.current && !explicitAuthRef.current) {
+      return 'aborted';
+    }
+
     // If we're already loading this user, don't start another concurrent request
     if (pendingAuthId.current === authUserId) {
       return 'aborted';
@@ -195,7 +213,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (teamMember) {
         (userData as any).team_member_id = teamMember.id;
       }
-      
+
+      // A sign-out may have happened while the queries above were in flight.
+      // Never let that stale response repopulate the profile.
+      if (signedOutRef.current && !explicitAuthRef.current) {
+        return 'aborted';
+      }
+
       setUser(prev => isSameData(prev, userData) ? prev : userData as User);
 
       const { data: churchData, error: churchError } = await supabase
@@ -203,7 +227,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('id', (userData as User).church_id)
         .maybeSingle();
-        
+
+      if (signedOutRef.current && !explicitAuthRef.current) {
+        return 'aborted';
+      }
+
       if (churchError) {
         // Don't swallow this: pages render a "couldn't load your church data"
         // state when church is still null after auth finishes.
@@ -236,6 +264,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let initialized = false;
 
     const handleAuthState = async (event: string, session: any) => {
+      // A leftover session event after an explicit sign-out must not restore
+      // the profile. Keep the UI signed out and just settle loading. The
+      // SIGNED_IN produced by an explicit login/signup/join is allowed through.
+      if (shouldIgnoreAuthEvent({
+        event,
+        signedOut: signedOutRef.current,
+        explicitAuthInFlight: explicitAuthRef.current,
+      })) {
+        userIdRef.current = null;
+        churchRef.current = null;
+        setUser(null);
+        setChurch(null);
+        setLoading(false);
+        return;
+      }
+
+      // Only an explicit authentication clears the sign-out flag. A leftover
+      // session restore must never do it, or the login page could bounce the
+      // user back to /dashboard mid sign-out.
+      if (event === 'SIGNED_IN' && explicitAuthRef.current) {
+        markSignedOut(false);
+      }
+
       // Skip TOKEN_REFRESHED entirely. Supabase fires this when the tab
       // regains focus or on an auto-refresh timer. The session is still
       // valid (same user id) and we've already loaded the profile, so
@@ -260,6 +311,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (status === 'aborted') {
+          // A load cancelled by an explicit sign-out must not be retried, or
+          // the stale session could be picked up again after a later login.
+          if (signedOutRef.current && !explicitAuthRef.current) {
+            setUser(null);
+            setChurch(null);
+            setLoading(false);
+            return;
+          }
           // If aborted by lock, wait 500ms and try again once.
           // Don't set loading=false yet.
           setTimeout(() => handleAuthState('RETRY', session), 500);
@@ -296,19 +355,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+    explicitAuthRef.current = true;
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         console.error('[Auth] Login error:', error.message);
         return false;
       }
+      // This is an explicit authentication: leaving the signed-out state is
+      // allowed now (the SIGNED_IN handler may also have done it already).
+      markSignedOut(false);
       // onAuthStateChange will automatically fire SIGNED_IN and load the profile.
       return true;
     } catch (err) {
       console.error('[Auth] Login exception:', err);
       return false;
+    } finally {
+      explicitAuthRef.current = false;
     }
-  }, []);
+  }, [markSignedOut]);
 
   const signup = useCallback(async (
     churchName: string, userName: string, email: string, password: string
@@ -320,6 +385,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Keep the app layout in its loading state for the whole signup flow so the
     // brief window before the profile row exists is not treated as logged out.
     setLoading(true);
+    explicitAuthRef.current = true;
 
     try {
       // 1. Create Supabase Auth User
@@ -386,6 +452,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: true, requiresEmailConfirmation: true };
       }
 
+      // Explicit signup authentication: safe to leave the signed-out state.
+      markSignedOut(false);
+
       // The SIGNED_IN event can arrive before the server has inserted the
       // users row. Load the profile explicitly and do not report success until
       // it is available, retrying the transient "not found"/"aborted" cases.
@@ -412,15 +481,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('[Auth] Signup exception:', err);
       return { success: false, error: 'Registration failed. Please try again.' };
     } finally {
+      explicitAuthRef.current = false;
       setLoading(false);
     }
-  }, [loadProfile]);
+  }, [loadProfile, markSignedOut]);
 
   const join = useCallback(async (
     email: string, churchId: string, password: string
   ): Promise<boolean> => {
     if (!email || !churchId || !password || password.length < 6) return false;
 
+    explicitAuthRef.current = true;
     try {
       // 1. Create Supabase Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
@@ -436,6 +507,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('[Auth] Join: no session after signup (email confirmation may be pending)');
         return false;
       }
+
+      // Explicit join authentication: safe to leave the signed-out state.
+      markSignedOut(false);
 
       const joinResponse = await fetch(`${apiBaseUrl()}/api/auth/complete-join`, {
         method: 'POST',
@@ -484,14 +558,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('[Auth] Join exception:', err);
       return false;
+    } finally {
+      explicitAuthRef.current = false;
     }
-  }, []);
+  }, [markSignedOut]);
 
   const logout = useCallback(async () => {
     // Clear local session state first so the UI can leave the authenticated
     // shell immediately. Waiting for the network sign-out used to leave
     // "Logging you in..." on screen for 10–15 seconds.
-    setSignedOut(true);
+    markSignedOut(true);
+    userIdRef.current = null;
+    churchRef.current = null;
     setUser(null);
     setChurch(null);
 
@@ -514,7 +592,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn('[Auth] Sign out request failed; local session cleared:', err);
     }
-  }, [user]);
+  }, [user, markSignedOut]);
 
   const resetPassword = useCallback(async (email: string): Promise<boolean> => {
     try {
@@ -583,16 +661,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      userIdRef.current = null;
+      churchRef.current = null;
       setUser(null);
       setChurch(null);
-      setSignedOut(true);
+      markSignedOut(true);
 
       return { success: true };
     } catch (err) {
       console.error('[Auth] Delete account exception:', err);
       return { success: false, error: 'Network error. Please try again.' };
     }
-  }, [user]);
+  }, [user, markSignedOut]);
 
   return (
     <AuthContext.Provider value={{ user, church, loading, signedOut, login, signup, join, logout, resetPassword, updatePassword, deleteAccount }}>
