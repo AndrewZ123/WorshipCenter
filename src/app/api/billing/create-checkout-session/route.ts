@@ -18,6 +18,7 @@ import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/auth-middl
 import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { getStripe, PRICING, isStripeConfigured, getMissingStripeConfig } from '@/lib/stripe';
 import { supabaseAdmin, isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
+import { getOrCreatePortalConfiguration } from '@/lib/stripe-portal';
 import { env } from '@/lib/env';
 import { BillingCheckoutRequestSchema, invalidInputResponse } from '@/lib/validation';
 import type { Subscription } from '@/lib/types';
@@ -241,41 +242,9 @@ export async function POST(request: NextRequest) {
 
       const portalAppUrl = env.appUrl();
 
-      // Reuse an existing default billing-portal configuration instead of
-      // creating a new one on every plan switch (avoids rate limits & clutter).
-      let configurationId: string | undefined;
-      try {
-        const configurations = await stripe.billingPortal.configurations.list({
-          active: true,
-          is_default: true,
-          limit: 1,
-        });
-        configurationId = configurations.data[0]?.id;
-      } catch (cfgErr) {
-        console.warn('[Checkout] Could not list portal configurations:', cfgErr);
-      }
-
-      // Fallback: create one if none exists yet
-      if (!configurationId) {
-        const configuration = await stripe.billingPortal.configurations.create({
-          business_profile: { headline: 'WorshipCenter Subscription Management' },
-          features: {
-            subscription_update: {
-              enabled: true,
-              default_allowed_updates: ['price', 'promotion_code'],
-              proration_behavior: 'create_prorations',
-            },
-            subscription_cancel: {
-              enabled: true,
-              mode: 'at_period_end',
-              cancellation_reason: { enabled: true, options: ['too_expensive', 'missing_features', 'switched_service', 'unused', 'other'] },
-            },
-            payment_method_update: { enabled: true },
-            invoice_history: { enabled: true },
-          },
-        });
-        configurationId = configuration.id;
-      }
+      // Reuse an existing active configuration, or create one with the
+      // configured monthly/yearly products so plan switching works.
+      const configurationId = await getOrCreatePortalConfiguration(stripe);
 
       const portalSession = await stripe.billingPortal.sessions.create({
         customer: sub.stripe_customer_id,

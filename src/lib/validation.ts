@@ -83,6 +83,15 @@ export const BillingCheckoutRequestSchema = z.object({
   cancelUrl: z.string().trim().max(2048).optional(),
 });
 
+export const BillingConfirmCheckoutSchema = z.object({
+  session_id: z
+    .string()
+    .trim()
+    .min(1, 'Checkout session id is required')
+    .max(255)
+    .regex(/^cs_/, 'Invalid checkout session id'),
+});
+
 export const PushRegisterSchema = z.object({
   token: z.string().min(1, 'Token is required').max(4096),
   platform: z.enum(['ios', 'android']),

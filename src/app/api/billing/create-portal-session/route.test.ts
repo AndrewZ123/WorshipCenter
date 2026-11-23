@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
@@ -11,6 +11,9 @@ vi.mock('@supabase/supabase-js', () => ({
 }));
 
 const stripeMock = vi.hoisted(() => ({
+  prices: {
+    retrieve: vi.fn(),
+  },
   billingPortal: {
     configurations: {
       list: vi.fn(),
@@ -47,9 +50,16 @@ function portalRequest(token?: string, ip?: string): NextRequest {
 
 beforeEach(() => {
   fake.reset();
+  vi.stubEnv('STRIPE_MONTHLY_PRICE_ID', 'price_test_monthly');
+  vi.stubEnv('STRIPE_YEARLY_PRICE_ID', 'price_test_yearly');
+  stripeMock.prices.retrieve.mockReset();
   stripeMock.billingPortal.configurations.list.mockReset();
   stripeMock.billingPortal.configurations.create.mockReset();
   stripeMock.billingPortal.sessions.create.mockReset();
+  stripeMock.prices.retrieve.mockImplementation(async (priceId: string) => ({
+    id: priceId,
+    product: priceId === 'price_test_monthly' ? 'prod_monthly' : 'prod_yearly',
+  }));
   stripeMock.billingPortal.configurations.list.mockResolvedValue({ data: [] });
   stripeMock.billingPortal.configurations.create.mockResolvedValue({
     id: 'bpc_test123',
@@ -57,6 +67,10 @@ beforeEach(() => {
   stripeMock.billingPortal.sessions.create.mockResolvedValue({
     url: 'https://stripe.test/portal',
   });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('POST /api/billing/create-portal-session', () => {
@@ -123,6 +137,69 @@ describe('POST /api/billing/create-portal-session', () => {
       method: 'eq',
       args: ['church_id', 'church-1'],
     });
+
+    // No configuration existed, so one must be created with BOTH configured
+    // prices (grouped by product) — omitting products caused the 500.
+    expect(stripeMock.prices.retrieve).toHaveBeenCalledWith('price_test_monthly');
+    expect(stripeMock.prices.retrieve).toHaveBeenCalledWith('price_test_yearly');
+    expect(stripeMock.billingPortal.configurations.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        features: expect.objectContaining({
+          subscription_update: expect.objectContaining({
+            enabled: true,
+            products: [
+              { product: 'prod_monthly', prices: ['price_test_monthly'] },
+              { product: 'prod_yearly', prices: ['price_test_yearly'] },
+            ],
+          }),
+          payment_method_update: { enabled: true },
+          invoice_history: { enabled: true },
+          subscription_cancel: expect.objectContaining({
+            enabled: true,
+            mode: 'at_period_end',
+          }),
+        }),
+      })
+    );
+    expect(stripeMock.billingPortal.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({ configuration: 'bpc_test123' })
+    );
+  });
+
+  it('reuses any active portal configuration instead of requiring the default', async () => {
+    stripeMock.billingPortal.configurations.list.mockResolvedValue({
+      data: [{ id: 'bpc_existing', is_default: false }],
+    });
+
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'user-1@example.test' } },
+      error: null,
+    });
+    fake.setTableResult('users', {
+      data: { church_id: 'church-1' },
+      error: null,
+    });
+    fake.setTableResult('subscriptions', {
+      data: {
+        id: 'sub-1',
+        church_id: 'church-1',
+        stripe_customer_id: 'cus_real123',
+        status: 'active',
+      },
+      error: null,
+    });
+
+    const response = await POST(portalRequest('test-token'));
+
+    expect(response.status).toBe(200);
+    expect(stripeMock.billingPortal.configurations.list).toHaveBeenCalledWith({
+      active: true,
+      limit: 1,
+    });
+    expect(stripeMock.billingPortal.configurations.create).not.toHaveBeenCalled();
+    expect(stripeMock.billingPortal.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({ configuration: 'bpc_existing' })
+    );
   });
 
   it('returns 429 once the client IP exhausts the billing limit', async () => {

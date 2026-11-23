@@ -31,6 +31,12 @@ import { getBillingPeriodText, getPlanCtaLabel } from '@/lib/billing-display';
 const BRAND_TEAL = '#0D9488';
 const BRAND_TEAL_DARK = '#0b8278';
 
+/** Real Stripe customers only — ignore legacy `cus_pending_<uuid>` placeholders. */
+function isRealStripeCustomerId(id: string | null | undefined): id is string {
+  return Boolean(id) && /^cus_[A-Za-z0-9]+$/.test(id as string) && !(id as string).startsWith('cus_pending_');
+}
+
+
 /**
  * Absolute origin for Stripe return URLs. Web uses the current origin; the
  * native shell (whose WebView origin has no server) uses the deployed app URL.
@@ -178,8 +184,8 @@ export default function BillingPage() {
 
       // Redirect to Stripe Checkout
       window.location.href = data.url;
-    } catch (err: any) {
-      setActionError(err.message || 'Network error');
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Network error');
     } finally {
       setCheckoutLoading(false);
     }
@@ -215,8 +221,8 @@ export default function BillingPage() {
 
       // Redirect to Stripe Customer Portal
       window.location.href = data.url;
-    } catch (err: any) {
-      setActionError(err.message || 'Network error');
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Network error');
     } finally {
       setPortalLoading(false);
     }
@@ -296,8 +302,14 @@ export default function BillingPage() {
     );
   }
 
-  const showPricingCards = stripeReady || stripeStatusLoading || stripeStatusError === 'error';
-  const showManageButton = isActive && !isCanceled && !isTrialing;
+  // Pro users manage everything (including plan switches) through the Stripe
+  // portal. Show Manage whenever a real Stripe customer exists — including
+  // past_due/canceled — but hide pricing/upgrade CTAs once the plan is active.
+  const hasRealCustomer = isRealStripeCustomerId(subscription?.stripe_customer_id);
+  const showManageButton = Boolean(stripeReady && hasRealCustomer);
+  const showPricingCards =
+    !(isActive && !isCanceled) &&
+    (stripeReady || stripeStatusLoading || stripeStatusError === 'error');
   const currentPlan = subscription?.price_type || null;
   const hasSubscription = Boolean(subscription);
   const planActionsDisabled = checkoutLoading || stripeStatusLoading;
