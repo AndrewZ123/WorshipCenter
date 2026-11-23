@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { welcomeEmail } from '@/lib/email-templates';
 
 interface WelcomeEmailRequest {
@@ -42,25 +42,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
+    // The request is authenticated and authorized above, but the anonymous
+    // client carries no JWT, so RLS would reject these reads. Use the
+    // service-role admin client (same as getRequestUser/verifyAuthToken).
     let userResult, churchResult;
     try {
       [userResult, churchResult] = await Promise.all([
-        supabase.from('users').select('*').eq('id', userId).single(),
-        supabase.from('churches').select('*').eq('id', churchId).single(),
+        supabaseAdmin.from('users').select('*').eq('id', userId).single(),
+        supabaseAdmin.from('churches').select('*').eq('id', churchId).single(),
       ]);
     } catch (dbError) {
       console.error('[Welcome Email] Database query error:', dbError);
-      return jsonResponse({ error: 'Database query failed', details: String(dbError) }, 500);
+      return jsonResponse({ error: 'Database query failed' }, 500);
     }
 
     if (userResult.error || !userResult.data) {
       console.error('[Welcome Email] User fetch error:', userResult.error);
-      return jsonResponse({ error: 'Failed to fetch user', details: userResult.error?.message }, 404);
+      return jsonResponse({ error: 'User not found' }, 404);
     }
 
     if (churchResult.error || !churchResult.data) {
       console.error('[Welcome Email] Church fetch error:', churchResult.error);
-      return jsonResponse({ error: 'Failed to fetch church', details: churchResult.error?.message }, 404);
+      return jsonResponse({ error: 'Church not found' }, 404);
     }
 
     const user = userResult.data;
@@ -98,20 +101,21 @@ export async function POST(request: NextRequest) {
       });
     } catch (fetchError) {
       console.error('[Welcome Email] Fetch error when calling Resend API:', fetchError);
-      return jsonResponse({ error: 'Failed to send welcome email', details: fetchError instanceof Error ? fetchError.message : 'Unknown fetch error' }, 500);
+      return jsonResponse({ error: 'Failed to send welcome email' }, 500);
     }
 
     if (!emailResponse.ok) {
       let errorText = 'Unknown error';
       try { errorText = await emailResponse.text(); } catch { console.error('[Welcome Email] Could not parse error response'); }
       console.error('[Welcome Email] Resend API error:', errorText);
-      return jsonResponse({ error: 'Failed to send welcome email', details: errorText, statusCode: emailResponse.status }, 500);
+      // Do not leak the provider's response body to the caller.
+      return jsonResponse({ error: 'Failed to send welcome email' }, 500);
     }
 
     console.log('[Welcome Email] Successfully sent welcome email');
     return jsonResponse({ success: true });
   } catch (error) {
     console.error('[Welcome Email] Unhandled error:', error);
-    return jsonResponse({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' }, 500);
+    return jsonResponse({ error: 'Internal server error' }, 500);
   }
 }
