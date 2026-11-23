@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequestUser } from '@/lib/auth-middleware';
 import { supabase } from '@/lib/supabase';
 import { welcomeEmail } from '@/lib/email-templates';
 
@@ -7,7 +8,7 @@ interface WelcomeEmailRequest {
   churchId: string;
 }
 
-function jsonResponse(data: any, status: number = 200): NextResponse {
+function jsonResponse(data: Record<string, unknown>, status: number = 200): NextResponse {
   return new NextResponse(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json' },
@@ -16,12 +17,14 @@ function jsonResponse(data: any, status: number = 200): NextResponse {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('[Welcome Email] Starting request');
+    const authUser = await getRequestUser(request);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     let body: WelcomeEmailRequest;
     try {
       body = await request.json();
-      console.log('[Welcome Email] Request body:', { userId: body.userId, churchId: body.churchId });
     } catch (parseError) {
       console.error('[Welcome Email] Failed to parse request body:', parseError);
       return jsonResponse({ error: 'Invalid request body', details: parseError instanceof Error ? parseError.message : 'Unknown parsing error' }, 400);
@@ -30,13 +33,17 @@ export async function POST(request: NextRequest) {
     const { userId, churchId } = body;
 
     if (!userId || !churchId) {
-      console.error('[Welcome Email] Missing required fields:', { userId, churchId });
+      console.error('[Welcome Email] Missing required fields');
       return jsonResponse({ error: 'userId and churchId are required' }, 400);
+    }
+
+    // A user may only trigger a welcome email for themselves, within their own church.
+    if (userId !== authUser.id || churchId !== authUser.church_id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     let userResult, churchResult;
     try {
-      console.log('[Welcome Email] Fetching user and church data');
       [userResult, churchResult] = await Promise.all([
         supabase.from('users').select('*').eq('id', userId).single(),
         supabase.from('churches').select('*').eq('id', churchId).single(),
@@ -73,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     let emailResponse;
     try {
-      console.log('[Welcome Email] Sending email via Resend API to:', userEmail);
+      console.log('[Welcome Email] Sending email via Resend API');
       const { html, text } = welcomeEmail({ adminName, churchName, appUrl });
       emailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -96,12 +103,12 @@ export async function POST(request: NextRequest) {
 
     if (!emailResponse.ok) {
       let errorText = 'Unknown error';
-      try { errorText = await emailResponse.text(); } catch (e) { console.error('[Welcome Email] Could not parse error response'); }
+      try { errorText = await emailResponse.text(); } catch { console.error('[Welcome Email] Could not parse error response'); }
       console.error('[Welcome Email] Resend API error:', errorText);
       return jsonResponse({ error: 'Failed to send welcome email', details: errorText, statusCode: emailResponse.status }, 500);
     }
 
-    console.log('[Welcome Email] Successfully sent welcome email to:', userEmail);
+    console.log('[Welcome Email] Successfully sent welcome email');
     return jsonResponse({ success: true });
   } catch (error) {
     console.error('[Welcome Email] Unhandled error:', error);

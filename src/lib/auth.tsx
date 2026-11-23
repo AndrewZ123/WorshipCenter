@@ -307,25 +307,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('[Auth] Signup successful, church created:', signupResult.church_id);
 
-      // Send welcome email
-      try {
-        const welcomeEmailResponse = await fetch(`${apiBaseUrl()}/api/notifications/send-welcome`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: authData.user.id,
-            churchId: signupResult.church_id,
-          }),
-        });
-        
-        if (welcomeEmailResponse.ok) {
-          console.log('[Auth] Welcome email sent successfully');
-        } else {
-          console.warn('[Auth] Failed to send welcome email, but signup succeeded');
+      // Send welcome email (requires an authenticated session; skip if email
+      // confirmation is pending, since there is no access token yet)
+      const welcomeAccessToken = authData.session?.access_token;
+      if (welcomeAccessToken) {
+        try {
+          const welcomeEmailResponse = await fetch(`${apiBaseUrl()}/api/notifications/send-welcome`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${welcomeAccessToken}`,
+            },
+            body: JSON.stringify({
+              userId: authData.user.id,
+              churchId: signupResult.church_id,
+            }),
+          });
+          
+          if (welcomeEmailResponse.ok) {
+            console.log('[Auth] Welcome email sent successfully');
+          } else {
+            console.warn('[Auth] Failed to send welcome email, but signup succeeded');
+          }
+        } catch (emailError) {
+          // Don't fail signup if email fails
+          console.warn('[Auth] Welcome email error:', emailError);
         }
-      } catch (emailError) {
-        // Don't fail signup if email fails
-        console.warn('[Auth] Welcome email error:', emailError);
       }
 
       // onAuthStateChange will fire and load the profile automatically.
@@ -371,25 +378,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      // Send welcome email to team member
-      try {
-        const welcomeEmailResponse = await fetch(`${apiBaseUrl()}/api/notifications/send-welcome`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: authData.user.id,
-            churchId: churchId,
-          }),
-        });
-        
-        if (welcomeEmailResponse.ok) {
-          console.log('[Auth] Welcome email sent to team member successfully');
-        } else {
-          console.warn('[Auth] Failed to send welcome email to team member, but join succeeded');
+      // Send welcome email to team member (requires an authenticated session;
+      // skip if email confirmation is pending, since there is no access token yet)
+      const welcomeAccessToken = authData.session?.access_token;
+      if (welcomeAccessToken) {
+        try {
+          const welcomeEmailResponse = await fetch(`${apiBaseUrl()}/api/notifications/send-welcome`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${welcomeAccessToken}`,
+            },
+            body: JSON.stringify({
+              userId: authData.user.id,
+              churchId: churchId,
+            }),
+          });
+          
+          if (welcomeEmailResponse.ok) {
+            console.log('[Auth] Welcome email sent to team member successfully');
+          } else {
+            console.warn('[Auth] Failed to send welcome email to team member, but join succeeded');
+          }
+        } catch (emailError) {
+          // Don't fail join if email fails
+          console.warn('[Auth] Welcome email error:', emailError);
         }
-      } catch (emailError) {
-        // Don't fail join if email fails
-        console.warn('[Auth] Welcome email error:', emailError);
       }
 
       // onAuthStateChange will fire and load the profile automatically.
