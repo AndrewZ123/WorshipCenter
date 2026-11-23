@@ -134,6 +134,11 @@ Required environment variables:
 Optional environment variables:
 - `RESEND_API_KEY`: Resend API key for email service (get from https://resend.com/api-keys)
 - `EMAIL_FROM`: Sender email address with display name in format: `"Name <email>"` (e.g., `"WorshipCenter <hello@worshipcenter.app>"`)
+- `SENTRY_DSN`: Sentry DSN for server-side error reporting. Optional; the app runs fine without it.
+- `NEXT_PUBLIC_SENTRY_DSN`: Sentry DSN for browser error reporting. Optional; set it alongside `SENTRY_DSN` if you want client-side errors too.
+- `SENTRY_AUTH_TOKEN`: Sentry auth token for build-time source-map upload and release creation. Optional; build-time Sentry features stay disabled when it is unset.
+
+Sentry is a no-op unless a DSN is configured. When ready, set `SENTRY_DSN` (and optionally `NEXT_PUBLIC_SENTRY_DSN`) in the host environment (for example, Vercel project settings); the app runs fine without them.
 
 ## Project Structure
 

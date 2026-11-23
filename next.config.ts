@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import withPWA from "next-pwa";
 
 const pwaConfig = withPWA({
@@ -151,4 +152,20 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 };
 
-export default pwaConfig(nextConfig);
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN?.trim();
+const sentryBuildEnabled = Boolean(sentryAuthToken);
+
+// Sentry's build-time features (source maps, releases, org API calls) are
+// opt-in and only run when an auth token is explicitly configured. Runtime
+// error reporting is separately gated on SENTRY_DSN in the Sentry configs.
+export default withSentryConfig(pwaConfig(nextConfig), {
+  authToken: sentryBuildEnabled ? sentryAuthToken : undefined,
+  silent: !sentryBuildEnabled,
+  telemetry: false,
+  sourcemaps: {
+    disable: !sentryBuildEnabled,
+  },
+  release: sentryBuildEnabled
+    ? undefined
+    : { create: false, finalize: false, setCommits: false },
+});
