@@ -106,9 +106,9 @@ function seedReminderData() {
 
   fake.setTableResult('team_members', {
     data: [
-      { id: 'member-1', name: 'Ada Example', email: 'ada@example.com' },
-      { id: 'member-2', name: 'Ben Example', email: 'ben@example.com' },
-      { id: 'member-3', name: 'No Email', email: '' },
+      { id: 'member-1', name: 'Ada Example', email: 'ada@example.com', user_id: 'user-ada' },
+      { id: 'member-2', name: 'Ben Example', email: 'ben@example.com', user_id: 'user-ben' },
+      { id: 'member-3', name: 'No Email', email: '', user_id: 'user-no-email' },
     ],
     error: null,
   });
@@ -176,6 +176,33 @@ describe('sendUnconfirmedResponseReminders', () => {
       { assignment_id: 'a-3d', kind: '3d' },
       { assignment_id: 'a-1d', kind: '1d' },
     ]);
+  });
+
+  it('skips volunteers who opted out of email reminders', async () => {
+    seedReminderData();
+    fake.setTableResult('user_notification_preferences', {
+      data: [{ user_id: 'user-ada', email_reminders: false }],
+      error: null,
+    });
+
+    const counts = await sendUnconfirmedResponseReminders(now);
+
+    expect(counts.sent).toBe(1);
+    expect(counts.skipped).toBe(2);
+    expect(counts.threeDay).toBe(0);
+    expect(counts.oneDay).toBe(1);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendEmail).mock.calls[0][0].to).toBe('ben@example.com');
+  });
+
+  it('still sends to volunteers with no preference row', async () => {
+    seedReminderData();
+    fake.setTableResult('user_notification_preferences', { data: [], error: null });
+
+    const counts = await sendUnconfirmedResponseReminders(now);
+
+    expect(counts.sent).toBe(2);
+    expect(sendEmail).toHaveBeenCalledTimes(2);
   });
 
   it('skips assignments that were already reminded', async () => {

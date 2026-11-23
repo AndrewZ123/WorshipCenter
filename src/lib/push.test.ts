@@ -78,6 +78,26 @@ describe('sendPushNotification', () => {
     expect(sendApnsNotification).not.toHaveBeenCalled();
   });
 
+  it('skips users who turned push notifications off', async () => {
+    fake.setTableResult('user_notification_preferences', {
+      data: { push_enabled: false },
+      error: null,
+    });
+    fake.setTableResult('device_tokens', {
+      data: [{ id: 'token-1', token: 'apns-token-1' }],
+      error: null,
+    });
+
+    const result = await sendPushNotification('user-1', {
+      title: 'New assignment',
+      body: 'You are scheduled',
+    });
+
+    expect(result).toEqual({ success: true, sent: 0, errors: [] });
+    expect(fake.operationsFor('device_tokens')).toHaveLength(0);
+    expect(sendApnsNotification).not.toHaveBeenCalled();
+  });
+
   it('sends to every active iOS token for the user', async () => {
     fake.setTableResult('device_tokens', {
       data: [

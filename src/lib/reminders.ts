@@ -98,6 +98,12 @@ interface ReminderMemberRow {
   id: string;
   name: string;
   email: string | null;
+  user_id?: string | null;
+}
+
+interface ReminderPreferenceRow {
+  user_id: string;
+  email_reminders: boolean;
 }
 
 interface ReminderChurchRow {
@@ -219,11 +225,49 @@ async function loadMembers(teamMemberIds: string[]): Promise<Map<string, Reminde
   if (teamMemberIds.length === 0) return new Map();
   const { data } = await supabaseAdmin
     .from('team_members')
-    .select('id, name, email')
+    .select('id, name, email, user_id')
     .in('id', [...new Set(teamMemberIds)]);
 
   return new Map(
     ((data || []) as ReminderMemberRow[]).map((member) => [member.id, member])
+  );
+}
+
+/**
+ * User ids whose team-member row has opted out of reminder emails. A missing
+ * preference row means the user still wants reminders. A read failure also
+ * keeps the previous behavior (send) instead of silently dropping every
+ * reminder when the new table is briefly unavailable.
+ */
+async function loadEmailReminderOptOuts(
+  userIds: Array<string | null | undefined>
+): Promise<Set<string>> {
+  const uniqueIds = [
+    ...new Set(
+      userIds.filter(
+        (id): id is string => typeof id === 'string' && id.length > 0
+      )
+    ),
+  ];
+  if (uniqueIds.length === 0) return new Set();
+
+  const { data, error } = await supabaseAdmin
+    .from('user_notification_preferences')
+    .select('user_id, email_reminders')
+    .in('user_id', uniqueIds);
+
+  if (error) {
+    console.error(
+      '[Reminders] Failed to load notification preferences:',
+      error.message
+    );
+    return new Set();
+  }
+
+  return new Set(
+    ((data || []) as ReminderPreferenceRow[])
+      .filter((row) => row.email_reminders === false)
+      .map((row) => row.user_id)
   );
 }
 
@@ -366,6 +410,9 @@ export async function sendInitialReminders(
   const churchById = await loadChurches(
     candidates.map((assignment) => serviceById.get(assignment.service_id)!.church_id)
   );
+  const emailOptOuts = await loadEmailReminderOptOuts(
+    candidates.map((assignment) => memberById.get(assignment.team_member_id)?.user_id)
+  );
 
   for (const assignment of candidates) {
     const service = serviceById.get(assignment.service_id);
@@ -376,6 +423,11 @@ export async function sendInitialReminders(
 
     const member = memberById.get(assignment.team_member_id);
     if (!member?.email) {
+      counts.skipped += 1;
+      continue;
+    }
+
+    if (member.user_id && emailOptOuts.has(member.user_id)) {
       counts.skipped += 1;
       continue;
     }
@@ -547,6 +599,12 @@ export async function sendPreServiceReminders(
   const churchById = await loadChurches(
     candidates.map((candidate) => candidate.service.church_id)
   );
+  const emailOptOuts = await loadEmailReminderOptOuts(
+    candidates.map(
+      (candidate) =>
+        memberById.get(candidate.assignment.team_member_id)?.user_id
+    )
+  );
 
   for (const candidate of candidates) {
     const { assignment, service, kind } = candidate;
@@ -554,6 +612,11 @@ export async function sendPreServiceReminders(
 
     const member = memberById.get(assignment.team_member_id);
     if (!member?.email) {
+      kindCounts.skipped += 1;
+      continue;
+    }
+
+    if (member.user_id && emailOptOuts.has(member.user_id)) {
       kindCounts.skipped += 1;
       continue;
     }
@@ -743,6 +806,8 @@ export async function sendEscalations(
     allUsers.push(...((creatorRows || []) as ReminderUserRow[]));
   }
 
+  const emailOptOuts = await loadEmailReminderOptOuts(allUsers.map((user) => user.id));
+
   for (const service of servicesWithPending) {
     const pending = pendingByService.get(service.id) || [];
     const unmarked = pending.filter(
@@ -765,7 +830,8 @@ export async function sendEscalations(
       if (
         user.church_id === service.church_id &&
         (user.role === 'admin' || user.role === 'leader') &&
-        user.email
+        user.email &&
+        !emailOptOuts.has(user.id)
       ) {
         leadersById.set(user.id, user);
       }
@@ -970,6 +1036,9 @@ export async function sendUnconfirmedResponseReminders(
   const churchById = await loadChurches(
     serviceRows.map((service) => service.church_id)
   );
+  const emailOptOuts = await loadEmailReminderOptOuts(
+    pending.map((assignment) => memberById.get(assignment.team_member_id)?.user_id)
+  );
 
   if (!(await isEmailConfigured())) {
     counts.skipped += pending.length;
@@ -994,6 +1063,11 @@ export async function sendUnconfirmedResponseReminders(
     const member = memberById.get(assignment.team_member_id);
     if (!member?.email) {
       // No email address: skip silently instead of failing the whole run.
+      counts.skipped += 1;
+      continue;
+    }
+
+    if (member.user_id && emailOptOuts.has(member.user_id)) {
       counts.skipped += 1;
       continue;
     }

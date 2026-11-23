@@ -76,6 +76,18 @@ export async function sendPushNotification(
       return { success: true, sent: 0, errors: [], skipped: 'not_configured' };
     }
 
+    // No row means push is on. A failed lookup keeps the previous behavior
+    // (best-effort delivery) rather than blocking every notification.
+    const { data: preferences } = await supabaseAdmin
+      .from('user_notification_preferences')
+      .select('push_enabled')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (preferences && (preferences as { push_enabled?: boolean }).push_enabled === false) {
+      return { success: true, sent: 0, errors: [] };
+    }
+
     const tokens = await getActiveIosDeviceTokens(userId);
     if (tokens.length === 0) {
       return { success: true, sent: 0, errors: [] };

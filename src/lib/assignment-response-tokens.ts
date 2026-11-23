@@ -10,14 +10,18 @@ import { createHash, randomBytes } from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase';
 import { isSentryEnabled } from '@/lib/sentry-enabled';
+import {
+  isPlausibleResponseToken,
+  RESPONSE_TOKEN_MAX_LENGTH,
+  RESPONSE_TOKEN_MIN_LENGTH,
+} from '@/lib/respond-link';
 import type { AssignmentStatus } from '@/lib/types';
 
 export type ResponseAction = 'confirmed' | 'declined';
 export type ResponseActionInput = 'confirm' | 'decline';
 
 export const RESPONSE_TOKEN_BYTES = 32;
-export const RESPONSE_TOKEN_MIN_LENGTH = 20;
-export const RESPONSE_TOKEN_MAX_LENGTH = 256;
+export { isPlausibleResponseToken, RESPONSE_TOKEN_MAX_LENGTH, RESPONSE_TOKEN_MIN_LENGTH };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_TOKEN_AGE_MS = 14 * DAY_MS;
@@ -42,15 +46,6 @@ export class ResponseTokenError extends Error {
 
 export function hashResponseToken(rawToken: string): string {
   return createHash('sha256').update(rawToken).digest('hex');
-}
-
-export function isPlausibleResponseToken(rawToken: unknown): rawToken is string {
-  return (
-    typeof rawToken === 'string' &&
-    rawToken.length >= RESPONSE_TOKEN_MIN_LENGTH &&
-    rawToken.length <= RESPONSE_TOKEN_MAX_LENGTH &&
-    /^[A-Za-z0-9_-]+$/.test(rawToken)
-  );
 }
 
 export function actionFromInput(input: ResponseActionInput): ResponseAction {

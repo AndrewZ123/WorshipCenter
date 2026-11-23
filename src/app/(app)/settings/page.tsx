@@ -33,6 +33,10 @@ import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
 import { supabase } from '@/lib/supabase';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
+import {
+  loadNotificationPreferences,
+  saveNotificationPreferences,
+} from '@/lib/notification-preferences';
 import { useStore } from '@/lib/StoreContext';
 import { useTour } from '@/lib/tour/TourContext';
 import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
@@ -88,6 +92,13 @@ export default function SettingsPage() {
   const [pushPermission, setPushPermission] = useState<PushPermissionState>('unsupported');
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+
+  // Per-user notification preferences
+  const pushFeatureEnabled = process.env.NEXT_PUBLIC_PUSH_ENABLED === 'true';
+  const [emailReminders, setEmailReminders] = useState(true);
+  const [pushPreferenceEnabled, setPushPreferenceEnabled] = useState(true);
+  const [loadingNotificationPrefs, setLoadingNotificationPrefs] = useState(false);
+  const [savingEmailReminders, setSavingEmailReminders] = useState(false);
 
   // Admin management state
   const [admins, setAdmins] = useState<(AdminPermission & { users?: Partial<User> })[]>([]);
@@ -149,8 +160,72 @@ export default function SettingsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+
+    (async () => {
+      setLoadingNotificationPrefs(true);
+      const preferences = await loadNotificationPreferences(supabase, user.id);
+      if (cancelled) return;
+      setEmailReminders(preferences.email_reminders);
+      setPushPreferenceEnabled(preferences.push_enabled);
+      setLoadingNotificationPrefs(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const handleToggleEmailReminders = async (enabled: boolean) => {
+    if (!user?.id) return;
+    const previous = emailReminders;
+    setEmailReminders(enabled);
+    setSavingEmailReminders(true);
+
+    const result = await saveNotificationPreferences(supabase, user.id, {
+      email_reminders: enabled,
+    });
+    setSavingEmailReminders(false);
+
+    if (!result.ok) {
+      setEmailReminders(previous);
+      toast({
+        title: 'Error saving notification preferences',
+        description: result.error,
+        status: 'error',
+        duration: 4000,
+      });
+      return;
+    }
+
+    toast({
+      title: enabled ? 'Email reminders enabled' : 'Email reminders disabled',
+      status: 'success',
+      duration: 2000,
+    });
+  };
+
   const handleTogglePush = async (enabled: boolean) => {
+    if (!user?.id) return;
     setPushBusy(true);
+
+    const saved = await saveNotificationPreferences(supabase, user.id, {
+      push_enabled: enabled,
+    });
+    if (!saved.ok) {
+      toast({
+        title: 'Error saving notification preferences',
+        description: saved.error,
+        status: 'error',
+        duration: 4000,
+      });
+      setPushBusy(false);
+      return;
+    }
+    setPushPreferenceEnabled(enabled);
+
     try {
       if (enabled) {
         const result = await registerPushNotifications({ requestPermission: true });
@@ -1081,36 +1156,74 @@ export default function SettingsPage() {
     </CardBody>
   </Card>
 
-  {pushSupported && (
-    <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
-      <CardBody>
-        <VStack align="stretch" spacing={4}>
-          <HStack spacing={4}>
-            <Box p="3" borderRadius="lg" bg="teal.50" color="teal.600" flexShrink={0}>
-              <FiBell size={22} />
-            </Box>
-            <Box flex="1">
-              <Heading size="md" color={textColor}>Push Notifications</Heading>
-              <Text fontSize="sm" color={subtextColor} mt="1">
-                Get assignment changes and chat mentions on this iPhone.
-              </Text>
+  {/* Notifications */}
+  <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">
+    <CardBody>
+      <VStack align="stretch" spacing={4}>
+        <HStack spacing={4}>
+          <Box p="3" borderRadius="lg" bg="teal.50" color="teal.600" flexShrink={0}>
+            <FiBell size={22} />
+          </Box>
+          <Box flex="1">
+            <Heading size="md" color={textColor}>Notifications</Heading>
+            <Text fontSize="sm" color={subtextColor} mt="1">
+              Choose how WorshipCenter keeps you updated.
+            </Text>
+          </Box>
+        </HStack>
+
+        <Divider />
+
+        <FormControl display="flex" alignItems="center" justifyContent="space-between" gap={4}>
+          <Box>
+            <FormLabel htmlFor="email-reminders" mb="0" fontWeight="600" fontSize="sm">
+              Email reminders
+            </FormLabel>
+            <FormHelperText mt="1" fontSize="xs">
+              Get reminder emails before your scheduled services.
+            </FormHelperText>
+          </Box>
+          <Switch
+            id="email-reminders"
+            colorScheme="teal"
+            isChecked={emailReminders}
+            isDisabled={loadingNotificationPrefs || savingEmailReminders || !user}
+            onChange={(event) => handleToggleEmailReminders(event.target.checked)}
+          />
+        </FormControl>
+
+        {pushFeatureEnabled && (
+          <FormControl display="flex" alignItems="center" justifyContent="space-between" gap={4}>
+            <Box>
+              <FormLabel htmlFor="push-notifications" mb="0" fontWeight="600" fontSize="sm">
+                Push notifications
+              </FormLabel>
+              <FormHelperText mt="1" fontSize="xs">
+                Get assignment changes and chat mentions on this device.
+              </FormHelperText>
               {pushPermission === 'denied' && (
-                <Text fontSize="sm" color="orange.500" mt="1">
+                <Text fontSize="xs" color="orange.500" mt="1">
                   Notifications are blocked for WorshipCenter. Enable them in iOS Settings → Notifications.
+                </Text>
+              )}
+              {!pushSupported && (
+                <Text fontSize="xs" color="subtextColor" mt="1">
+                  Push notifications are available in the iOS app.
                 </Text>
               )}
             </Box>
             <Switch
+              id="push-notifications"
               colorScheme="teal"
-              isChecked={pushEnabled}
-              isDisabled={pushBusy || pushPermission === 'denied'}
+              isChecked={pushPreferenceEnabled && pushEnabled}
+              isDisabled={!pushSupported || pushBusy || pushPermission === 'denied'}
               onChange={(event) => handleTogglePush(event.target.checked)}
             />
-          </HStack>
-        </VStack>
-      </CardBody>
-    </Card>
-  )}
+          </FormControl>
+        )}
+      </VStack>
+    </CardBody>
+  </Card>
 
   {/* Support Section */}
   <Card bg={bgColor} borderColor={borderColor} borderWidth="1px">

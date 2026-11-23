@@ -1,7 +1,6 @@
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   AlertIcon,
@@ -19,16 +18,19 @@ import {
 } from '@chakra-ui/react';
 import { apiUrl, parseJsonSafe } from '@/lib/api-base';
 import StatusBadge, { mapAssignmentStatus } from '@/components/ui/StatusBadge';
+import {
+  applyPreviewFailure,
+  applyPreviewResult,
+  applySubmitFailure,
+  applySubmitResult,
+  emptyRespondState,
+  initialRespondState,
+  INVALID_LINK_MESSAGE,
+  type RespondAction,
+  type RespondState,
+} from '@/lib/respond-link';
 
-type RespondAction = 'confirm' | 'decline';
-
-interface PreviewData {
-  valid: boolean;
-  status?: string;
-  serviceTitle?: string;
-  serviceDate?: string;
-  role?: string;
-}
+const PREVIEW_TIMEOUT_MS = 15000;
 
 function formatRole(role: string): string {
   return role
@@ -49,62 +51,73 @@ function formatServiceDate(date: string | undefined): string {
   });
 }
 
-function RespondContent() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get('t') || '';
-  const initialAction: RespondAction =
-    searchParams.get('a') === 'decline' ? 'decline' : 'confirm';
-
-  const [action, setAction] = useState<RespondAction>(initialAction);
-  const [preview, setPreview] = useState<PreviewData | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function RespondPage() {
+  const [token, setToken] = useState('');
+  const [action, setAction] = useState<RespondAction>('confirm');
+  const [state, setState] = useState<RespondState>(() => emptyRespondState('loading'));
   const [submitting, setSubmitting] = useState(false);
-  const [respondedStatus, setRespondedStatus] = useState<'confirmed' | 'declined' | null>(null);
-  const [error, setError] = useState('');
-  const [invalid, setInvalid] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    setAction(initialAction);
-  }, [initialAction]);
-
+  // Read the token from the real URL after mount instead of useSearchParams.
+  // A statically prerendered page that calls useSearchParams is wrapped in a
+  // Suspense hole; if that hole never resolves (the reported live hang), the
+  // spinner stays forever. This effect always runs on hydration and always
+  // ends loading with a concrete state.
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    const params = new URLSearchParams(window.location.search);
+    const rawToken = params.get('t') || '';
+    const initialAction: RespondAction =
+      params.get('a') === 'decline' ? 'decline' : 'confirm';
 
-    if (!token) {
-      setInvalid(true);
-      setLoading(false);
-      return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time URL read on mount; there is no external store to subscribe to.
+    setToken(rawToken);
+    setAction(initialAction);
+
+    const initial = initialRespondState(rawToken);
+    setState(initial);
+    if (initial.phase !== 'loading') {
+      return () => controller.abort();
     }
+
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      PREVIEW_TIMEOUT_MS
+    );
 
     (async () => {
       try {
         const response = await fetch(
-          apiUrl(`/api/assignments/respond?t=${encodeURIComponent(token)}`)
+          apiUrl(`/api/assignments/respond?t=${encodeURIComponent(rawToken)}`),
+          { signal: controller.signal }
         );
         const data = await parseJsonSafe(response);
         if (cancelled) return;
-
-        if (!response.ok || !data.valid) {
-          setInvalid(true);
-        } else {
-          setPreview(data as PreviewData);
-        }
+        setState((previous) =>
+          applyPreviewResult(previous, {
+            ok: response.ok,
+            status: response.status,
+            data,
+          })
+        );
       } catch {
-        if (!cancelled) setError('Unable to load this link. Please try again.');
+        if (!cancelled) setState(() => applyPreviewFailure());
       } finally {
-        if (!cancelled) setLoading(false);
+        window.clearTimeout(timeoutId);
       }
     })();
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
-  }, [token]);
+  }, [attempt]);
 
   const handleRespond = useCallback(async () => {
     if (!token) return;
     setSubmitting(true);
-    setError('');
 
     try {
       const response = await fetch(apiUrl('/api/assignments/respond'), {
@@ -114,28 +127,32 @@ function RespondContent() {
       });
       const data = await parseJsonSafe(response);
 
-      if (response.ok && data.ok) {
-        setRespondedStatus(data.status === 'declined' ? 'declined' : 'confirmed');
-        return;
-      }
-
-      if (response.status === 410) {
-        setInvalid(true);
-        return;
-      }
-
-      setError(data.error || 'Something went wrong. Please try again.');
+      setState((previous) =>
+        applySubmitResult(previous, {
+          ok: response.ok,
+          status: response.status,
+          data,
+        })
+      );
     } catch {
-      setError('Unable to reach the server. Please try again.');
+      setState((previous) => applySubmitFailure(previous));
     } finally {
       setSubmitting(false);
     }
   }, [token, action]);
 
+  const retry = useCallback(() => {
+    setState(emptyRespondState('loading'));
+    setAttempt((value) => value + 1);
+  }, []);
+
+  const invalid = state.phase === 'invalid';
+  const networkError = state.phase === 'network_error';
+  const done = state.phase === 'done';
   const otherAction: RespondAction = action === 'confirm' ? 'decline' : 'confirm';
   const switchHref = `/respond?t=${encodeURIComponent(token)}&a=${otherAction}`;
 
-  if (loading) {
+  if (state.phase === 'loading') {
     return (
       <Flex minH="100dvh" align="center" justify="center" bg="gray.50">
         <Spinner size="xl" color="brand.500" />
@@ -149,13 +166,15 @@ function RespondContent() {
         <VStack spacing="4" mb="6" textAlign="center">
           <Text fontSize="2xl" fontWeight="800" color="brand.500">♫ WorshipCenter</Text>
           <Heading size="lg" fontWeight="700">
-            {respondedStatus
-              ? respondedStatus === 'confirmed'
+            {done
+              ? state.respondedStatus === 'confirmed'
                 ? "You're confirmed"
                 : 'Response recorded'
               : invalid
                 ? 'Link unavailable'
-                : 'Confirm your assignment'}
+                : networkError
+                  ? "Couldn't load this link"
+                  : 'Confirm your assignment'}
           </Heading>
         </VStack>
 
@@ -165,51 +184,65 @@ function RespondContent() {
               <VStack spacing="4" textAlign="center">
                 <Text fontSize="4xl">🔒</Text>
                 <Text color="gray.600" fontSize="sm">
-                  This link is invalid or has expired. Ask your worship leader for a new
-                  invitation email.
+                  {INVALID_LINK_MESSAGE}
                 </Text>
+                <ChakraLink href="/login" color="brand.500" fontWeight="600" fontSize="sm">
+                  Sign in
+                </ChakraLink>
               </VStack>
-            ) : respondedStatus ? (
+            ) : networkError ? (
               <VStack spacing="4" textAlign="center">
-                <Text fontSize="4xl">{respondedStatus === 'confirmed' ? '✅' : '📋'}</Text>
+                <Alert status="error" borderRadius="lg" fontSize="sm" textAlign="left">
+                  <AlertIcon />
+                  {state.error}
+                </Alert>
+                <Button colorScheme="teal" size="lg" w="full" onClick={retry}>
+                  Try again
+                </Button>
+              </VStack>
+            ) : done ? (
+              <VStack spacing="4" textAlign="center">
+                <Text fontSize="4xl">
+                  {state.respondedStatus === 'confirmed' ? '✅' : '📋'}
+                </Text>
                 <Text color="gray.600" fontSize="sm">
-                  {respondedStatus === 'confirmed'
+                  {state.respondedStatus === 'confirmed'
                     ? 'Thanks for confirming! Your worship leader will see your response.'
                     : "Thanks for letting the team know. Your worship leader will see your response."}
                 </Text>
-                {preview?.serviceTitle && (
+                {state.preview?.serviceTitle && (
                   <Box bg="gray.50" borderRadius="lg" px="4" py="3" w="full" textAlign="left">
                     <Text fontSize="sm" fontWeight="600" color="gray.800">
-                      {preview.serviceTitle}
+                      {state.preview.serviceTitle}
                     </Text>
                     <Text fontSize="xs" color="gray.500">
-                      {formatServiceDate(preview.serviceDate)}
-                      {preview.role ? ` · ${formatRole(preview.role)}` : ''}
+                      {formatServiceDate(state.preview.serviceDate)}
+                      {state.preview.role ? ` · ${formatRole(state.preview.role)}` : ''}
                     </Text>
                   </Box>
                 )}
               </VStack>
             ) : (
               <VStack spacing="5" align="stretch">
-                {error && (
+                {state.error && (
                   <Alert status="error" borderRadius="lg" fontSize="sm">
                     <AlertIcon />
-                    {error}
+                    {state.error}
                   </Alert>
                 )}
 
                 <Box bg="gray.50" borderRadius="lg" px="4" py="3">
                   <Text fontSize="sm" fontWeight="600" color="gray.800">
-                    {preview?.serviceTitle || 'Service'}
+                    {state.preview?.serviceTitle || 'Service'}
                   </Text>
                   <Text fontSize="xs" color="gray.500" mt="1">
-                    {formatServiceDate(preview?.serviceDate)}
-                    {preview?.role ? ` · ${formatRole(preview.role)}` : ''}
+                    {formatServiceDate(state.preview?.serviceDate)}
+                    {state.preview?.role ? ` · ${formatRole(state.preview.role)}` : ''}
                   </Text>
-                  {preview?.status && (
+                  {state.preview?.status && (
                     <HStack spacing="2" mt="3">
                       <Text fontSize="xs" color="gray.500">Current status:</Text>
-                      <StatusBadge status={mapAssignmentStatus(preview.status)} size="sm" />
+                      <StatusBadge status={mapAssignmentStatus(state.preview.status)} size="sm" />
                     </HStack>
                   )}
                 </Box>
@@ -245,19 +278,5 @@ function RespondContent() {
         </Text>
       </Box>
     </Flex>
-  );
-}
-
-export default function RespondPage() {
-  return (
-    <Suspense
-      fallback={
-        <Flex minH="100dvh" align="center" justify="center" bg="gray.50">
-          <Spinner size="xl" color="brand.500" />
-        </Flex>
-      }
-    >
-      <RespondContent />
-    </Suspense>
   );
 }
