@@ -4,12 +4,22 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { User, Church } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { apiBaseUrl, getRedirectUrl, parseJsonSafe } from '@/lib/api-base';
-import { shouldIgnoreAuthEvent } from '@/lib/auth-session';
+import {
+  isRetryableLoginError,
+  loginErrorMessage,
+  shouldClearResidualSession,
+  shouldIgnoreAuthEvent,
+} from '@/lib/auth-session';
 
 export interface SignupResult {
   success: boolean;
   /** True when Supabase created the user but email confirmation is still pending. */
   requiresEmailConfirmation?: boolean;
+  error?: string;
+}
+
+export interface LoginResult {
+  success: boolean;
   error?: string;
 }
 
@@ -19,7 +29,7 @@ interface AuthContextType {
   loading: boolean;
   /** True immediately after an explicit logout, while navigation to /login runs. */
   signedOut: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<LoginResult>;
   signup: (churchName: string, userName: string, email: string, password: string) => Promise<SignupResult>;
   join: (email: string, churchId: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -33,7 +43,7 @@ const AuthContext = createContext<AuthContextType>({
   church: null,
   loading: true,
   signedOut: false,
-  login: async () => false,
+  login: async () => ({ success: false, error: 'Not implemented' }),
   signup: async () => ({ success: false, error: 'Not implemented' }),
   join: async () => false,
   logout: async () => {},
@@ -354,22 +364,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
 
-  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
     explicitAuthRef.current = true;
+    const normalizedEmail = email.trim();
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      // Drop any leftover local session before a fresh password grant.
+      // Supabase can keep using stale storage during the residual sign-out
+      // window, which made the first attempt fail intermittently.
+      let hasSession = false;
+      try {
+        const { data } = await supabase.auth.getSession();
+        hasSession = Boolean(data.session);
+      } catch {
+        // Best effort: signInWithPassword below will surface real failures.
+      }
+      if (shouldClearResidualSession({ signedOut: signedOutRef.current, hasSession })) {
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch {
+          // Best effort: do not block the explicit sign-in.
+        }
+      }
+
+      let { error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      // Retry once only for transient failures. Credential rejections are
+      // never retried, so login cannot be used for extra password guesses.
+      if (error && isRetryableLoginError(error)) {
+        console.warn('[Auth] Transient login failure; retrying once');
+        await sleep(250);
+        ({ error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        }));
+      }
+
       if (error) {
         console.error('[Auth] Login error:', error.message);
-        return false;
+        return { success: false, error: loginErrorMessage(error) };
       }
+
       // This is an explicit authentication: leaving the signed-out state is
       // allowed now (the SIGNED_IN handler may also have done it already).
       markSignedOut(false);
       // onAuthStateChange will automatically fire SIGNED_IN and load the profile.
-      return true;
+      return { success: true };
     } catch (err) {
       console.error('[Auth] Login exception:', err);
-      return false;
+      return { success: false, error: loginErrorMessage(err) };
     } finally {
       explicitAuthRef.current = false;
     }
