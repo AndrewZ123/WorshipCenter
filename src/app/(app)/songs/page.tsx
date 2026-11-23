@@ -19,6 +19,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import SongDetailClient from './[id]/SongDetailClient';
 import { parseChordPro } from '@/lib/chordpro';
 import type { ChordProParsed } from '@/lib/chordpro';
+import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
 import { getSongUsageDisplayLines, summarizeSongUsageDates } from '@/lib/song-usage';
 
 // Lucide icons
@@ -128,7 +129,7 @@ export default function SongsPage() {
 
   const handleCreate = async () => {
     if (!church || !title) return;
-    await store.songs.create({ church_id: church.id, title, artist, default_key: defaultKey || 'C', ccli_number: ccli, tags: tagsStr.split(',').map((t) => t.trim()).filter(Boolean) });
+    await store.songs.create({ church_id: church.id, title, artist, default_key: defaultKey || 'C', ccli_number: normalizeCcliNumber(ccli), tags: tagsStr.split(',').map((t) => t.trim()).filter(Boolean) });
     toast({ title: 'Song added', status: 'success', duration: 2000 });
     setTitle(''); setArtist(''); setDefaultKey(''); setCcli(''); setTagsStr('');
     onClose(); await loadSongs();
@@ -602,8 +603,10 @@ export default function SongsPage() {
                   <FormLabel fontWeight="600" fontSize="sm">CCLI Number</FormLabel>
                   <Input 
                     value={ccli} 
-                    onChange={(e) => setCcli(e.target.value)} 
+                    onChange={(e) => setCcli(normalizeCcliNumber(e.target.value))}
                     placeholder="Optional"
+                    inputMode="numeric"
+                    maxLength={CCLI_NUMBER_MAX_LENGTH}
                     borderRadius="lg"
                   />
                 </FormControl>
@@ -719,7 +722,7 @@ export default function SongsPage() {
                       title: meta.title || importFile.name.replace(/\.(pro|chordpro|chopro|txt)$/i, ''),
                       artist: meta.artist || '',
                       default_key: meta.key || 'C',
-                      ccli_number: meta.ccli || '',
+                      ccli_number: normalizeCcliNumber(meta.ccli),
                       tags: meta.tags,
                     });
                     toast({ title: 'Song imported', description: `${meta.title || importFile.name} has been added. You can now upload the file on the song detail page.`, status: 'success', duration: 3000 });

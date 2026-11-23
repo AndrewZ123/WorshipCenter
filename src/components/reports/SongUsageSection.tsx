@@ -12,10 +12,27 @@ import { useStore } from '@/lib/StoreContext';
 import type { Song, Service, SongUsage, ServiceItem } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatShortDate, isFutureCalendarDate } from '@/lib/formatDate';
+import { buildCcliCsv } from '@/lib/reports/ccliCsv';
 
 import {
   Download, Music, X
 } from 'lucide-react';
+
+function sixMonthsAgoISO(): string {
+  const date = new Date();
+  date.setMonth(date.getMonth() - 6);
+  return date.toISOString().split('T')[0];
+}
+
+function downloadCsvFile(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function SongUsageSection() {
   const { church, loading: authLoading } = useAuth();
@@ -26,7 +43,7 @@ export default function SongUsageSection() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [allServiceItems, setAllServiceItems] = useState<ServiceItem[]>([]);
-  const [dateFrom, setDateFrom] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => sixMonthsAgoISO());
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -97,6 +114,34 @@ export default function SongUsageSection() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allUsage, songs, services, allServiceItems, dateFrom, dateTo]);
 
+  const ccliRows = useMemo(() => {
+    return allUsage.map((usage) => {
+      const song = songs.find((s) => s.id === usage.song_id);
+      return {
+        date: usage.date,
+        songId: usage.song_id,
+        title: song?.title || 'Unknown',
+        artist: song?.artist || '',
+        ccliNumber: song?.ccli_number || '',
+      };
+    }).filter((row) => {
+      if (dateFrom && row.date < dateFrom) return false;
+      if (dateTo && row.date > dateTo) return false;
+      return true;
+    });
+  }, [allUsage, songs, dateFrom, dateTo]);
+
+  const handleExportCcliCSV = () => {
+    if (ccliRows.length === 0) {
+      toast({ title: 'No data in this date range', status: 'warning', duration: 2000 });
+      return;
+    }
+
+    const csv = buildCcliCsv(ccliRows);
+    downloadCsvFile(csv, `ccli-usage-${new Date().toISOString().split('T')[0]}.csv`);
+    toast({ title: 'CCLI CSV exported', status: 'success', duration: 2000 });
+  };
+
   const handleExportCSV = () => {
     if (rows.length === 0) {
       toast({ title: 'No data to export', status: 'warning', duration: 2000 });
@@ -126,14 +171,7 @@ export default function SongUsageSection() {
       return;
     }
     const now = new Date();
-    let from: string;
-    if (preset === '6months') {
-      const d = new Date(now);
-      d.setMonth(d.getMonth() - 6);
-      from = d.toISOString().split('T')[0];
-    } else {
-      from = `${now.getFullYear()}-01-01`;
-    }
+    const from = preset === '6months' ? sixMonthsAgoISO() : `${now.getFullYear()}-01-01`;
     setDateFrom(from);
     // Do not cap the upper bound at today: upcoming service usage is valid.
     setDateTo('');
@@ -183,21 +221,35 @@ export default function SongUsageSection() {
           <Text fontSize="lg" fontWeight="600" color={headingColor}>Song Usage</Text>
           <Text color={subtextColor} fontSize="sm" mt="0.5">Track usage for CCLI reporting</Text>
         </Box>
-        <Tooltip label={rows.length === 0 ? 'No data to export' : ''} isDisabled={rows.length > 0}>
-          <Button
-            onClick={handleExportCSV}
-            variant="outline"
-            size="sm"
-            borderColor="teal.300"
-            color="teal.600"
-            _hover={{ bg: 'teal.50', borderColor: 'teal.400' }}
-            isDisabled={rows.length === 0}
-            leftIcon={<Download size={16} />}
-            fontWeight="600"
-          >
-            Export CSV
-          </Button>
-        </Tooltip>
+        <HStack spacing="2" flexWrap="wrap">
+          <Tooltip label={rows.length === 0 ? 'No data to export' : ''} isDisabled={rows.length > 0}>
+            <Button
+              onClick={handleExportCSV}
+              variant="outline"
+              size="sm"
+              borderColor="teal.300"
+              color="teal.600"
+              _hover={{ bg: 'teal.50', borderColor: 'teal.400' }}
+              isDisabled={rows.length === 0}
+              leftIcon={<Download size={16} />}
+              fontWeight="600"
+            >
+              Export CSV
+            </Button>
+          </Tooltip>
+          <Tooltip label={ccliRows.length === 0 ? 'No data in this date range' : 'Song-level report for CCLI'} isDisabled={ccliRows.length > 0}>
+            <Button
+              onClick={handleExportCcliCSV}
+              size="sm"
+              colorScheme="teal"
+              isDisabled={ccliRows.length === 0}
+              leftIcon={<Download size={16} />}
+              fontWeight="600"
+            >
+              Export CCLI CSV
+            </Button>
+          </Tooltip>
+        </HStack>
       </Flex>
 
       <Divider mb="4" borderColor={borderColor} />

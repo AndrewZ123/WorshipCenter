@@ -18,11 +18,14 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
 import { summarizeSongUsageDates } from '@/lib/song-usage';
 import { isFutureCalendarDate } from '@/lib/formatDate';
+import { parseChordPro } from '@/lib/chordpro';
+import { capoSuggestions, transposeChordPro, transposeKey } from '@/lib/transpose';
+import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
 
 // Lucide icons
 import { 
   ArrowLeft, MoreVertical, Trash2, Edit, FileText, Eye,
-  Music, Mic2, Upload, Download, Calendar
+  Music, Mic2, Upload, Download, Calendar, Minus, Plus, RotateCcw
 } from 'lucide-react';
 
 // ChordPro renderer — parses [G]Amazing [C]Grace format
@@ -80,6 +83,14 @@ const YoutubeIcon = () => (
   </svg>
 );
 
+const TRANSPOSE_STORAGE_PREFIX = 'wc:song-transpose:';
+const TRANSPOSE_LIMIT = 11;
+
+function clampTranspose(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(-TRANSPOSE_LIMIT, Math.min(TRANSPOSE_LIMIT, Math.trunc(value)));
+}
+
 // ========== Main Client Component ==========
 export default function SongDetailClient({ songId: propSongId, onBack }: { songId?: string; onBack?: () => void } = {}) {
   const params = useParams();
@@ -108,11 +119,18 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   const [youtubeId, setYoutubeId] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Display-only transpose. Persisted per song in this browser, never saved
+  // back to the song record unless the user explicitly uses Save Changes.
+  const [transposeOffset, setTransposeOffset] = useState(0);
+  const [transposeHydrated, setTransposeHydrated] = useState(false);
+
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const headingColor = useColorModeValue('gray.900', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
   const hoverBg = useColorModeValue('gray.50', 'gray.700');
+  const theadBg = useColorModeValue('gray.50', 'gray.700');
+  const codeBg = useColorModeValue('gray.50', 'gray.700');
 
   const loadData = useCallback(async () => {
     if (!church) return;
@@ -140,6 +158,29 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   }, [church, songId, toast]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!songId) return;
+    try {
+      const stored = window.localStorage.getItem(`${TRANSPOSE_STORAGE_PREFIX}${songId}`);
+      setTransposeOffset(stored === null ? 0 : clampTranspose(Number.parseInt(stored, 10)));
+    } catch {
+      setTransposeOffset(0);
+    }
+    setTransposeHydrated(true);
+  }, [songId]);
+
+  useEffect(() => {
+    if (!songId || !transposeHydrated) return;
+    try {
+      window.localStorage.setItem(
+        `${TRANSPOSE_STORAGE_PREFIX}${songId}`,
+        String(transposeOffset)
+      );
+    } catch {
+      // Storage can be unavailable (private mode / quota); transpose still works.
+    }
+  }, [songId, transposeOffset, transposeHydrated]);
 
   const recentServices = useMemo(() => {
     return allUsage
@@ -230,7 +271,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
     if (!church) return;
     const extractedId = extractYoutubeId(youtubeId);
     await store.songs.update(songId, church.id, {
-      title, artist, default_key: defaultKey || 'C', ccli_number: ccli,
+      title, artist, default_key: defaultKey || 'C', ccli_number: normalizeCcliNumber(ccli),
       tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
       youtube_video_id: extractedId || undefined,
     });
@@ -300,6 +341,24 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
 
   const health = getRotationHealth();
 
+  // Chart view transposition is derived on every render from the original
+  // file text; nothing here is written back to the database.
+  const chartRaw = viewFile && isChordPro(viewFile) ? decodeTextFile(viewFile.file_url) : '';
+  const chartOriginalKey = chartRaw
+    ? (parseChordPro(chartRaw).meta.key.trim() || song.default_key || '')
+    : '';
+  const chartDisplayKey = chartOriginalKey
+    ? transposeKey(chartOriginalKey, transposeOffset)
+    : '';
+  const chartText = chartRaw
+    ? transposeChordPro(
+        chartRaw,
+        transposeOffset,
+        transposeOffset === 0 ? undefined : (chartDisplayKey || undefined)
+      )
+    : '';
+  const chartCapoSuggestions = chartDisplayKey ? capoSuggestions(chartDisplayKey) : [];
+
   return (
     <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       {/* Header */}
@@ -368,7 +427,14 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                 </FormControl>
                 <FormControl>
                   <FormLabel fontWeight="600" fontSize="sm">CCLI Number</FormLabel>
-                  <Input value={ccli} onChange={(e) => setCcli(e.target.value)} borderRadius="lg" />
+                  <Input
+                    value={ccli}
+                    onChange={(e) => setCcli(normalizeCcliNumber(e.target.value))}
+                    placeholder="Optional"
+                    inputMode="numeric"
+                    maxLength={CCLI_NUMBER_MAX_LENGTH}
+                    borderRadius="lg"
+                  />
                 </FormControl>
               </Flex>
               <FormControl>
@@ -560,7 +626,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
               {/* Desktop Table */}
               <Box display={{ base: 'none', md: 'block' }} bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} overflow="hidden" boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
                 <Table variant="simple" size="sm">
-                  <Thead bg={useColorModeValue('gray.50', 'gray.700')}>
+                  <Thead bg={theadBg}>
                     <Tr>
                       <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Date</Th>
                       <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Service</Th>
@@ -640,12 +706,78 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
               <Box as="iframe" src={viewFile.file_url} w="100%" h={{ base: '70vh', md: '600px' }} borderRadius="lg" border="1px solid" borderColor={borderColor} />
             )}
             {viewFile && isChordPro(viewFile) && (
-              <Box p="4" bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="lg" border="1px solid" borderColor={borderColor}>
-                {renderChordPro(decodeTextFile(viewFile.file_url))}
+              <Box>
+                <Flex justify="space-between" align="center" gap="2" mb="3" flexWrap="wrap">
+                  <HStack spacing="3" flexWrap="wrap">
+                    <Text fontSize="xs" color={subtextColor}>
+                      Original key:{' '}
+                      <Text as="span" fontWeight="700" color={headingColor}>{chartOriginalKey || '—'}</Text>
+                    </Text>
+                    <Text fontSize="xs" color={subtextColor}>
+                      Displaying:{' '}
+                      <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md" px="2">
+                        {chartDisplayKey || '—'}
+                      </Badge>
+                    </Text>
+                  </HStack>
+                  <HStack spacing="1">
+                    <IconButton
+                      aria-label="Transpose down one semitone"
+                      icon={<Minus size={14} />}
+                      size="sm"
+                      variant="outline"
+                      borderColor={borderColor}
+                      onClick={() => setTransposeOffset((current) => clampTranspose(current - 1))}
+                    />
+                    <IconButton
+                      aria-label="Transpose up one semitone"
+                      icon={<Plus size={14} />}
+                      size="sm"
+                      variant="outline"
+                      borderColor={borderColor}
+                      onClick={() => setTransposeOffset((current) => clampTranspose(current + 1))}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      leftIcon={<RotateCcw size={14} />}
+                      onClick={() => setTransposeOffset(0)}
+                      isDisabled={transposeOffset === 0}
+                    >
+                      Reset
+                    </Button>
+                  </HStack>
+                </Flex>
+
+                {chartDisplayKey && chartCapoSuggestions.length > 0 && (
+                  <HStack spacing="2" mb="3" flexWrap="wrap">
+                    <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase">
+                      Capo suggestions:
+                    </Text>
+                    {chartCapoSuggestions.map((suggestion) => (
+                      <Badge
+                        key={`${suggestion.capo}-${suggestion.shapeKey}`}
+                        variant="subtle"
+                        colorScheme="purple"
+                        fontSize="xs"
+                        borderRadius="full"
+                        px="2"
+                      >
+                        {suggestion.capo === 0
+                          ? `No capo — ${suggestion.shapeKey} shapes`
+                          : `Capo ${suggestion.capo}, play in ${suggestion.shapeKey} shapes`}
+                      </Badge>
+                    ))}
+                  </HStack>
+                )}
+
+                <Box p="4" bg={codeBg} borderRadius="lg" border="1px solid" borderColor={borderColor}>
+                  {renderChordPro(chartText)}
+                </Box>
               </Box>
             )}
             {viewFile && viewFile.file_name.toLowerCase().endsWith('.txt') && !isChordPro(viewFile) && (
-              <Box p="4" bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="lg" border="1px solid" borderColor={borderColor} fontFamily="monospace" fontSize="sm" whiteSpace="pre-wrap">
+              <Box p="4" bg={codeBg} borderRadius="lg" border="1px solid" borderColor={borderColor} fontFamily="monospace" fontSize="sm" whiteSpace="pre-wrap">
                 {decodeTextFile(viewFile.file_url)}
               </Box>
             )}

@@ -2,6 +2,7 @@
 // Provides comprehensive input validation throughout the application
 
 import { z } from 'zod';
+import { CCLI_NUMBER_MAX_LENGTH } from './ccli';
 
 // ============================================================================
 // Common Schemas
@@ -43,6 +44,14 @@ export const SignupParamsSchema = z.object({
 export const SongParamsSchema = z.object({
   songId: UUIDSchema,
 });
+
+/** Optional CCLI number: digits only, at most 10 characters. */
+export const CcliNumberSchema = z
+  .string()
+  .trim()
+  .max(CCLI_NUMBER_MAX_LENGTH, 'CCLI number must be 10 digits or fewer')
+  .regex(/^\d*$/, 'CCLI number must contain only digits')
+  .optional();
 
 export const ResetPasswordRequestSchema = z.object({
   email: EmailSchema,
@@ -212,7 +221,7 @@ export const CreateSongSchema = z.object({
   time_signature: z.enum(['4/4', '3/4', '6/8', '2/4']).optional(),
   lyrics: z.string().max(50000).optional(),
   chords: z.string().max(50000).optional(),
-  ccli_number: z.string().max(20).optional(),
+  ccli_number: CcliNumberSchema,
   tags: z.array(z.string()).max(20).optional(),
   arrangement_notes: z.string().max(5000).optional(),
 });
