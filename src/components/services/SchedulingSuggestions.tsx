@@ -9,8 +9,8 @@ import {
 import { Lightbulb, UserPlus, AlertTriangle } from 'lucide-react';
 import type {
   TeamMember, TeamMemberBlockoutDate, ServiceAssignmentPopulated,
-  SuggestedAssignment, SchedulingConflict,
 } from '@/lib/types';
+import { rankSuggestions } from '@/lib/scheduling/suggestions';
 import Avatar from '@/components/ui/Avatar';
 
 interface Props {
@@ -21,106 +21,6 @@ interface Props {
   serviceDate: string;
   onAssign: (memberId: string) => void;
   isDisabled?: boolean;
-}
-
-function rankSuggestions(
-  candidates: TeamMember[],
-  existingAssignments: ServiceAssignmentPopulated[],
-  blockoutDates: TeamMemberBlockoutDate[],
-  serviceDate: string,
-  role: string,
-): SuggestedAssignment[] {
-  const svcDate = serviceDate ? new Date(serviceDate + 'T00:00:00') : new Date();
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-  const recentAssignments = existingAssignments.filter((a) => {
-    const svcDate = a.services?.date;
-    if (!svcDate) return false;
-    return new Date(svcDate) >= ninetyDaysAgo;
-  });
-
-  const assignmentCounts = new Map<string, number>();
-  const lastServed = new Map<string, string>();
-  for (const a of recentAssignments) {
-    assignmentCounts.set(a.team_member_id, (assignmentCounts.get(a.team_member_id) || 0) + 1);
-    const svcDate = a.services?.date;
-    if (svcDate) {
-      const existing = lastServed.get(a.team_member_id);
-      if (!existing || svcDate > existing) {
-        lastServed.set(a.team_member_id, svcDate);
-      }
-    }
-  }
-
-  const assignedIds = new Set(existingAssignments.map((a) => a.team_member_id));
-
-  const results: SuggestedAssignment[] = candidates
-    .filter((m) => !assignedIds.has(m.id))
-    .map((member) => {
-      const conflicts: SchedulingConflict[] = [];
-      const reasons: string[] = [];
-      let score = 100;
-
-      const isBlocked = blockoutDates.find(
-        (b) =>
-          b.team_member_id === member.id &&
-          new Date(b.start_date + 'T00:00:00') <= svcDate &&
-          new Date(b.end_date + 'T00:00:00') >= svcDate,
-      );
-      if (isBlocked) {
-        score -= 100;
-        conflicts.push({
-          type: 'blockout',
-          message: `Blocked out ${isBlocked.start_date} – ${isBlocked.end_date}${isBlocked.reason ? ` (${isBlocked.reason})` : ''}`,
-          severity: 'error',
-          blockoutDate: isBlocked,
-        });
-        reasons.push('Blocked out');
-      }
-
-      const sameDayAssignments = existingAssignments.filter(
-        (a) => a.services?.date === serviceDate && a.team_member_id !== member.id,
-      );
-      if (sameDayAssignments.length > 0) {
-        score -= 50;
-        conflicts.push({
-          type: 'double_booking',
-          message: `Already assigned to ${sameDayAssignments.length} other service(s) on this date`,
-          severity: 'warning',
-        });
-        reasons.push('Other assignment this date');
-      }
-
-      const count = assignmentCounts.get(member.id) || 0;
-      score -= count * 10;
-      if (count === 0) {
-        reasons.push('No recent services');
-      } else {
-        reasons.push(`${count} service(s) in 90d`);
-      }
-
-      const hasRole = member.roles.some(
-        (r) => r.toLowerCase() === role.toLowerCase() || r.toLowerCase().includes(role.toLowerCase()),
-      );
-      if (hasRole) {
-        score += 20;
-        reasons.push('Has this role');
-      }
-
-      return {
-        teamMemberId: member.id,
-        name: member.name,
-        avatar_url: member.avatar_url,
-        role,
-        score: Math.max(0, score),
-        reasons,
-        conflicts,
-      };
-    });
-
-  results.sort((a, b) => b.score - a.score);
-  return results.slice(0, 5);
 }
 
 export default function SchedulingSuggestions(props: Props) {

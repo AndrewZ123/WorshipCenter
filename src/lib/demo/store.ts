@@ -443,6 +443,24 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
         );
         return demo.assignments.filter(a => serviceIds.has(a.service_id));
       },
+      getByChurchDateRange: async (
+        churchId: string,
+        startDate: string,
+        endDate: string
+      ): Promise<ServiceAssignment[]> => {
+        const demo = getDemoContext();
+        const serviceIds = new Set(
+          demo.services
+            .filter(
+              (s) =>
+                s.church_id === churchId &&
+                s.date >= startDate &&
+                s.date <= endDate,
+            )
+            .map((s) => s.id),
+        );
+        return demo.assignments.filter((a) => serviceIds.has(a.service_id));
+      },
       getConflicts: async (): Promise<SchedulingConflict[]> => {
         return [];
       },
@@ -1010,6 +1028,10 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       getByTeamMember: async (teamMemberId: string, _churchId: string): Promise<TeamMemberPreference | null> => {
         const demo = getDemoContext();
         return demo.preferences.find(p => p.team_member_id === teamMemberId) || null;
+      },
+      getByChurch: async (churchId: string): Promise<TeamMemberPreference[]> => {
+        const demo = getDemoContext();
+        return demo.preferences.filter(p => p.church_id === churchId);
       },
       upsert: async (teamMemberId: string, _churchId: string, prefs: { max_weekly_frequency?: number | null; availability_notes?: string }): Promise<TeamMemberPreference | null> => {
         const demo = getDemoContext();

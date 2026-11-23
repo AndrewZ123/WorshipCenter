@@ -15,20 +15,22 @@ import {
   Badge,
   Switch,
 } from '@chakra-ui/react';
-import { X, UserPlus, Users, Calendar, AlertTriangle } from 'lucide-react';
+import { X, UserPlus, Users, Calendar, AlertTriangle, Sparkles } from 'lucide-react';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/store';
 import type {
   Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate,
-  SchedulingConflict,
+  SchedulingConflict, ServiceRolePosition,
 } from '@/lib/types';
+import { deriveOpenSlots } from '@/lib/scheduling/autoFill';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
 import StatusBadge, { mapAssignmentStatus } from '@/components/ui/StatusBadge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import SchedulingSuggestions from './SchedulingSuggestions';
+import AutoFillRolesModal from './AutoFillRolesModal';
 
 interface ServiceScheduleProps {
   service: Service;
@@ -69,6 +71,11 @@ export default function ServiceSchedule({
   const [bulkRole, setBulkRole] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
 
+  // Auto-fill preview state. Role positions define the staffing needs; open
+  // slots are recomputed from them whenever assignments change.
+  const [showAutoFill, setShowAutoFill] = useState(false);
+  const [rolePositions, setRolePositions] = useState<ServiceRolePosition[]>([]);
+
   // Conflict detection
   const [blockoutDates, setBlockoutDates] = useState<TeamMemberBlockoutDate[]>([]);
   const [memberConflicts, setMemberConflicts] = useState<Map<string, SchedulingConflict[]>>(new Map());
@@ -85,6 +92,21 @@ export default function ServiceSchedule({
     if (!churchId) return;
     db.blockoutDates.getByChurch(churchId).then(setBlockoutDates).catch(console.error);
   }, [churchId]);
+
+  // Fetch configured role positions so the "Fill open roles" action knows
+  // whether any staffing slots are still empty.
+  useEffect(() => {
+    if (!churchId || !service.id) return;
+    db.rolePositions
+      .getByService(service.id, churchId)
+      .then(setRolePositions)
+      .catch(console.error);
+  }, [service.id, churchId]);
+
+  const openSlots = useMemo(
+    () => deriveOpenSlots(rolePositions, assignments),
+    [rolePositions, assignments],
+  );
 
   const isBlockedOut = (memberId: string): TeamMemberBlockoutDate | undefined => {
     if (!service.date) return undefined;
@@ -506,6 +528,16 @@ export default function ServiceSchedule({
           {assignments.length} {assignments.length === 1 ? 'person' : 'people'} scheduled
         </Text>
         <HStack spacing="2">
+          {!showBulkAdd && !readOnly && openSlots.length > 0 && (
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={Sparkles}
+              onClick={() => setShowAutoFill(true)}
+            >
+              Fill open roles
+            </Button>
+          )}
           {!showBulkAdd && !readOnly && (
             <Button
               variant="secondary"
@@ -861,6 +893,20 @@ export default function ServiceSchedule({
           })}
         </VStack>
       )}
+
+      {/* Auto-fill preview */}
+      <AutoFillRolesModal
+        isOpen={showAutoFill}
+        onClose={() => setShowAutoFill(false)}
+        service={service}
+        churchId={churchId}
+        rolePositions={rolePositions}
+        existingAssignments={assignments}
+        blockoutDates={blockoutDates}
+        onSaved={async () => {
+          await loadAssignments();
+        }}
+      />
 
       {/* Remove Confirmation */}
       <ConfirmDialog

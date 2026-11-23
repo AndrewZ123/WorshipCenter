@@ -1627,6 +1627,26 @@ export const db = {
       })) as ServiceAssignmentPopulated[];
     },
 
+    getByChurchDateRange: async (
+      churchId: string,
+      startDate: string,
+      endDate: string
+    ) => {
+      const { data } = await supabase
+        .from('service_assignments')
+        .select('*, services!inner(id, title, date, time, church_id), team_members(*)')
+        .eq('services.church_id', churchId)
+        .gte('services.date', startDate)
+        .lte('services.date', endDate);
+      const rows = (data || []) as Array<
+        ServiceAssignmentPopulated & { team_members?: TeamMember }
+      >;
+      return rows.map(({ team_members, ...assignment }) => ({
+        ...assignment,
+        team_member: team_members ?? undefined,
+      })) as ServiceAssignmentPopulated[];
+    },
+
     getConflicts: async (serviceId: string, churchId: string, teamMemberId: string) => {
       const { data: service } = await supabase
         .from('services')
@@ -2728,6 +2748,14 @@ export const db = {
         .eq('team_member_id', teamMemberId)
         .maybeSingle();
       return data as TeamMemberPreference | null;
+    },
+
+    getByChurch: async (churchId: string) => {
+      const { data } = await supabase
+        .from('team_member_preferences')
+        .select('*')
+        .eq('church_id', churchId);
+      return (data || []) as TeamMemberPreference[];
     },
 
     upsert: async (
