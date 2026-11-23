@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
+import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceInvitationEmail } from '@/lib/email-templates';
 import { z } from 'zod';
@@ -45,7 +46,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Team member has no email address' }, { status: 400 });
     }
 
-    const church = await db.churches.getById(churchId);
+    const { data: church } = await supabaseAdmin
+      .from('churches')
+      .select('*')
+      .eq('id', churchId)
+      .maybeSingle();
     if (!church) {
       return NextResponse.json({ error: 'Church not found' }, { status: 404 });
     }

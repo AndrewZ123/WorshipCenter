@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
-import { db } from '@/lib/store';
+import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { teamInvitationEmail } from '@/lib/email-templates';
 import { z } from 'zod';
-import type { TeamMember, Church } from '@/lib/types';
 
 const SendTeamInvitationSchema = z.object({
   teamMemberId: z.string().uuid('Invalid team member ID'),
@@ -36,7 +35,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const teamMember: TeamMember | null = await db.teamMembers.getById(teamMemberId, churchId);
+    const { data: teamMember } = await supabaseAdmin
+      .from('team_members')
+      .select('*')
+      .eq('id', teamMemberId)
+      .eq('church_id', churchId)
+      .maybeSingle();
     if (!teamMember) {
       return NextResponse.json({ error: 'Team member not found' }, { status: 404 });
     }
@@ -52,7 +56,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const church: Church | null = await db.churches.getById(churchId);
+    const { data: church } = await supabaseAdmin
+      .from('churches')
+      .select('*')
+      .eq('id', churchId)
+      .maybeSingle();
     if (!church) {
       return NextResponse.json({ error: 'Church not found' }, { status: 404 });
     }

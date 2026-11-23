@@ -412,18 +412,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!email || !churchId || !password || password.length < 6) return false;
 
     try {
-      // Check if team member profile exists in Supabase
-      const { data: teamMembers } = await supabase
-        .from('team_members')
-        .select('*')
-        .eq('church_id', churchId)
-        .ilike('email', email);
-        
-      if (!teamMembers || teamMembers.length === 0) {
-        console.error('[Auth] Join: No team member invitation found for', email);
-        return false;
-      }
-
       // 1. Create Supabase Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
       if (authError || !authData.user) {
@@ -431,13 +419,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      // 2. Create User Profile mapping to team member's pre-existing church
-      const memberProfile = teamMembers[0];
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert({ id: authData.user.id, church_id: churchId, name: memberProfile.name, email: memberProfile.email, role: 'team' });
-      if (profileError) {
-        console.error('[Auth] Join profile create error:', profileError.message);
+      // 2. Attach the profile through the server. The new user has no
+      //    public.users row yet, so church-scoped RLS cannot read team_members.
+      const accessToken = authData.session?.access_token;
+      if (!accessToken) {
+        console.error('[Auth] Join: no session after signup (email confirmation may be pending)');
+        return false;
+      }
+
+      const joinResponse = await fetch(`${apiBaseUrl()}/api/auth/complete-join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ churchId }),
+      });
+      const joinResult = await parseJsonSafe(joinResponse);
+      if (!joinResponse.ok || !joinResult.success) {
+        console.error('[Auth] Join profile create error:', joinResult.error || 'Unknown error');
         return false;
       }
 

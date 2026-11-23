@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
+import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceReminderEmail } from '@/lib/email-templates';
 import { z } from 'zod';
@@ -45,7 +46,11 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ error: 'Access denied' }, 403);
     }
 
-    const church = await db.churches.getById(churchId);
+    const { data: church } = await supabaseAdmin
+      .from('churches')
+      .select('*')
+      .eq('id', churchId)
+      .maybeSingle();
     if (!church) {
       return jsonResponse({ error: 'Church not found' }, 404);
     }
@@ -59,7 +64,12 @@ export async function POST(request: NextRequest) {
 
     const teamMembers = await Promise.all(
       assignments.map(async (assignment) => {
-        const member = await db.teamMembers.getById(assignment.team_member_id, churchId);
+        const { data: member } = await supabaseAdmin
+          .from('team_members')
+          .select('*')
+          .eq('id', assignment.team_member_id)
+          .eq('church_id', churchId)
+          .maybeSingle();
         return { member, role: assignment.role, status: assignment.status };
       })
     );

@@ -7,7 +7,7 @@ import {
   FormLabel, Alert, AlertIcon, Card, CardBody, Spinner,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/store';
+import { apiBaseUrl, parseJsonSafe } from '@/lib/api-base';
 
 function JoinForm() {
   const [password, setPassword] = useState('');
@@ -37,36 +37,25 @@ function JoinForm() {
         return;
       }
 
-      // Check if the church exists
-      const church = await db.churches.getById(paramChurchId);
-      if (!church) {
-        setError('Invalid invitation link. Church not found.');
-        setPageLoading(false);
-        return;
-      }
+      // Validate through the server so this page does not need anon
+      // reads on churches / team_members (those policies are church-scoped).
+      const response = await fetch(`${apiBaseUrl()}/api/auth/validate-invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: paramEmail, churchId: paramChurchId }),
+      });
+      const result = await parseJsonSafe(response);
 
-      // Check if the team member profile exists
-      const members = await db.teamMembers.getByChurch(paramChurchId);
-      const profile = members.find(m => m.email.toLowerCase() === paramEmail.toLowerCase());
-
-      if (!profile) {
-        setError(`No team member profile found for ${paramEmail} at this church. Ask your worship leader for a new invite.`);
-        setPageLoading(false);
-        return;
-      }
-      
-      // Check if they already have a user account
-      const existingUser = await db.users.getByEmail(paramEmail);
-      if (existingUser) {
-        setError(`An account already exists for ${paramEmail}. Please log in instead.`);
+      if (!response.ok || !result.valid) {
+        setError(result.error || 'Invalid invitation link.');
         setPageLoading(false);
         return;
       }
 
       setInviteEmail(paramEmail);
       setChurchId(paramChurchId);
-      setChurchName(church.name);
-      setMemberName(profile.name);
+      setChurchName(result.churchName || '');
+      setMemberName(result.memberName || '');
       setIsValidInvite(true);
       setPageLoading(false);
     }
