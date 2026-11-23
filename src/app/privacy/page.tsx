@@ -38,9 +38,9 @@ export default function PrivacyPolicyPage() {
               1. Introduction
             </Heading>
             <Text color="gray.600" lineHeight="tall">
-              WorshipCenter ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy
+              WorshipCenter (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy
               explains how we collect, use, disclose, and safeguard your information when you use our mobile
-              application and website (collectively, the "Service").
+              application and website (collectively, the &quot;Service&quot;).
             </Text>
             <Text color="gray.600" lineHeight="tall" mt={3}>
               By using the Service, you agree to the collection and use of information in accordance with this policy.
@@ -74,7 +74,7 @@ export default function PrivacyPolicyPage() {
                 <Text fontWeight="600" mb={1}>Payment Information</Text>
                 <Text fontSize="sm" color="gray.600">
                   Subscription billing information is processed by Stripe, Inc. We do not store full credit card
-                  numbers on our servers. Stripe's privacy policy applies to payment data.
+                  numbers on our servers. Stripe&apos;s privacy policy applies to payment data.
                 </Text>
               </Box>
               <Box p={4} bg="gray.50" borderRadius="lg">

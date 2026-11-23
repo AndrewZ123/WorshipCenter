@@ -34,7 +34,7 @@ export default function TermsPage() {
           <Box>
             <Heading as="h2" size="md" mb={3}>1. Acceptance of Terms</Heading>
             <Text color="gray.600" lineHeight="tall">
-              By accessing or using WorshipCenter ("the Service"), you agree to be bound by these Terms of Service.
+              By accessing or using WorshipCenter (&quot;the Service&quot;), you agree to be bound by these Terms of Service.
               If you do not agree, do not use the Service.
             </Text>
           </Box>
@@ -127,7 +127,7 @@ export default function TermsPage() {
           <Box>
             <Heading as="h2" size="md" mb={3}>8. Limitation of Liability</Heading>
             <Text color="gray.600" lineHeight="tall">
-              The Service is provided "as is" without warranties of any kind. WorshipCenter is not
+              The Service is provided &quot;as is&quot; without warranties of any kind. WorshipCenter is not
               liable for any damages arising from the use of the Service. In no event shall our
               liability exceed the amount paid by you in the 12 months preceding the claim.
             </Text>

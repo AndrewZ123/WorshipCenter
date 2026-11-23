@@ -412,7 +412,7 @@ export default function TeamMemberDetailClient({ memberId: propMemberId, onBack 
                   No Limit
                 </Button>
               </HStack>
-              <Text fontSize="xs" color={subtextColor} mt="1">Leave blank or set to "No Limit" if they can serve any number of times per week.</Text>
+              <Text fontSize="xs" color={subtextColor} mt="1">Leave blank or set to &quot;No Limit&quot; if they can serve any number of times per week.</Text>
             </FormControl>
 
             {/* Availability Notes */}

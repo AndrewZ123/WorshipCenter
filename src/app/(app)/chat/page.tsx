@@ -271,7 +271,7 @@ export default function ChatPage() {
       <Center minH="80dvh">
         <VStack spacing="4">
           <MessageCircle size={48} color="gray.300" />
-          <Text fontSize="lg" fontWeight="600" color="gray.500">Chat isn't set up yet</Text>
+          <Text fontSize="lg" fontWeight="600" color="gray.500">Chat isn&apos;t set up yet</Text>
           <Text fontSize="sm" color={subtextColor} textAlign="center" maxW="300px">
             No channels found. An admin needs to create the first channel to get started.
           </Text>

@@ -1099,7 +1099,7 @@ export const db = {
       return db.mapChatMessage(data);
     },
     subscribe: (churchId: string, callback: (message: ChatMessagePopulated) => void, onError?: (error: Error) => void) => {
-      let channel = supabase
+      const channel = supabase
         .channel(`chat:${churchId}`)
         .on(
           'postgres_changes',
@@ -1328,7 +1328,7 @@ export const db = {
     // Subscribe to new messages
     subscribe: (serviceId: string, churchId: string, callback: (message: any) => void, onError?: (error: Error) => void) => {
       const channelName = `service-chat:${serviceId}`;
-      let channel = supabase.channel(channelName);
+      const channel = supabase.channel(channelName);
 
       // Get chat ID first
       db.serviceChat.getOrCreate(serviceId, churchId).then((chat) => {

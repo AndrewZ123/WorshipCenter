@@ -220,7 +220,7 @@ export default function PollRenderer({
               <Text fontSize="xs" fontWeight="600" color={subtextColor} mb="1">Options</Text>
               {totalVotes > 0 && (
                 <Text fontSize="xs" color="orange.500" mb="2" fontStyle="italic">
-                  Options can't be edited after votes are cast
+                  Options can&apos;t be edited after votes are cast
                 </Text>
               )}
               <VStack spacing="2">

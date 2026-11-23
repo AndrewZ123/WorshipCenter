@@ -55,7 +55,7 @@ export default function DemoSettingsPage() {
               <FormControl>
                 <FormLabel color={textColor}>Email</FormLabel>
                 <Input value={user?.email || ''} isReadOnly bg={useColorModeValue('gray.50', 'gray.700')} color={subtextColor} />
-                <Text fontSize="sm" color={subtextColor} mt="1">This is a demo account. Changes aren't saved permanently.</Text>
+                <Text fontSize="sm" color={subtextColor} mt="1">This is a demo account. Changes aren&apos;t saved permanently.</Text>
               </FormControl>
               <FormControl>
                 <FormLabel color={textColor}>Role</FormLabel>

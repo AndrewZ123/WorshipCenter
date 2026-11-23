@@ -281,7 +281,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       {/* Demo notice */}
       <Box px="4" pb="4">
         <Text fontSize="xs" color="gray.400" textAlign="center">
-          Changes won't be saved
+          Changes won&apos;t be saved
         </Text>
       </Box>
     </Flex>

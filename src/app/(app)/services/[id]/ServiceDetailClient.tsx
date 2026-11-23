@@ -2318,7 +2318,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       <HStack spacing="3">
                         <Plus size={14} color="var(--chakra-colors-orange-500)" />
                         <Text fontSize="sm" fontWeight="500">
-                          Add new song <Text as="span" fontWeight="700" color="orange.500">"{addSongSearchText.trim()}"</Text>
+                          Add new song <Text as="span" fontWeight="700" color="orange.500">&quot;{addSongSearchText.trim()}&quot;</Text>
                         </Text>
                       </HStack>
                     </Box>

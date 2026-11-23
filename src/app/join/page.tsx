@@ -104,7 +104,7 @@ function JoinForm() {
           <Heading size="lg" fontWeight="700" color="gray.800">Join the Team</Heading>
           {isValidInvite ? (
             <Text color="gray.500">
-              You've been invited to join <strong>{churchName}</strong>. Activate your account below.
+              You&apos;ve been invited to join <strong>{churchName}</strong>. Activate your account below.
             </Text>
           ) : (
             <Text color="gray.500">Oops, something went wrong with your invite.</Text>

@@ -598,7 +598,7 @@ export default function SongsPage() {
           <ModalBody pb="6">
             <VStack spacing="4">
               <Text fontSize="sm" color={subtextColor}>
-                Upload a <strong>.pro</strong>, <strong>.chordpro</strong>, or <strong>.txt</strong> file exported from SongSelect. The song's metadata (title, artist, key, CCLI) will be parsed automatically.
+                Upload a <strong>.pro</strong>, <strong>.chordpro</strong>, or <strong>.txt</strong> file exported from SongSelect. The song&apos;s metadata (title, artist, key, CCLI) will be parsed automatically.
               </Text>
               <FormControl>
                 <Button 

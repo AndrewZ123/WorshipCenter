@@ -200,7 +200,7 @@ export default function CheckoutSuccessPage() {
           color: '#2c5282',
           marginBottom: '12px',
         }}>
-          What's Next?
+          What&apos;s Next?
         </h3>
         <ul style={{
           listStyle: 'none',

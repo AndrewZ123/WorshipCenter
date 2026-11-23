@@ -784,7 +784,7 @@ export default function SettingsPage() {
               <Box>
                 <Text fontWeight="600" fontSize="sm" color={textColor} mb="1">Blockout Dates</Text>
                 <Text fontSize="xs" color={subtextColor} mb="3">
-                  Dates when you're unavailable for service.
+                  Dates when you&apos;re unavailable for service.
                 </Text>
 
                 {blockoutDates.length > 0 ? (

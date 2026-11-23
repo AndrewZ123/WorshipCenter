@@ -55,7 +55,7 @@ export default function DemoBillingPage() {
           <Box>
             <AlertTitle>Demo Mode</AlertTitle>
             <AlertDescription>
-              This is a demo environment. Subscription changes won't actually be processed.
+              This is a demo environment. Subscription changes won&apos;t actually be processed.
               Purchase the full app to manage your real subscription.
             </AlertDescription>
           </Box>
@@ -203,7 +203,7 @@ export default function DemoBillingPage() {
               <CardBody>
                 <Text fontWeight="medium" mb={2} color={textColor}>Can I cancel anytime?</Text>
                 <Text color={subtextColor} fontSize="sm">
-                  Yes, you can cancel your subscription at any time from this page. You'll continue to have access until the end of your billing period.
+                  Yes, you can cancel your subscription at any time from this page. You&apos;ll continue to have access until the end of your billing period.
                 </Text>
               </CardBody>
             </Card>
