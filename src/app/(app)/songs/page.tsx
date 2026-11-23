@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box, Text, HStack, Button, Table, Thead, Tbody, Tr, Th, Td,
   Input, Flex, useDisclosure, Modal, ModalOverlay, ModalContent,
@@ -18,6 +17,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
 import SongDetailClient from './[id]/SongDetailClient';
 import ChordProPreview from '@/components/songs/ChordProPreview';
+import CsvImportModal from '@/components/songs/CsvImportModal';
 import { parseChordPro } from '@/lib/chordpro';
 import type { ChordProParsed } from '@/lib/chordpro';
 import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
@@ -30,14 +30,13 @@ import { getSongUsageDisplayLines, summarizeSongUsageDates } from '@/lib/song-us
 
 // Lucide icons
 import { 
-  Plus, Search, Music, MoreVertical, Mic2, Upload, AlertCircle
+  Plus, Search, Music, MoreVertical, Mic2, Upload, AlertCircle, FileSpreadsheet
 } from 'lucide-react';
 
 export default function SongsPage() {
   const { church, user, loading: authLoading } = useAuth();
   const permissions = usePermissions();
   const store = useStore();
-  const router = useRouter();
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [songs, setSongs] = useState<Song[]>([]);
@@ -48,6 +47,8 @@ export default function SongsPage() {
 
   // ChordPro import
   const importDisclosure = useDisclosure();
+  // CSV import (including Planning Center exports)
+  const csvImportDisclosure = useDisclosure();
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importParsed, setImportParsed] = useState<ChordProParsed | null>(null);
   const [importing, setImporting] = useState(false);
@@ -92,26 +93,7 @@ export default function SongsPage() {
   // Volunteers have read-only access
   const isReadOnly = permissions.isVolunteer;
 
-  useEffect(() => {
-    if (church) loadSongs();
-  }, [church]);
-
-  // Deep link from the church setup wizard to the ChordPro importer.
-  useEffect(() => {
-    if (!church || typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('import') !== 'chordpro') return;
-
-    importDisclosure.onOpen();
-
-    const url = new URL(window.location.href);
-    url.searchParams.delete('import');
-    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
-    // Only react to the church becoming available; the query is cleared above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [church]);
-
-  const loadSongs = async () => {
+  const loadSongs = useCallback(async () => {
     if (!church) return;
     try {
       setLoading(true);
@@ -128,7 +110,33 @@ export default function SongsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [church, store, toast]);
+
+  useEffect(() => {
+    // Initial data load from Supabase; the rule cannot see through loadSongs.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (church) loadSongs();
+  }, [church, loadSongs]);
+
+  // Deep link from the church setup wizard to the ChordPro or CSV importer.
+  useEffect(() => {
+    if (!church || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const importTarget = params.get('import');
+    if (importTarget !== 'chordpro' && importTarget !== 'csv') return;
+
+    if (importTarget === 'csv') {
+      csvImportDisclosure.onOpen();
+    } else {
+      importDisclosure.onOpen();
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete('import');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    // Only react to the church becoming available; the query is cleared above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [church]);
 
   const usageMap = useMemo(() => {
     const datesBySong: Record<string, string[]> = {};
@@ -216,7 +224,8 @@ export default function SongsPage() {
       return { color: 'teal.500', label: 'Scheduled' };
     }
     const lastUsedDate = usage.lastUsed ? new Date(usage.lastUsed + 'T00:00:00') : null;
-    const weeksAgo = lastUsedDate ? Math.max(0, Math.floor((Date.now() - lastUsedDate.getTime()) / (7 * 24 * 60 * 60 * 1000))) : null;
+    const now = new Date();
+    const weeksAgo = lastUsedDate ? Math.max(0, Math.floor((now.getTime() - lastUsedDate.getTime()) / (7 * 24 * 60 * 60 * 1000))) : null;
     
     if (usage.count >= 6 && weeksAgo !== null && weeksAgo < 8) {
       return { color: 'red.500', label: 'Overplayed' };
@@ -273,7 +282,19 @@ export default function SongsPage() {
           <Text color={subtextColor} fontSize="sm" mt="1">Manage your worship songs and chord charts</Text>
         </Box>
         {!isReadOnly && (
-          <HStack spacing="2">
+          <HStack spacing="2" flexWrap="wrap" justify={{ base: 'flex-start', md: 'flex-end' }}>
+            <Button
+              onClick={csvImportDisclosure.onOpen}
+              size="sm"
+              variant="outline"
+              colorScheme="teal"
+              fontWeight="600"
+              leftIcon={<FileSpreadsheet size={14} />}
+              px="4"
+              py="2"
+            >
+              Import CSV
+            </Button>
             <Button 
               onClick={importDisclosure.onOpen} 
               size="sm" 
@@ -822,6 +843,12 @@ export default function SongsPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      <CsvImportModal
+        isOpen={csvImportDisclosure.isOpen}
+        onClose={csvImportDisclosure.onClose}
+        onImported={loadSongs}
+      />
 
       <ConfirmDialog 
         isOpen={deleteDisclosure.isOpen} 

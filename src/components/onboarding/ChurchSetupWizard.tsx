@@ -86,7 +86,7 @@ const STEP_META: Record<
   songs: {
     title: 'Add your first song',
     description:
-      'Start your song library with one song, or import a ChordPro file instead.',
+      'Start your song library with one song, or bulk-import a CSV export (including Planning Center).',
   },
 };
 
@@ -521,7 +521,14 @@ export default function ChurchSetupWizard() {
     }
   };
 
-  const handleImportSongs = () => {
+  const handleImportCsvSongs = () => {
+    markCompleted();
+    pendingOpenRef.current = null;
+    setIsOpen(false);
+    router.push('/songs?import=csv');
+  };
+
+  const handleImportChordProSongs = () => {
     markCompleted();
     pendingOpenRef.current = null;
     setIsOpen(false);
@@ -753,8 +760,15 @@ export default function ChurchSetupWizard() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleImportSongs}
+                onClick={handleImportCsvSongs}
                 fontWeight="600"
+              >
+                Import songs from a CSV file
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleImportChordProSongs}
               >
                 Import a ChordPro file instead
               </Button>
