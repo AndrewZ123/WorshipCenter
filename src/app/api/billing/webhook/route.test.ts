@@ -188,6 +188,7 @@ describe('POST /api/billing/webhook', () => {
       price_type: 'monthly',
       current_period_start: new Date(periodStart * 1000).toISOString(),
       current_period_end: new Date(periodEnd * 1000).toISOString(),
+      trial_end: null,
       canceled_at: null,
     });
   });
@@ -275,5 +276,152 @@ describe('POST /api/billing/webhook', () => {
     const response = await POST(webhookRequest());
 
     expect(response.status).toBe(500);
+  });
+
+  it('marks past_due when a failed invoice carries an expanded customer object', async () => {
+    fake.setTableResult('subscriptions', {
+      data: { church_id: 'church-1' },
+      error: null,
+    });
+
+    headerState.signature = 't=1,v1=valid';
+    stripeMock.webhooks.constructEvent.mockReturnValue({
+      id: 'evt_payment_failed',
+      type: 'invoice.payment_failed',
+      data: {
+        object: {
+          id: 'in_failed',
+          // The 2026 API may expand `customer` instead of returning a string.
+          customer: { id: 'cus_real123', object: 'customer' },
+        },
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(fake.operationsFor('subscriptions')).toContainEqual({
+      table: 'subscriptions',
+      method: 'eq',
+      args: ['stripe_customer_id', 'cus_real123'],
+    });
+
+    const update = fake
+      .operationsFor('subscriptions')
+      .find((op) => op.method === 'update');
+    expect(update?.args[0]).toMatchObject({
+      status: 'past_due',
+      trial_start: null,
+      trial_end: null,
+    });
+  });
+
+  it('syncs an item-level subscription back to active after a recovered payment', async () => {
+    const periodStart = 1762000000;
+    const periodEnd = 1764592000;
+
+    fake.setTableResult('subscriptions', {
+      data: { church_id: 'church-1', status: 'past_due' },
+      error: null,
+    });
+    stripeMock.subscriptions.retrieve.mockResolvedValue({
+      id: 'sub_recovered',
+      status: 'active',
+      customer: 'cus_real123',
+      metadata: { church_id: 'church-1' },
+      trial_start: 1762000000,
+      trial_end: 1796601600,
+      items: {
+        data: [
+          {
+            current_period_start: periodStart,
+            current_period_end: periodEnd,
+            price: { recurring: { interval: 'month', interval_count: 1 } },
+          },
+        ],
+      },
+    });
+
+    headerState.signature = 't=1,v1=valid';
+    stripeMock.webhooks.constructEvent.mockReturnValue({
+      id: 'evt_payment_succeeded',
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          id: 'in_succeeded',
+          customer: 'cus_real123',
+          parent: {
+            type: 'subscription_details',
+            subscription_details: {
+              subscription: 'sub_recovered',
+            },
+          },
+        },
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(stripeMock.subscriptions.retrieve).toHaveBeenCalledWith('sub_recovered');
+
+    const update = fake
+      .operationsFor('subscriptions')
+      .find((op) => op.method === 'update');
+    expect(update?.args[0]).toMatchObject({
+      status: 'active',
+      stripe_subscription_id: 'sub_recovered',
+      current_period_start: new Date(periodStart * 1000).toISOString(),
+      current_period_end: new Date(periodEnd * 1000).toISOString(),
+      trial_end: null,
+    });
+  });
+
+  it('finds a deleted subscription by customer id when metadata is missing', async () => {
+    fake.setTableResult('subscriptions', {
+      data: { church_id: 'church-1', status: 'active' },
+      error: null,
+    });
+
+    headerState.signature = 't=1,v1=valid';
+    stripeMock.webhooks.constructEvent.mockReturnValue({
+      id: 'evt_sub_deleted',
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_deleted',
+          status: 'canceled',
+          customer: 'cus_real123',
+          metadata: {},
+        },
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(fake.operationsFor('subscriptions')).toContainEqual({
+      table: 'subscriptions',
+      method: 'eq',
+      args: ['stripe_customer_id', 'cus_real123'],
+    });
+    expect(fake.operationsFor('subscriptions')).toContainEqual({
+      table: 'subscriptions',
+      method: 'eq',
+      args: ['church_id', 'church-1'],
+    });
+
+    const update = fake
+      .operationsFor('subscriptions')
+      .find((op) => op.method === 'update');
+    expect(update?.args[0]).toMatchObject({
+      status: 'canceled',
+      stripe_subscription_id: null,
+      current_period_start: null,
+      current_period_end: null,
+      trial_start: null,
+      trial_end: null,
+      canceled_at: expect.any(String),
+    });
   });
 });

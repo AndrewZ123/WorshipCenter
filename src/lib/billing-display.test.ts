@@ -68,4 +68,25 @@ describe('getBillingPeriodText', () => {
     expect(getBillingPeriodText({ priceType: 'monthly' })).toBe('Monthly');
     expect(getBillingPeriodText({ priceType: null })).toBe('—');
   });
+
+  it('never shows trial copy for an active plan, even with a stale trial_end', () => {
+    expect(
+      getBillingPeriodText({
+        priceType: 'monthly',
+        isActive: true,
+        isTrialing: true,
+        trialEnd: '2026-12-07T00:00:00.000Z',
+        formatDate: () => 'December 7, 2026',
+      })
+    ).toBe('Monthly');
+
+    expect(
+      getBillingPeriodText({
+        priceType: 'yearly',
+        isActive: true,
+        trialEnd: '2026-12-07T00:00:00.000Z',
+        formatDate: () => 'December 7, 2026',
+      })
+    ).toBe('Yearly');
+  });
 });

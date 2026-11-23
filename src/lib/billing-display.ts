@@ -34,6 +34,7 @@ export function getPlanCtaLabel({
 
 export interface BillingPeriodInput {
   priceType?: string | null;
+  isActive?: boolean;
   isTrialing?: boolean;
   trialEnd?: string | null;
   /** Injectable formatter so tests do not depend on the host locale. */
@@ -43,15 +44,17 @@ export interface BillingPeriodInput {
 /**
  * Billing period shown on the current-plan card. During a trial there is no
  * paid billing period yet, so show the trial end date (not “—” and not an
- * invented Stripe period).
+ * invented Stripe period). An active plan always wins: stale trial data must
+ * never make a paid subscription look like a trial.
  */
 export function getBillingPeriodText({
   priceType,
+  isActive,
   isTrialing,
   trialEnd,
   formatDate = (date) => date,
 }: BillingPeriodInput): string {
-  if (isTrialing) {
+  if (!isActive && isTrialing) {
     return trialEnd ? `Trial ends ${formatDate(trialEnd)}` : '—';
   }
   if (priceType === 'yearly') return 'Yearly';

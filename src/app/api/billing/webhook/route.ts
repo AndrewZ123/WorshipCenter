@@ -22,8 +22,10 @@ import { env } from '@/lib/env';
 import { StripeWebhookEventSchema, invalidInputResponse } from '@/lib/validation';
 import {
   activateSubscriptionFromCheckout,
+  findSubscriptionRow,
   syncSubscriptionRecord,
 } from '@/lib/billing-sync';
+import { stripeObjectId } from '@/lib/stripe-subscription';
 
 // Disable body parsing — we need the raw body for signature verification
 export const runtime = 'nodejs';
@@ -95,6 +97,10 @@ export async function POST(request: NextRequest) {
         ok = await handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
 
+      case 'invoice.payment_succeeded':
+        ok = await handlePaymentSucceeded(event.data.object as Stripe.Invoice);
+        break;
+
       default:
         console.log('[Webhook] Unhandled event type:', event.type);
     }
@@ -162,9 +168,19 @@ async function handleSubscriptionChanged(subscription: Stripe.Subscription): Pro
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<boolean> {
   console.log('[Webhook] Subscription deleted:', subscription.id);
 
-  const churchId = subscription.metadata?.church_id;
+  const metadataChurchId = subscription.metadata?.church_id ?? null;
+  const customerId = stripeObjectId(subscription.customer);
+
+  // The customer fallback matters when the subscription metadata is missing
+  // (e.g. created before church_id was written): the row is already linked.
+  const row = await findSubscriptionRow(supabaseAdmin, {
+    churchId: metadataChurchId,
+    customerId,
+  });
+  const churchId = row?.church_id ?? metadataChurchId;
+
   if (!churchId) {
-    console.error('[Webhook] No church_id in subscription metadata');
+    console.error('[Webhook] Could not map deleted subscription to a church:', subscription.id);
     return true;
   }
 
@@ -175,6 +191,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
       stripe_subscription_id: null,
       current_period_start: null,
       current_period_end: null,
+      trial_start: null,
+      trial_end: null,
       canceled_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -192,23 +210,30 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
  * Payment failed — mark as past_due so user knows to update payment
  */
 async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<boolean> {
-  console.log('[Webhook] Payment failed for customer:', invoice.customer);
+  // The 2026 API may expand `customer`; accept either a string or an object.
+  const customerId = stripeObjectId(invoice.customer);
+  console.log('[Webhook] Payment failed for customer:', customerId);
+
+  if (!customerId) {
+    console.error('[Webhook] Invoice has no customer id:', invoice.id);
+    return true;
+  }
 
   // Find subscription by customer ID
   const { data: sub, error: findError } = await supabaseAdmin
     .from('subscriptions')
     .select('church_id')
-    .eq('stripe_customer_id', invoice.customer as string)
+    .eq('stripe_customer_id', customerId)
     .single();
 
   if (findError || !sub) {
-    console.error('[Webhook] Could not find subscription for customer:', invoice.customer);
+    console.error('[Webhook] Could not find subscription for customer:', customerId);
     return true;
   }
 
   const churchId = (sub as { church_id?: string }).church_id;
   if (!churchId) {
-    console.error('[Webhook] Subscription row has no church_id for customer:', invoice.customer);
+    console.error('[Webhook] Subscription row has no church_id for customer:', customerId);
     return true;
   }
 
@@ -216,12 +241,55 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<boolean> {
     .from('subscriptions')
     .update({
       status: 'past_due',
+      // A failed payment is no longer a trial; don't leave stale trial dates.
+      trial_start: null,
+      trial_end: null,
       updated_at: new Date().toISOString(),
     })
     .eq('church_id', churchId);
 
   if (error) {
     console.error('[Webhook] Failed to mark subscription as past_due:', error);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Payment succeeded (initial payment or a recovered failed payment) — sync the
+ * subscription so its status/periods match Stripe, typically back to `active`.
+ */
+async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<boolean> {
+  const stripe = getStripe();
+  if (!stripe) {
+    console.error('[Webhook] Stripe not initialized');
+    return false;
+  }
+
+  // The 2026 invoice shape puts the subscription under `parent`; older payloads
+  // may still carry a top-level `subscription` field.
+  const parentSubscription = invoice.parent?.subscription_details?.subscription;
+  const legacySubscription = (invoice as Stripe.Invoice & { subscription?: unknown })
+    .subscription;
+  const subscriptionId =
+    stripeObjectId(parentSubscription) ?? stripeObjectId(legacySubscription);
+
+  if (!subscriptionId) {
+    console.log('[Webhook] Invoice is not for a subscription:', invoice.id);
+    return true;
+  }
+
+  console.log('[Webhook] Payment succeeded for subscription:', subscriptionId);
+
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const result = await syncSubscriptionRecord(
+    supabaseAdmin,
+    subscription as unknown as Parameters<typeof syncSubscriptionRecord>[1]
+  );
+
+  if (!result.ok) {
+    console.error('[Webhook] Failed to sync subscription after payment:', result.error);
     return false;
   }
 

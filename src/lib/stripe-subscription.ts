@@ -39,6 +39,8 @@ export interface SubscriptionStateFields {
   status?: string | null;
   cancel_at_period_end?: boolean | null;
   canceled_at?: number | null;
+  trial_start?: MaybeSeconds;
+  trial_end?: MaybeSeconds;
   customer?: string | { id?: string | null } | null;
   metadata?: { church_id?: string; price_type?: string } | null;
 }
@@ -199,6 +201,19 @@ export function buildSubscriptionUpdate(
       : subscription.cancel_at_period_end;
   if (typeof cancelAtPeriodEnd === 'boolean') {
     update.cancel_at_period_end = cancelAtPeriodEnd;
+  }
+
+  // Trial dates only belong to a `trialing` plan. Once Stripe reports any other
+  // status, a stale `trial_end` (e.g. left over from the pre-checkout trial row)
+  // must be cleared so no status-independent UI can render trial copy.
+  if (options.status === 'trialing') {
+    const trialStartIso = unixToIso(subscription.trial_start);
+    const trialEndIso = unixToIso(subscription.trial_end);
+    if (trialStartIso) update.trial_start = trialStartIso;
+    if (trialEndIso) update.trial_end = trialEndIso;
+  } else {
+    update.trial_start = null;
+    update.trial_end = null;
   }
 
   update.canceled_at =

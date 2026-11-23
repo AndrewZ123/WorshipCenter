@@ -161,7 +161,11 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   // whose trial expired but whose Stripe status was never updated to
   // 'canceled' must NOT keep access (previously any status === 'trialing'
   // granted access forever, leaking revenue on expired trials).
-  const isTrialing = subscription?.status === 'trialing' &&
+  //
+  // An active plan always wins over stale trial data: `isActive` and
+  // `isTrialing` can never both be true, even if trial_end is in the future.
+  const isTrialing = !isActive &&
+    subscription?.status === 'trialing' &&
     !!subscription?.trial_end &&
     new Date(subscription.trial_end).getTime() > Date.now();
   const isCanceled = subscription?.status === 'canceled';

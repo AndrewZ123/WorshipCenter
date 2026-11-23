@@ -240,9 +240,9 @@ export default function BillingPage() {
 
   // ── Calculate trial days remaining ──────────────────────────────────────
   const getTrialDaysLeft = () => {
-    // Use trial_end for trialing subscriptions (current_period_end may be NULL
-    // for newly-created trial rows from the DB trigger)
-    if (!subscription?.trial_end) return 0;
+    // Use trial_end only for a live trial. An active plan must never surface
+    // trial copy, even if the old trial_end date was never cleared.
+    if (isActive || !isTrialing || !subscription?.trial_end) return 0;
     const end = new Date(subscription.trial_end).getTime();
     const now = Date.now();
     return Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
@@ -313,6 +313,10 @@ export default function BillingPage() {
   const currentPlan = subscription?.price_type || null;
   const hasSubscription = Boolean(subscription);
   const planActionsDisabled = checkoutLoading || stripeStatusLoading;
+  // A paid/active plan wins over any stale trial fields.
+  const showTrial = isTrialing && !isActive;
+  const cancelAtPeriodEnd =
+    Boolean(subscription?.cancel_at_period_end) && !isCanceled;
 
   const planCta = (priceType: 'monthly' | 'yearly') =>
     getPlanCtaLabel({
@@ -325,6 +329,7 @@ export default function BillingPage() {
 
   const billingPeriodText = getBillingPeriodText({
     priceType: subscription?.price_type,
+    isActive,
     isTrialing,
     trialEnd: subscription?.trial_end,
     formatDate,
@@ -391,11 +396,11 @@ export default function BillingPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px', color: '#2d3748' }}>
-              {isActive && !isCanceled ? 'Pro Plan' : isTrialing ? 'Free Trial' : 'Free Plan'}
+              {isActive && !isCanceled ? 'Pro Plan' : showTrial ? 'Free Trial' : 'Free Plan'}
             </h2>
             <StatusBadge status={subscription?.status || 'inactive'} />
           </div>
-          {(isActive || isTrialing) && (
+          {(isActive || showTrial) && (
             <div style={{ textAlign: 'right', minWidth: '120px' }}>
               <span style={{ fontSize: '32px', fontWeight: 700, color: '#2d3748' }}>
                 ${subscription?.price_type === 'yearly' ? PRICING.yearly.amount / 100 : PRICING.monthly.amount / 100}
@@ -417,10 +422,10 @@ export default function BillingPage() {
           }}>
             <div>
               <p style={{ fontSize: '12px', color: '#a0aec0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
-                {isTrialing ? 'Trial Ends' : isActive ? 'Renews On' : 'Status'}
+                {showTrial ? 'Trial Ends' : isActive ? 'Renews On' : 'Status'}
               </p>
               <p style={{ fontSize: '15px', fontWeight: 600, color: '#2d3748' }}>
-                {isTrialing
+                {showTrial
                   ? `${getTrialDaysLeft()} days left`
                   : isActive
                     ? formatDate(subscription?.current_period_end)
@@ -442,12 +447,17 @@ export default function BillingPage() {
               <StatusBadge status={subscription?.status || 'inactive'} />
             </div>
           </div>
-          {isTrialing && (
+          {showTrial && (
             <p style={{ fontSize: '13px', color: '#718096', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
               Your trial ends on {formatDate(subscription?.trial_end)}. Upgrade now to continue using all features.
             </p>
           )}
-          {subscription?.canceled_at && (
+          {cancelAtPeriodEnd && (
+            <p style={{ fontSize: '13px', color: '#c05621', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #fbd38d' }}>
+              Your plan stays active until {formatDate(subscription?.current_period_end)} and then cancels.
+            </p>
+          )}
+          {subscription?.canceled_at && !cancelAtPeriodEnd && (
             <p style={{ fontSize: '13px', color: '#e53e3e', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #fed7d7' }}>
               Canceled on {formatDate(subscription.canceled_at)} — you can still use Pro features until {formatDate(subscription.current_period_end)}.
             </p>
