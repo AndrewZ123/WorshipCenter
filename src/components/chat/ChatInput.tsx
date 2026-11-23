@@ -149,9 +149,10 @@ export default function ChatInput({ channelId, userId, onSend, onCreatePoll, isA
 
   return (
     <>
-      <Box className="chat-input-area" borderTop="1px solid" borderColor={inputBorder} p={{ base: '2', md: '4' }}>
-        {/* Formatting toolbar - hidden on mobile */}
-        <HStack spacing="1" mb="2" display={{ base: 'none', md: 'flex' }}>
+      <Box className="chat-input-area" flexShrink={0} borderTop="1px solid" borderColor={inputBorder} p={{ base: '2', md: '4' }}>
+        {/* Formatting toolbar - desktop only. lg matches the mobile chrome
+            breakpoint, so there is always exactly one toolbar visible. */}
+        <HStack spacing="1" mb="2" display={{ base: 'none', lg: 'flex' }}>
           <Tooltip label="Bold">
             <IconButton
               aria-label="Bold"

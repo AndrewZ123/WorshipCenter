@@ -85,9 +85,14 @@ export default function ChatPage() {
   const loadMessages = useCallback(async (channelId: string) => {
     if (!channelId) return;
     setIsLoadingMessages(true);
+    setReactions({});
     try {
       const msgs = await db.channels.getMessages(channelId);
+      if (activeChannelRef.current?.id !== channelId) return;
       setMessages(msgs);
+      // Paint the thread as soon as messages arrive; reactions are a
+      // non-critical follow-up and must not hold the loading spinner.
+      setIsLoadingMessages(false);
 
       // Batch-load reactions for all messages
       if (msgs.length > 0) {
@@ -96,6 +101,7 @@ export default function ChatPage() {
           .from('chat_reactions')
           .select('*')
           .in('message_id', ids);
+        if (activeChannelRef.current?.id !== channelId) return;
         const grouped: Record<string, ChatReaction[]> = {};
         for (const r of (reactionData || []) as ChatReaction[]) {
           if (!grouped[r.message_id]) grouped[r.message_id] = [];
@@ -120,19 +126,22 @@ export default function ChatPage() {
   const loadMembers = useCallback(async (channelId: string) => {
     if (!channelId || !church) return;
     try {
-      const members = await db.channels.getMembers(channelId);
-
-      // Public channels are church-wide, but older channels (especially
-      // General) were created without membership rows. Fall back to the
-      // church's user list so the count is not misleadingly 0. Private
-      // channels still only show explicit members.
       const channel = activeChannelRef.current;
-      if (members.length === 0 && channel && !channel.is_private) {
+
+      // Public channels are church-wide. Query the church user list directly
+      // instead of first loading membership rows that General never had.
+      if (channel && !channel.is_private) {
         const { data: users } = await supabase
           .from('users')
           .select('id, name, email, avatar_url, role')
           .eq('church_id', church.id);
         setChannelMembers(users || []);
+        return;
+      }
+
+      const members = await db.channels.getMembers(channelId);
+      if (members.length === 0) {
+        setChannelMembers([]);
         return;
       }
 
@@ -343,7 +352,7 @@ export default function ChatPage() {
         </Box>
 
         {/* Main Chat Area */}
-        <Box display="flex" flexDir="column" flex="1" minW="0">
+        <Box display="flex" flexDir="column" flex="1" minW="0" minH="0">
           {/* Mobile: channel navigation (hidden when keyboard is open) */}
           <Box className="chat-nav-area" display={{ base: 'block', lg: 'none' }}>
             <Box display="flex" borderBottom="1px solid" borderColor={borderColor} p="3" alignItems="center" onClick={onSheetOpen} cursor="pointer" _active={{ bg: useColorModeValue('gray.50', 'gray.700') }}>

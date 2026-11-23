@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Box, Text, SimpleGrid, Card, CardBody, HStack, VStack,
   Button, Flex, Divider, Spinner, Center, useColorModeValue, useToast,
-  Tag, TagLabel, Collapse,
+  Tag, TagLabel, Collapse, Skeleton,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
@@ -26,6 +26,7 @@ import ServeSection from '@/components/serve/ServeSection';
   // --- Helper Component to load async stats for each service ---
   function ServiceCard({ svc, onClick }: { svc: Service; onClick: () => void }) {
     const [stats, setStats] = useState({ songs: 0, duration: 0, assignments: 0 });
+    const [statsLoaded, setStatsLoaded] = useState(false);
     const [rehearsalStats, setRehearsalStats] = useState<RehearsalStats[]>([]);
     const [showRehearsal, setShowRehearsal] = useState(false);
     const store = useStore();
@@ -41,8 +42,10 @@ import ServeSection from '@/components/serve/ServeSection';
     async function loadStats() {
       if (!church) return;
       try {
-        const items = await store.serviceItems.getByService(svc.id);
-        const assignments = await store.assignments.getByService(svc.id, church.id);
+        const [items, assignments] = await Promise.all([
+          store.serviceItems.getByService(svc.id),
+          store.assignments.getByService(svc.id, church.id),
+        ]);
         setStats({
           songs: items.filter((i: ServiceItem) => i.type === 'song').length,
           duration: items.reduce((sum: number, i: ServiceItem) => sum + (i.duration_minutes || 0), 0),
@@ -50,6 +53,9 @@ import ServeSection from '@/components/serve/ServeSection';
         });
       } catch (error) {
         console.error('Error loading service stats:', error);
+      } finally {
+        // Never leave the skeleton up if the counts fail to load.
+        setStatsLoaded(true);
       }
     }
     loadStats();
@@ -100,9 +106,15 @@ import ServeSection from '@/components/serve/ServeSection';
             </HStack>
           </Box>
           <HStack spacing="4" fontSize="sm" color={subtextColor}>
-            <Text>{stats.songs} song{stats.songs !== 1 ? 's' : ''}</Text>
-            {stats.duration > 0 && <Text>{stats.duration} min</Text>}
-            <Text>{stats.assignments} assigned</Text>
+            {statsLoaded ? (
+              <>
+                <Text>{stats.songs} song{stats.songs !== 1 ? 's' : ''}</Text>
+                {stats.duration > 0 && <Text>{stats.duration} min</Text>}
+                <Text>{stats.assignments} assigned</Text>
+              </>
+            ) : (
+              <Skeleton h="14px" w="150px" borderRadius="sm" />
+            )}
           </HStack>
         </Flex>
 
@@ -341,7 +353,7 @@ export default function DashboardPage() {
 
       {/* Stats Grid - Admin only */}
       {!permissions.isVolunteer && (
-        <SimpleGrid columns={{ base: 2, md: 4 }} spacing="4" mb="8">
+        <SimpleGrid columns={{ base: 2, lg: 4 }} spacing="4" mb="8">
           <StatBox icon={Calendar} label="Total Services" value={services.length} onClick={() => router.push('/services')} />
           <StatBox icon={Music} label="Songs in Library" value={songs.length} onClick={() => router.push('/songs')} />
           <StatBox icon={Users} label="Team Members" value={teamMembers.length} onClick={() => router.push('/team')} />

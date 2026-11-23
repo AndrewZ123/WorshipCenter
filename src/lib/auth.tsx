@@ -16,10 +16,12 @@ interface AuthContextType {
   user: User | null;
   church: Church | null;
   loading: boolean;
+  /** True immediately after an explicit logout, while navigation to /login runs. */
+  signedOut: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (churchName: string, userName: string, email: string, password: string) => Promise<SignupResult>;
   join: (email: string, churchId: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<boolean>;
   updatePassword: (password: string) => Promise<boolean>;
   deleteAccount: () => Promise<{ success: boolean; error?: string }>;
@@ -29,10 +31,11 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   church: null,
   loading: true,
+  signedOut: false,
   login: async () => false,
   signup: async () => ({ success: false, error: 'Not implemented' }),
   join: async () => false,
-  logout: () => {},
+  logout: async () => {},
   resetPassword: async () => false,
   updatePassword: async () => false,
   deleteAccount: async () => ({ success: false, error: 'Not implemented' }),
@@ -62,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   const [church, setChurch] = useState<Church | null>(null);
   const [loading, setLoading] = useState(() => !user);
+  const [signedOut, setSignedOut] = useState(false);
   const pendingAuthId = React.useRef<string | null>(null);
 
   // Safety valve: if Supabase never emits an auth event (stuck hydration,
@@ -90,6 +94,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     churchRef.current = church;
   }, [church]);
+
+  // A successfully restored/logged-in profile always clears the explicit
+  // sign-out flag, including after the login page mounts.
+  useEffect(() => {
+    if (user) setSignedOut(false);
+  }, [user]);
 
   // Shallow JSON equality check to avoid spurious state updates
   const isSameData = (a: unknown, b: unknown) => {
@@ -478,8 +488,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
-    
+    // Clear local session state first so the UI can leave the authenticated
+    // shell immediately. Waiting for the network sign-out used to leave
+    // "Logging you in..." on screen for 10–15 seconds.
+    setSignedOut(true);
+    setUser(null);
+    setChurch(null);
+
     // Clear cached data
     if (user?.id) {
       try {
@@ -493,9 +508,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('[Auth] Failed to clear cache on logout:', err);
       }
     }
-    
-    setUser(null);
-    setChurch(null);
+
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[Auth] Sign out request failed; local session cleared:', err);
+    }
   }, [user]);
 
   const resetPassword = useCallback(async (email: string): Promise<boolean> => {
@@ -567,6 +585,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(null);
       setChurch(null);
+      setSignedOut(true);
 
       return { success: true };
     } catch (err) {
@@ -576,7 +595,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, church, loading, login, signup, join, logout, resetPassword, updatePassword, deleteAccount }}>
+    <AuthContext.Provider value={{ user, church, loading, signedOut, login, signup, join, logout, resetPassword, updatePassword, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

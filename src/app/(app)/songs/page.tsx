@@ -19,7 +19,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import SongDetailClient from './[id]/SongDetailClient';
 import { parseChordPro } from '@/lib/chordpro';
 import type { ChordProParsed } from '@/lib/chordpro';
-import { summarizeSongUsageDates } from '@/lib/song-usage';
+import { getSongUsageDisplayLines, summarizeSongUsageDates } from '@/lib/song-usage';
 
 // Lucide icons
 import { 
@@ -75,6 +75,10 @@ export default function SongsPage() {
   const theadTextColor = useColorModeValue('gray.500', 'gray.300');
   const mutedText = useColorModeValue('gray.400', 'gray.500');
   const iconTeal = useColorModeValue('#0D9488', '#5EEAD4');
+  const toggleActiveColor = useColorModeValue('teal.700', 'teal.200');
+  const toggleInactiveColor = useColorModeValue('gray.500', 'gray.300');
+  const toggleHoverBg = useColorModeValue('gray.200', 'gray.600');
+  const scheduledColor = useColorModeValue('teal.600', 'teal.300');
   
   // Volunteers have read-only access
   const isReadOnly = permissions.isVolunteer;
@@ -284,10 +288,10 @@ export default function SongsPage() {
             size="sm" 
             borderRadius="full"
             bg={filterRecent ? 'transparent' : cardBg}
-            color={filterRecent ? 'gray.500' : 'teal.700'}
+            color={filterRecent ? toggleInactiveColor : toggleActiveColor}
             fontWeight={filterRecent ? '400' : '600'}
             boxShadow={filterRecent ? 'none' : 'sm'}
-            _hover={{ bg: filterRecent ? 'gray.200' : cardBg }}
+            _hover={{ bg: filterRecent ? toggleHoverBg : cardBg }}
             transition="all 0.15s"
           >
             All Songs
@@ -297,10 +301,10 @@ export default function SongsPage() {
             size="sm" 
             borderRadius="full"
             bg={filterRecent ? cardBg : 'transparent'}
-            color={filterRecent ? 'teal.700' : 'gray.500'}
+            color={filterRecent ? toggleActiveColor : toggleInactiveColor}
             fontWeight={filterRecent ? '600' : '400'}
             boxShadow={filterRecent ? 'sm' : 'none'}
-            _hover={{ bg: filterRecent ? cardBg : 'gray.200' }}
+            _hover={{ bg: filterRecent ? cardBg : toggleHoverBg }}
             transition="all 0.15s"
           >
             Used Recently
@@ -344,6 +348,9 @@ export default function SongsPage() {
                   const usage = usageMap[song.id]; 
                   const timesUsed = usage?.count || 0;
                   const health = getRotationHealth(song.id);
+                  const usageLines = getSongUsageDisplayLines(
+                    usage ?? { lastUsed: null, nextScheduled: null }
+                  );
 
   return (
                     <Tr 
@@ -397,9 +404,20 @@ export default function SongsPage() {
                         <HStack spacing="2" align="start">
                           <Box w="2" h="2" mt="1.5" borderRadius="full" bg={health.color} flexShrink={0} />
                           <Box>
-                            <Text color={subtextColor} fontSize="sm">{formatDate(usage?.lastUsed || null)}</Text>
-                            {usage?.nextScheduled && (
-                              <Text color="teal.600" fontSize="xs">Scheduled {formatDate(usage.nextScheduled)}</Text>
+                            {usageLines.length === 0 ? (
+                              <Text color={subtextColor} fontSize="sm">—</Text>
+                            ) : (
+                              usageLines.map((line) => (
+                                <Text
+                                  key={`${line.kind}-${line.date}`}
+                                  color={line.kind === 'scheduled' ? scheduledColor : subtextColor}
+                                  fontSize={line.kind === 'scheduled' ? 'xs' : 'sm'}
+                                >
+                                  {line.kind === 'scheduled'
+                                    ? `Scheduled ${formatDate(line.date)}`
+                                    : formatDate(line.date)}
+                                </Text>
+                              ))
                             )}
                           </Box>
                         </HStack>
@@ -595,7 +613,7 @@ export default function SongsPage() {
                 <Input 
                   value={tagsStr} 
                   onChange={(e) => setTagsStr(e.target.value)} 
-                  placeholder="Comma-separated (e.g., worship, uptempo, easter)"
+                  placeholder="e.g. worship, easter, uptempo"
                   borderRadius="lg"
                 />
               </FormControl>

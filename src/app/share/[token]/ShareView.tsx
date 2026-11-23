@@ -4,6 +4,7 @@ import { Box, Text, VStack, HStack, Badge, useColorModeValue } from '@chakra-ui/
 import type { Service, Church, ServiceItem, Song, ServiceAssignment, TeamMember } from '@/lib/types';
 import { Calendar, Clock, Music, FileText, Users } from 'lucide-react';
 import { formatTime } from '@/lib/formatDate';
+import { getServiceBadgeStatus, getServiceStatusLabel } from '@/lib/service-status';
 
 interface ShareData {
   service: Service;
@@ -71,6 +72,9 @@ export default function ShareView({ data, isDemo }: { data: ShareData | null; is
   }, {});
 
   const totalDuration = items.reduce((sum, item) => sum + (item.duration_minutes || 0), 0);
+  // The public page must use the same date-aware status as the app so a
+  // future service whose row says "completed" is shown as Draft, not Completed.
+  const displayStatus = getServiceBadgeStatus(service);
 
   return (
     <Box minH="100dvh" bg={useColorModeValue('gray.50', 'gray.900')}>
@@ -97,8 +101,8 @@ export default function ShareView({ data, isDemo }: { data: ShareData | null; is
             <Clock size={14} />
             <Text>{formatTime(service.time)}</Text>
           </HStack>
-          <Badge colorScheme={STATUS_COLORS[service.status]} variant="subtle" fontSize="xs" px="2" py="0.5" borderRadius="full">
-            {service.status.charAt(0).toUpperCase() + service.status.slice(1)}
+          <Badge colorScheme={STATUS_COLORS[displayStatus]} variant="subtle" fontSize="xs" px="2" py="0.5" borderRadius="full">
+            {getServiceStatusLabel(displayStatus)}
           </Badge>
           {totalDuration > 0 && (
             <Text color={subtextColor}>~{totalDuration} min</Text>

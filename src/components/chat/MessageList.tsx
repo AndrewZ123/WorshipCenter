@@ -170,7 +170,7 @@ export default function MessageList({
   const showMessages = showLoaded && messages.length > 0;
 
   return (
-    <Box ref={containerRef} flex="1" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor} position="relative">
+    <Box ref={containerRef} flex="1" minH="0" overflowY="auto" p={{ base: '4', md: '6' }} bg={bgColor} position="relative">
       {/* Loading overlay — keep container alive */}
       {showSpinner && (
         <Center position="absolute" inset={0} zIndex={1}>

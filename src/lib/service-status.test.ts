@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canMarkServiceCompleted,
   classifyServiceStatus,
   countServiceStatuses,
   getServiceBadgeStatus,
+  getServiceEditorStatus,
+  getServiceStatusLabel,
 } from './service-status';
 
 const now = new Date('2026-06-15T12:00:00.000Z');
@@ -62,6 +65,48 @@ describe('classifyServiceStatus', () => {
     expect(
       classifyServiceStatus({ status: 'completed', date: '2026-06-16' }, lateNow)
     ).toBe('upcomingPlanned');
+  });
+});
+
+describe('getServiceEditorStatus', () => {
+  it('opens a future completed service as Draft', () => {
+    expect(
+      getServiceEditorStatus({ status: 'completed', date: '2026-07-01' }, now)
+    ).toBe('draft');
+  });
+
+  it('opens a service dated today as Draft when its row says completed', () => {
+    expect(
+      getServiceEditorStatus({ status: 'completed', date: '2026-06-15' }, now)
+    ).toBe('draft');
+  });
+
+  it('keeps finalized and past completed statuses', () => {
+    expect(
+      getServiceEditorStatus({ status: 'finalized', date: '2026-07-01' }, now)
+    ).toBe('finalized');
+    expect(
+      getServiceEditorStatus({ status: 'completed', date: '2026-05-01' }, now)
+    ).toBe('completed');
+  });
+});
+
+describe('canMarkServiceCompleted', () => {
+  it('only allows Completed for services before today', () => {
+    expect(canMarkServiceCompleted('2026-06-14', now)).toBe(true);
+    expect(canMarkServiceCompleted('2026-06-15', now)).toBe(false);
+    expect(canMarkServiceCompleted('2026-06-16', now)).toBe(false);
+  });
+});
+
+describe('getServiceStatusLabel', () => {
+  it('uses the same label for app and public share pages', () => {
+    expect(getServiceStatusLabel(getServiceBadgeStatus(
+      { status: 'completed', date: '2026-07-01' },
+      now
+    ))).toBe('Draft');
+    expect(getServiceStatusLabel('finalized')).toBe('Finalized');
+    expect(getServiceStatusLabel('completed')).toBe('Completed');
   });
 });
 

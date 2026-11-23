@@ -46,6 +46,11 @@ export default function ReportsPage() {
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const labelColor = useColorModeValue('gray.600', 'gray.300');
+  const mutedLabelColor = useColorModeValue('gray.500', 'gray.400');
+  const tableHeaderColor = useColorModeValue('gray.600', 'gray.300');
+  const progressTrackBg = useColorModeValue('gray.100', 'gray.700');
+  const positiveColor = useColorModeValue('green.600', 'green.300');
 
   const loadData = useCallback(async () => {
     if (!church) {
@@ -201,13 +206,13 @@ export default function ReportsPage() {
     <Box w="full" mx="auto" px={{ base: 4, md: 6 }} pt={{ base: 2, md: 8 }} pb={{ base: 4, md: 8 }} maxW="1200px">
       <VStack align="start" spacing={1} mb={6}>
         <Heading size="lg">Service Reports & Analytics</Heading>
-        <Text fontSize="sm" color="gray.500">
+        <Text fontSize="sm" color={mutedLabelColor}>
           Track team participation, response rates, and task completion across your worship services.
         </Text>
       </VStack>
 
       <HStack justify="space-between" mb={6} flexWrap="wrap" spacing={4}>
-        <Text fontSize="sm" color="gray.600">Time period:</Text>
+        <Text fontSize="sm" color={labelColor}>Time period:</Text>
         <Select value={range} onChange={(e) => setRange(e.target.value as DateRange)} maxW="220px" size="sm">
           <option value="30d">Last 30 days</option>
           <option value="90d">Last 90 days</option>
@@ -223,7 +228,7 @@ export default function ReportsPage() {
           <CardBody>
             <HStack justify="space-between">
               <Stat>
-                <StatLabel fontSize="xs" color="gray.500">Total Services</StatLabel>
+                <StatLabel fontSize="xs" color={mutedLabelColor}>Total Services</StatLabel>
                 <StatNumber fontSize="2xl">{data.totalServices}</StatNumber>
                 <StatHelpText fontSize="xs" mb={0}>
                   {data.upcomingPlanned} planned · {data.upcomingFinalized} finalized
@@ -239,7 +244,7 @@ export default function ReportsPage() {
           <CardBody>
             <HStack justify="space-between">
               <Stat>
-                <StatLabel fontSize="xs" color="gray.500">Confirm Rate</StatLabel>
+                <StatLabel fontSize="xs" color={mutedLabelColor}>Confirm Rate</StatLabel>
                 <StatNumber fontSize="2xl">{confirmRate}%</StatNumber>
                 <StatHelpText fontSize="xs" mb={0}>
                   {data.confirmedCount} of {data.totalAssignments} assignments
@@ -255,7 +260,7 @@ export default function ReportsPage() {
           <CardBody>
             <HStack justify="space-between">
               <Stat>
-                <StatLabel fontSize="xs" color="gray.500">Decline Rate</StatLabel>
+                <StatLabel fontSize="xs" color={mutedLabelColor}>Decline Rate</StatLabel>
                 <StatNumber fontSize="2xl">{declineRate}%</StatNumber>
                 <StatHelpText fontSize="xs" mb={0}>
                   {data.declinedCount} declined
@@ -271,7 +276,7 @@ export default function ReportsPage() {
           <CardBody>
             <HStack justify="space-between">
               <Stat>
-                <StatLabel fontSize="xs" color="gray.500">Task Completion</StatLabel>
+                <StatLabel fontSize="xs" color={mutedLabelColor}>Task Completion</StatLabel>
                 <StatNumber fontSize="2xl">{taskCompletionRate}%</StatNumber>
                 <StatHelpText fontSize="xs" mb={0}>
                   {data.completedTasks} of {data.totalTasks} tasks
@@ -301,11 +306,11 @@ export default function ReportsPage() {
               <Table size="sm">
                 <Thead>
                   <Tr>
-                    <Th>Member</Th>
-                    <Th isNumeric>Assigned</Th>
-                    <Th isNumeric>Confirmed</Th>
-                    <Th isNumeric>Declined</Th>
-                    <Th>Confirm Rate</Th>
+                    <Th color={tableHeaderColor}>Member</Th>
+                    <Th isNumeric color={tableHeaderColor}>Assigned</Th>
+                    <Th isNumeric color={tableHeaderColor}>Confirmed</Th>
+                    <Th isNumeric color={tableHeaderColor}>Declined</Th>
+                    <Th color={tableHeaderColor}>Confirm Rate</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -316,20 +321,21 @@ export default function ReportsPage() {
                         <Td fontWeight="500">{m.name}</Td>
                         <Td isNumeric>{m.assignments}</Td>
                         <Td isNumeric>
-                          <Text color="green.600" fontWeight="500">{m.confirmed}</Text>
+                          <Text color={positiveColor} fontWeight="500">{m.confirmed}</Text>
                         </Td>
                         <Td isNumeric>
-                          <Text color={m.declined > 0 ? 'red.500' : 'gray.400'}>{m.declined}</Text>
+                          <Text color={m.declined > 0 ? 'red.500' : mutedLabelColor}>{m.declined}</Text>
                         </Td>
                         <Td>
                           <HStack spacing={2}>
                             <Progress
                               value={rate}
                               size="xs"
+                              bg={progressTrackBg}
                               colorScheme={rate >= 75 ? 'green' : rate >= 50 ? 'yellow' : 'red'}
                               maxW="100px"
                             />
-                            <Text fontSize="xs" color="gray.500" minW="40px">{rate}%</Text>
+                            <Text fontSize="xs" color={mutedLabelColor} minW="40px">{rate}%</Text>
                           </HStack>
                         </Td>
                       </Tr>
@@ -396,10 +402,11 @@ export default function ReportsPage() {
                 <Badge colorScheme="yellow">{data.pendingTasks}</Badge>
               </HStack>
               <Box pt={2}>
-                <Text fontSize="xs" color="gray.500" mb={1}>Completion Rate</Text>
+                <Text fontSize="xs" color={mutedLabelColor} mb={1}>Completion Rate</Text>
                 <Progress
                   value={taskCompletionRate}
                   size="md"
+                  bg={progressTrackBg}
                   colorScheme={taskCompletionRate >= 75 ? 'green' : taskCompletionRate >= 50 ? 'yellow' : 'red'}
                 />
               </Box>

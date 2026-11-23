@@ -18,7 +18,7 @@ import ProfileSetupWizard from '@/components/onboarding/ProfileSetupWizard';
 import { Center, Spinner, VStack, Text } from '@chakra-ui/react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, signedOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sessionState, setSessionState] = React.useState({
@@ -26,9 +26,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     hasSession: false,
   });
 
+  // An explicit sign-out means there is no session to hydrate. Mark the check
+  // complete immediately so we redirect instead of showing "Logging you in...".
+  React.useEffect(() => {
+    if (signedOut) {
+      setSessionState({ checked: true, hasSession: false });
+    }
+  }, [signedOut]);
+
   // When the profile is missing, check the actual Supabase session before
   // redirecting. During signup the profile row can lag behind SIGNED_IN.
   React.useEffect(() => {
+    if (signedOut) return;
     if (loading) {
       setSessionState({ checked: false, hasSession: false });
       return;
@@ -52,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     })();
 
     return () => { cancelled = true; };
-  }, [user, loading]);
+  }, [user, loading, signedOut]);
 
   React.useEffect(() => {
     if (shouldRedirectToLogin({
@@ -97,6 +106,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
+    // Sign-out already cleared the session: go straight to /login rather than
+    // showing the hydration spinner this route uses for profile loading.
+    if (signedOut) return null;
+
     return (
       <Center h="100dvh">
         <VStack spacing="4">

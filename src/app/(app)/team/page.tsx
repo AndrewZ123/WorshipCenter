@@ -104,8 +104,11 @@ export default function TeamPage() {
         return;
       }
       toast({ title: 'Group created', status: 'success', duration: 2000 });
+      // Show the new group immediately; the member-count refresh can finish
+      // in the background instead of making the modal wait on another query.
+      setGroups((prev) => [{ ...created, member_group_members: [] }, ...prev]);
       setGroupName(''); setGroupDesc(''); setGroupModalOpen(false);
-      await loadGroups();
+      void loadGroups();
     } catch (error) {
       console.error('Error creating group:', error);
       toast({ title: 'Failed to create group', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 3000 });
@@ -114,9 +117,16 @@ export default function TeamPage() {
 
   const handleDeleteGroup = async () => {
     if (!deleteGroupId || !church) return;
-    await store.memberGroups.delete(deleteGroupId, church.id);
+    const id = deleteGroupId;
+    const ok = await store.memberGroups.delete(id, church.id);
+    if (!ok) {
+      toast({ title: 'Failed to delete group', status: 'error', duration: 3000 });
+      return;
+    }
+    setGroups((prev) => prev.filter((group) => group.id !== id));
     toast({ title: 'Group deleted', status: 'info', duration: 2000 });
-    setDeleteGroupId(null); await loadGroups();
+    setDeleteGroupId(null);
+    void loadGroups();
   };
 
   const handleToggleGroupMember = async (groupId: string, memberId: string, isInGroup: boolean) => {
@@ -764,7 +774,7 @@ export default function TeamPage() {
                 <Input 
                   value={rolesStr} 
                   onChange={(e) => setRolesStr(e.target.value)} 
-                  placeholder="Comma-separated (e.g., Vocalist, Guitarist, Keys)"
+                  placeholder="e.g. Vocalist, Guitarist"
                   borderRadius="lg"
                 />
               </FormControl>

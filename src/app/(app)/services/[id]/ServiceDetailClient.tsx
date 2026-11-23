@@ -17,7 +17,7 @@ import { useStore } from '@/lib/StoreContext';
 import type { Service, ServiceItem, TeamMember, ServiceAssignment, ServiceStatus, Song, ServiceDebriefPopulated } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { getServiceBadgeStatus } from '@/lib/service-status';
+import { canMarkServiceCompleted, getServiceBadgeStatus, getServiceEditorStatus } from '@/lib/service-status';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 import { formatRelativeDate, formatServiceDate, isTodayOrFutureCalendarDate } from '@/lib/formatDate';
@@ -269,24 +269,23 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
     try {
       setLoading(true);
-      console.log('[ServiceDetail] Loading service:', serviceId, 'church:', church.id);
-      // Independent reads run together so the detail page does not wait on a
-      // serial service → items → assignments → songs → team chain.
-      const [svc, itemsData, assignmentsData, songsData, members] = await Promise.all([
+      // Only the service, its plan, and its assignments gate the skeleton.
+      // Songs and team members are large church-wide reads used by the Plan
+      // and Team tabs; load them after first paint instead of blocking it.
+      const [svc, itemsData, assignmentsData] = await Promise.all([
         store.services.getById(serviceId, church.id),
         store.serviceItems.getByService(serviceId),
         store.assignments.getByService(serviceId, church.id),
-        store.songs.getByChurch(church.id),
-        store.teamMembers.getByChurch(church.id),
       ]);
 
       if (svc) {
-        console.log('[ServiceDetail] Service found:', svc.id, svc.title);
         setService(svc);
         setTitle(svc.title);
         setDate(svc.date);
         setTime(svc.time);
-        setStatus(svc.status);
+        // Use the same badge/editor helper as the on-page badge so a future
+        // row that still says "completed" opens as Draft.
+        setStatus(getServiceEditorStatus(svc));
         setNotes(svc.notes);
       } else {
         console.error('[ServiceDetail] Service NOT FOUND:', serviceId);
@@ -296,8 +295,17 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
       setItems(itemsData.sort((a, b) => a.position - b.position));
       setAssignments(assignmentsData);
-      setSongs(songsData);
-      setTeamMembers(members);
+      setLoading(false);
+
+      void Promise.all([
+        store.songs.getByChurch(church.id),
+        store.teamMembers.getByChurch(church.id),
+      ]).then(([songsData, members]) => {
+        setSongs(songsData);
+        setTeamMembers(members);
+      }).catch((error) => {
+        console.error('Error loading service pickers:', error);
+      });
     } catch (error) {
       console.error('Error loading service:', error);
       toast({ title: 'Error loading data', description: 'Please refresh the page.', status: 'error', duration: 3000 });
@@ -310,21 +318,40 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     loadData();
   }, [loadData]);
 
+  const openEditService = useCallback(() => {
+    if (!service) return;
+    // Re-initialize the form every time Edit opens so it always matches the
+    // badge the user is looking at.
+    setStatus(getServiceEditorStatus(service));
+    setEditing(true);
+    setActiveTab(0);
+    setPrimaryTab(0);
+  }, [service]);
+
+  const handleDateChange = (value: string) => {
+    setDate(value);
+    if (isTodayOrFutureCalendarDate(value) && status === 'completed') {
+      setStatus('draft');
+    }
+  };
+
   const handleSave = async () => {
     if (!church) return;
 
     try {
       const prevStatus = service?.status;
       const serviceDate = date || service?.date || '';
-      // Never auto-mark a future service as completed (e.g. debrief/logging
-      // side effects). The display helper also guards against stale rows.
+      // Never persist Completed for a service dated today or later. The form
+      // hides/disables that option, and changing the date to the future moves
+      // an existing Completed value back to Draft.
       const isUpcoming = isTodayOrFutureCalendarDate(serviceDate);
-      await store.services.update(serviceId, church.id, { title, date, time, status, notes });
+      const statusToSave: ServiceStatus = isUpcoming && status === 'completed' ? 'draft' : status;
+      await store.services.update(serviceId, church.id, { title, date, time, status: statusToSave, notes });
       setEditing(false);
       await loadData();
 
       // Auto-prompt debrief when a past service is marked completed
-      if (!isUpcoming && status === 'completed' && prevStatus !== 'completed') {
+      if (!isUpcoming && statusToSave === 'completed' && prevStatus !== 'completed') {
         setShowDebriefForm(true);
         // Log song usage for CCLI reporting (this populates the table that
         // powers the CSV export in Reporting — it was never called before,
@@ -932,6 +959,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
               size="sm"
               colorScheme="teal"
               variant="solid"
+              aria-label="Open Service Mode"
               onClick={() => setMobileViewOpen(true)}
               leftIcon={<Monitor size={16} />}
               fontWeight="600"
@@ -945,6 +973,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                 size="sm"
                 colorScheme="teal"
                 variant="solid"
+                aria-label="Open Service Mode"
                 onClick={() => setServiceModeOpen(true)}
                 leftIcon={<Monitor size={16} />}
                 fontWeight="600"
@@ -977,7 +1006,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
               />
               <Portal>
               <MenuList borderRadius="xl" zIndex={50}>
-                <MenuItem onClick={() => { setEditing(true); setActiveTab(0); setPrimaryTab(0); }} icon={<Edit size={16} />}>Edit Service</MenuItem>
+                <MenuItem onClick={openEditService} icon={<Edit size={16} />}>Edit Service</MenuItem>
                 <MenuItem onClick={async () => {
                   // generateServicePDF is async — await and catch failures so a
                   // PDF error surfaces as a toast instead of a silent rejection
@@ -1271,7 +1300,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing="4">
                         <FormControl>
                           <FormLabel fontWeight="600" fontSize="sm">Date</FormLabel>
-                          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} borderRadius="lg" />
+                          <Input type="date" value={date} onChange={(e) => handleDateChange(e.target.value)} borderRadius="lg" />
                         </FormControl>
                         <FormControl>
                           <FormLabel fontWeight="600" fontSize="sm">Time</FormLabel>
@@ -1283,7 +1312,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                         <Select value={status} onChange={(e) => setStatus(e.target.value as ServiceStatus)} borderRadius="lg">
                           <option value="draft">Draft</option>
                           <option value="finalized">Finalized</option>
-                          <option value="completed">Completed</option>
+                          <option value="completed" disabled={!canMarkServiceCompleted(date || service?.date || '')}>Completed</option>
                         </Select>
                       </FormControl>
                       <FormControl>
@@ -1904,6 +1933,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                   <Button
                     size="sm"
                     colorScheme="teal"
+                    aria-label="Send invitations to assigned team members"
                     onClick={handleSendInvites}
                     leftIcon={<Send size={16} />}
                     isDisabled={assignments.length === 0}
@@ -2417,7 +2447,7 @@ function NotifyTeamButton({ churchId, serviceId, serviceTitle, changes, sessionT
   };
 
   return (
-    <Button size="xs" colorScheme="teal" fontWeight="600" onClick={handleNotify} isLoading={sending} loadingText="Sending...">
+    <Button size="xs" colorScheme="teal" aria-label="Notify team of plan changes" fontWeight="600" onClick={handleNotify} isLoading={sending} loadingText="Sending...">
       Notify Team
     </Button>
   );

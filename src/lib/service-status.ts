@@ -1,4 +1,4 @@
-import { getCalendarDayIndex } from './formatDate';
+import { getCalendarDayIndex, isTodayOrFutureCalendarDate } from './formatDate';
 
 export type ServiceStatusBucket =
   | 'completed'
@@ -65,6 +65,44 @@ export function getServiceBadgeStatus(
       return 'finalized';
     default:
       return 'draft';
+  }
+}
+
+/**
+ * Status the Edit Service form should show for an existing service.
+ *
+ * Uses the same badge helper as the rest of the app so a future row that still
+ * says `completed` opens as Draft instead of Completed. Saving the form then
+ * persists the value the user actually sees.
+ */
+export function getServiceEditorStatus(
+  service: StatusClassifiableService,
+  now: Date = new Date()
+): ServiceBadgeStatus {
+  return getServiceBadgeStatus(service, now);
+}
+
+/**
+ * Completed is only meaningful for services dated before today. The editor
+ * hides/disables the option for today and future services so the form cannot
+ * create the corrupt `completed` state this helper prevents elsewhere.
+ */
+export function canMarkServiceCompleted(
+  date: Date | string,
+  now: Date = new Date()
+): boolean {
+  return !isTodayOrFutureCalendarDate(date, now);
+}
+
+/** Human-readable label for a service badge/display status. */
+export function getServiceStatusLabel(status: ServiceBadgeStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'Completed';
+    case 'finalized':
+      return 'Finalized';
+    default:
+      return 'Draft';
   }
 }
 

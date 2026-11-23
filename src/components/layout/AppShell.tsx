@@ -396,7 +396,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               <Divider my={1} />
               <MenuItem
                 icon={<LogOut size={16} />}
-                onClick={() => { logout(); router.push('/login'); }}
+                onClick={() => {
+                  // logout() clears local auth state synchronously; navigate
+                  // immediately instead of waiting on the network sign-out.
+                  void logout();
+                  router.replace('/login');
+                }}
                 fontSize="sm"
                 color="red.500"
               >
@@ -413,6 +418,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { setDrawerControls, start } = useTour();
+  const { colorMode } = useColorMode();
   const mainBg = useColorModeValue('gray.50', 'gray.900');
   const headerBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -528,7 +534,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         
         <OfflineIndicator />
         
-        <Box w="full" display="flex" flexDir="column" flex="1" minH="0" overflowY="scroll">
+        <Box
+          w="full"
+          display="flex"
+          flexDir="column"
+          flex="1"
+          minH="0"
+          overflowY="scroll"
+          bg={mainBg}
+          sx={{ colorScheme: colorMode }}
+        >
           {children}
         </Box>
       </Box>
