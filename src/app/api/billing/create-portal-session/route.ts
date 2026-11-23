@@ -14,6 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, isStripeConfigured, getMissingStripeConfig } from '@/lib/stripe';
 import { supabaseAdmin, isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
 import { env } from '@/lib/env';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/auth-middleware';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import type { Subscription } from '@/lib/types';
 
 /**
@@ -29,6 +31,17 @@ function isValidStripeCustomerId(id: string | null | undefined): id is string {
 
 export async function POST(request: NextRequest) {
   try {
+    // ── 0. Rate limit ─────────────────────────────────────────────────────
+    // Portal sessions hit Stripe — throttle by client IP before any work.
+    const limit = checkRateLimit(
+      `billing-portal:${getClientIp(request)}`,
+      RateLimitTiers.BILLING.requests,
+      RateLimitTiers.BILLING.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
+
     // ── 1. Validate Stripe ────────────────────────────────────────────────
     if (!isStripeConfigured()) {
       const missing = getMissingStripeConfig();

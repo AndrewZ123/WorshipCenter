@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
+import { exhaustRateLimit } from '@/test/rate-limit';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { POST } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -100,6 +102,27 @@ describe('POST /api/signup/[id]/approve', () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: 'Forbidden' });
+    expectNoMutation();
+  });
+
+  it('returns 429 once the per-user write limit is exhausted', async () => {
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-rate-limited', email: 'limited@example.test' } },
+      error: null,
+    });
+    fake.setTableResult('users', {
+      data: { id: 'user-rate-limited', role: 'admin', church_id: 'church-1' },
+      error: null,
+    });
+    exhaustRateLimit('signup-approve:user-rate-limited', RateLimitTiers.API_WRITE);
+
+    const response = await POST(approveRequest(signupId, 'test-token'), {
+      params: Promise.resolve({ id: signupId }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(fake.operationsFor('subscriptions')).toHaveLength(0);
+    expect(fake.operationsFor('signup_requests')).toHaveLength(0);
     expectNoMutation();
   });
 });

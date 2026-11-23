@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
+import { exhaustRateLimit } from '@/test/rate-limit';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { PATCH } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -43,6 +45,46 @@ beforeEach(() => {
 });
 
 describe('PATCH /api/team/bulk addToGroup', () => {
+  it('returns 401 without a Bearer token', async () => {
+    const response = await PATCH(
+      new NextRequest('http://localhost/api/team/bulk', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'updateRole', memberIds: [churchMemberId], role: 'leader' }),
+      })
+    );
+
+    expect(response.status).toBe(401);
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 once the per-user write limit is exhausted', async () => {
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-rate-limited', email: 'limited@example.test' } },
+      error: null,
+    });
+    fake.setTableResult('users', {
+      data: { id: 'user-rate-limited', role: 'admin', church_id: 'church-1' },
+      error: null,
+    });
+    exhaustRateLimit('team-bulk:user-rate-limited', RateLimitTiers.API_WRITE);
+
+    const response = await PATCH(
+      new NextRequest('http://localhost/api/team/bulk', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          authorization: 'Bearer test-token',
+        },
+        body: JSON.stringify({ action: 'updateRole', memberIds: [churchMemberId], role: 'leader' }),
+      })
+    );
+
+    expect(response.status).toBe(429);
+    expect(fake.operationsFor('team_members')).toHaveLength(0);
+    expect(fake.operationsFor('subscriptions')).toHaveLength(0);
+  });
+
   it('does not add member IDs from another church', async () => {
     fake.setTableResult('member_groups', {
       data: { id: groupId },

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
+import { exhaustRateLimit } from '@/test/rate-limit';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { POST } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -26,13 +28,15 @@ const validBody = {
 
 function signupRequest(
   body: Record<string, unknown>,
-  token?: string
+  token?: string,
+  ip?: string
 ): NextRequest {
   return new NextRequest('http://localhost/api/signup/request', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(ip ? { 'x-forwarded-for': ip } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -95,5 +99,16 @@ describe('POST /api/signup/request', () => {
         .operationsFor('signup_requests')
         .some((op) => op.method === 'insert')
     ).toBe(false);
+  });
+
+  it('returns 429 once the client IP exhausts the write limit', async () => {
+    const ip = '203.0.113.82';
+    exhaustRateLimit(`signup-request:${ip}`, RateLimitTiers.API_WRITE);
+
+    const response = await POST(signupRequest(validBody, undefined, ip));
+
+    expect(response.status).toBe(429);
+    expect(fake.from).not.toHaveBeenCalled();
+    expect(fake.auth.getUser).not.toHaveBeenCalled();
   });
 });

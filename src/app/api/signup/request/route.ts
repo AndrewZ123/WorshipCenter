@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { SignupRequestBodySchema, invalidInputResponse } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
+    // Signup requests fan out notifications to admins, so throttle by IP
+    // before doing any work.
+    const limit = checkRateLimit(
+      `signup-request:${getClientIp(request)}`,
+      RateLimitTiers.API_WRITE.requests,
+      RateLimitTiers.API_WRITE.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
+
     const user = await getRequestUser(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

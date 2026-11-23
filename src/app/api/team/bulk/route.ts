@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { z } from 'zod';
 
 // Bulk update roles
@@ -26,6 +27,15 @@ export async function PATCH(req: NextRequest) {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = checkRateLimit(
+      `team-bulk:${user.id}`,
+      RateLimitTiers.API_WRITE.requests,
+      RateLimitTiers.API_WRITE.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
     }
 
     const subscriptionCheck = await requireActiveSubscription(req);
@@ -140,6 +150,15 @@ export async function DELETE(req: NextRequest) {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = checkRateLimit(
+      `team-bulk:${user.id}`,
+      RateLimitTiers.API_WRITE.requests,
+      RateLimitTiers.API_WRITE.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
     }
 
     const subscriptionCheck = await requireActiveSubscription(req);

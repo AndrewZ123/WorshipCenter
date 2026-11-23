@@ -16,7 +16,8 @@ interface RateLimitResult {
 }
 
 // In-memory cache for rate limiting (in production, consider using Redis)
-// Simple Map-based cache with TTL eviction
+// Simple Map-based cache with TTL eviction. Per-instance only on serverless
+// (e.g. Vercel), so treat these as best-effort abuse brakes, not global quotas.
 const rateLimitCache = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_TTL = 60000 * 60; // 1 hour TTL
 
@@ -88,6 +89,9 @@ export const RateLimitTiers = {
   // Strict limits for sensitive operations
   TEAM_INVITATION: { requests: 10, window: 60 * 60 * 1000 }, // 10 requests per hour
   NOTIFICATION_SEND: { requests: 50, window: 60 * 60 * 1000 }, // 50 requests per hour
+
+  // Destructive, authenticated account operations (e.g. delete-account)
+  ACCOUNT_DELETE: { requests: 5, window: 60 * 60 * 1000 }, // 5 requests per hour
 };
 
 /**

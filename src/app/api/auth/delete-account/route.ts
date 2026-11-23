@@ -15,6 +15,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
+import { checkRateLimit, rateLimitResponse } from '@/lib/auth-middleware';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,6 +42,17 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authUser.id;
+
+    // Account deletion is destructive and irreversible — throttle per user
+    // before any further DB or Stripe work.
+    const limit = checkRateLimit(
+      `auth-delete-account:${userId}`,
+      RateLimitTiers.ACCOUNT_DELETE.requests,
+      RateLimitTiers.ACCOUNT_DELETE.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
 
     // 2. Get user profile to check role and church
     const { data: userProfile, error: profileError } = await supabaseAdmin

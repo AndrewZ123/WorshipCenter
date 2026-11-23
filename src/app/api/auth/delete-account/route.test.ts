@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
+import { exhaustRateLimit } from '@/test/rate-limit';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { POST } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -75,6 +77,26 @@ describe('POST /api/auth/delete-account', () => {
     const response = await POST(deleteAccountRequest('test-token'));
 
     expect(response.status).toBe(404);
+    expectNoDestructiveWrites();
+    expect(fake.auth.admin.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 once the per-user delete limit is exhausted', async () => {
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-rate-limited', email: 'limited@example.test' } },
+      error: null,
+    });
+    exhaustRateLimit(
+      'auth-delete-account:user-rate-limited',
+      RateLimitTiers.ACCOUNT_DELETE
+    );
+
+    const response = await POST(deleteAccountRequest('test-token'));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get('x-ratelimit-remaining')).toBe('0');
+    expect(response.headers.get('retry-after')).toBeTruthy();
+    expect(fake.from).not.toHaveBeenCalled();
     expectNoDestructiveWrites();
     expect(fake.auth.admin.deleteUser).not.toHaveBeenCalled();
   });

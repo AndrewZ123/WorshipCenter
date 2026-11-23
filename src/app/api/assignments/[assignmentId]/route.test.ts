@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
+import { exhaustRateLimit } from '@/test/rate-limit';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { DELETE } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -125,5 +127,25 @@ describe('DELETE /api/assignments/[assignmentId]', () => {
       method: 'eq',
       args: ['church_id', 'church-1'],
     });
+  });
+
+  it('returns 429 once the per-user write limit is exhausted', async () => {
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-rate-limited', email: 'limited@example.test' } },
+      error: null,
+    });
+    fake.setTableResult('users', {
+      data: { id: 'user-rate-limited', role: 'admin', church_id: 'church-1' },
+      error: null,
+    });
+    exhaustRateLimit('assignments-delete:user-rate-limited', RateLimitTiers.API_WRITE);
+
+    const response = await DELETE(deleteRequest(assignmentId, 'test-token'), {
+      params: Promise.resolve({ assignmentId }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(fake.operationsFor('service_assignments')).toHaveLength(0);
+    expect(fake.operationsFor('subscriptions')).toHaveLength(0);
   });
 });

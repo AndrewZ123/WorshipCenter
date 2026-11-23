@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { sendAssignmentNotification } from '@/lib/notifications';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { serviceInvitationEmail } from '@/lib/email-templates';
@@ -25,6 +26,15 @@ export async function POST(req: NextRequest) {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = checkRateLimit(
+      `assignments-bulk:${user.id}`,
+      RateLimitTiers.API_WRITE.requests,
+      RateLimitTiers.API_WRITE.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
     }
 
     // Expired trials must not keep using planning APIs.

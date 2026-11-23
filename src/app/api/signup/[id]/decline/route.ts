@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { SignupParamsSchema, invalidInputResponse } from '@/lib/validation';
 
 export async function POST(
@@ -12,6 +13,15 @@ export async function POST(
     const user = await getRequestUser(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = checkRateLimit(
+      `signup-decline:${user.id}`,
+      RateLimitTiers.API_WRITE.requests,
+      RateLimitTiers.API_WRITE.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
     }
 
     const subscriptionCheck = await requireActiveSubscription(request);

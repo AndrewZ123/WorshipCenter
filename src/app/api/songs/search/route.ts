@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { SongSearchQuerySchema, invalidInputResponse } from '@/lib/validation';
 
 // GET /api/songs/search?q=<query>&tags=tag1,tag2&key=C&artist=...&limit=20
@@ -10,6 +11,15 @@ export async function GET(req: NextRequest) {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateLimit = checkRateLimit(
+      `songs-search:${user.id}`,
+      RateLimitTiers.API_READ.requests,
+      RateLimitTiers.API_READ.window
+    );
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
     }
 
     const subscriptionCheck = await requireActiveSubscription(req);

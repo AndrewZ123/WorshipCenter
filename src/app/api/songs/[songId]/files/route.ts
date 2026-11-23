@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getRequestUser } from '@/lib/auth-middleware';
+import { checkRateLimit, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { validateFile } from '@/lib/validateFile';
 import { SongParamsSchema, invalidInputResponse } from '@/lib/validation';
 import { z } from 'zod';
@@ -20,6 +21,15 @@ export async function GET(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = checkRateLimit(
+      `songs-files-read:${user.id}`,
+      RateLimitTiers.API_READ.requests,
+      RateLimitTiers.API_READ.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
     }
 
     const subscriptionCheck = await requireActiveSubscription(req);
@@ -52,6 +62,15 @@ export async function POST(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = checkRateLimit(
+      `songs-files-write:${user.id}`,
+      RateLimitTiers.API_WRITE.requests,
+      RateLimitTiers.API_WRITE.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
     }
 
     const subscriptionCheck = await requireActiveSubscription(req);
@@ -165,6 +184,15 @@ export async function DELETE(
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const limit = checkRateLimit(
+      `songs-files-write:${user.id}`,
+      RateLimitTiers.API_WRITE.requests,
+      RateLimitTiers.API_WRITE.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
     }
 
     const subscriptionCheck = await requireActiveSubscription(req);

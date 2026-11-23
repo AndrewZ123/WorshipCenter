@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
+import { exhaustRateLimit } from '@/test/rate-limit';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { POST } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -92,5 +94,25 @@ describe('POST /api/push/unregister', () => {
       method: 'eq',
       args: ['user_id', 'user-1'],
     });
+  });
+
+  it('returns 429 once the per-user write limit is exhausted', async () => {
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-rate-limited', email: 'limited@example.test' } },
+      error: null,
+    });
+    fake.setTableResult('users', {
+      data: { id: 'user-rate-limited', role: 'leader', church_id: 'church-1' },
+      error: null,
+    });
+    exhaustRateLimit('push-unregister:user-rate-limited', RateLimitTiers.API_WRITE);
+
+    const response = await POST(
+      unregisterRequest({ token: 'device-token-1' }, 'test-token')
+    );
+
+    expect(response.status).toBe(429);
+    expect(fake.operationsFor('device_tokens')).toHaveLength(0);
+    expect(fake.operationsFor('subscriptions')).toHaveLength(0);
   });
 });

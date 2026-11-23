@@ -8,10 +8,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, isStripeConfigured, getMissingStripeConfig } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/auth-middleware';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import type { Subscription } from '@/lib/types';
 
 export async function POST(request: NextRequest) {
   try {
+    // ── Rate limit ────────────────────────────────────────────────────────
+    // Sync calls Stripe — throttle by client IP before any work.
+    const limit = checkRateLimit(
+      `billing-sync-subscription:${getClientIp(request)}`,
+      RateLimitTiers.BILLING.requests,
+      RateLimitTiers.BILLING.window
+    );
+    if (!limit.allowed) {
+      return rateLimitResponse(limit);
+    }
+
     if (!isStripeConfigured()) {
       const missing = getMissingStripeConfig();
       console.error('[Sync] Stripe not configured. Missing env vars:', missing);

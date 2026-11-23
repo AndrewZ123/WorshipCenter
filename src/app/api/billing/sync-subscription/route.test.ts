@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
+import { exhaustRateLimit } from '@/test/rate-limit';
+import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import { POST } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -25,10 +27,13 @@ vi.mock('@/lib/stripe', async (importOriginal) => {
 const fake = createFakeSupabaseClient();
 vi.mocked(createClient).mockReturnValue(fake as never);
 
-function syncRequest(token?: string): NextRequest {
+function syncRequest(token?: string, ip?: string): NextRequest {
   return new NextRequest('http://localhost/api/billing/sync-subscription', {
     method: 'POST',
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: {
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(ip ? { 'x-forwarded-for': ip } : {}),
+    },
   });
 }
 
@@ -81,6 +86,17 @@ describe('POST /api/billing/sync-subscription', () => {
       method: 'eq',
       args: ['church_id', 'church-1'],
     });
+    expect(stripeMock.subscriptions.retrieve).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 once the client IP exhausts the billing limit', async () => {
+    const ip = '203.0.113.81';
+    exhaustRateLimit(`billing-sync-subscription:${ip}`, RateLimitTiers.BILLING);
+
+    const response = await POST(syncRequest('test-token', ip));
+
+    expect(response.status).toBe(429);
+    expect(fake.from).not.toHaveBeenCalled();
     expect(stripeMock.subscriptions.retrieve).not.toHaveBeenCalled();
   });
 });
