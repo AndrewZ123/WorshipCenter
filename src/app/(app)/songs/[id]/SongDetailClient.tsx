@@ -8,7 +8,7 @@ import {
   Badge, Tag, TagLabel, Wrap, WrapItem, Table,
   Thead, Tbody, Tr, Th, Td, Link, useDisclosure, useColorModeValue,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton,
-  Spinner, Center, Menu, MenuButton, MenuList, MenuItem,
+  Spinner, Center, Menu, MenuButton, MenuList, MenuItem, Textarea,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
@@ -16,64 +16,25 @@ import { useStore } from '@/lib/StoreContext';
 import type { Song, SongFile, SongUsage, Service } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
+import ChordProPreview from '@/components/songs/ChordProPreview';
 import { summarizeSongUsageDates } from '@/lib/song-usage';
 import { isFutureCalendarDate } from '@/lib/formatDate';
 import { parseChordPro } from '@/lib/chordpro';
 import { capoSuggestions, transposeChordPro, transposeKey } from '@/lib/transpose';
 import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
+import {
+  CHORD_PRO_MAX_LENGTH,
+  buildChordProFileInput,
+  decodeTextFileDataUrl,
+  findChordProFile,
+  isChordProWithinLimit,
+} from '@/lib/song-chart';
 
 // Lucide icons
 import { 
   ArrowLeft, MoreVertical, Trash2, Edit, FileText, Eye,
   Music, Mic2, Upload, Download, Calendar, Minus, Plus, RotateCcw
 } from 'lucide-react';
-
-// ChordPro renderer — parses [G]Amazing [C]Grace format
-function renderChordPro(text: string): React.ReactNode {
-  const lines = text.split('\n');
-  return lines.map((line, lineIdx) => {
-    if (line.startsWith('{') && line.endsWith('}')) {
-      // Directive
-      const directive = line.slice(1, -1);
-      if (directive.startsWith('title:') || directive.startsWith('t:')) {
-        return <Text key={lineIdx} fontWeight="700" fontSize="lg" mb="1">{directive.split(':').slice(1).join(':').trim()}</Text>;
-      }
-      if (directive.startsWith('subtitle:') || directive.startsWith('st:')) {
-        return <Text key={lineIdx} color="gray.500" fontSize="sm" mb="2">{directive.split(':').slice(1).join(':').trim()}</Text>;
-      }
-      if (directive.startsWith('comment:') || directive.startsWith('c:')) {
-        return <Text key={lineIdx} color="teal.600" fontWeight="600" fontSize="sm" mt="3" mb="1">{directive.split(':').slice(1).join(':').trim()}</Text>;
-      }
-      return null;
-    }
-
-    // Parse chord lines: [G]words [C]words
-    const parts: React.ReactNode[] = [];
-    let remaining = line;
-    let partIdx = 0;
-    while (remaining) {
-      const match = remaining.match(/\[([^\]]+)\]/);
-      if (!match) {
-        parts.push(<Text as="span" key={partIdx}>{remaining}</Text>);
-        break;
-      }
-      const before = remaining.slice(0, match.index);
-      if (before) parts.push(<Text as="span" key={partIdx++}>{before}</Text>);
-      parts.push(
-        <Text as="span" key={partIdx++} position="relative" display="inline-block">
-          <Text as="span" position="absolute" top="-1.2em" left="0" fontSize="xs" fontWeight="700" color="teal.600">{match[1]}</Text>
-        </Text>
-      );
-      remaining = remaining.slice((match.index || 0) + match[0].length);
-    }
-
-    return (
-      <Box key={lineIdx} lineHeight="2.4" fontFamily="'Courier New', monospace" fontSize="sm" whiteSpace="pre-wrap">
-        {parts.length > 0 ? parts : '\u00A0'}
-      </Box>
-    );
-  });
-}
 
 // YouTube icon component
 const YoutubeIcon = () => (
@@ -117,6 +78,9 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   const [ccli, setCcli] = useState('');
   const [tagsStr, setTagsStr] = useState('');
   const [youtubeId, setYoutubeId] = useState('');
+  const [chordProText, setChordProText] = useState('');
+  const [initialChordProText, setInitialChordProText] = useState('');
+  const [showChartPreview, setShowChartPreview] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Display-only transpose. Persisted per song in this browser, never saved
@@ -146,7 +110,12 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
         setTagsStr(s.tags.join(', '));
         setYoutubeId(s.youtube_video_id || '');
       }
-      setFiles(await store.songFiles.getBySong(songId, church.id));
+      const songFiles = await store.songFiles.getBySong(songId, church.id);
+      setFiles(songFiles);
+      const editableChart = findChordProFile(songFiles);
+      const chartText = editableChart ? decodeTextFileDataUrl(editableChart.file_url) : '';
+      setChordProText(chartText);
+      setInitialChordProText(chartText);
       setAllUsage(await store.songUsage.getBySong(songId, church.id));
       setServices(await store.services.getByChurch(church.id));
     } catch (error) {
@@ -268,14 +237,51 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   };
 
   const handleSave = async () => {
-    if (!church) return;
+    if (!church || !song) return;
+    if (!isChordProWithinLimit(chordProText)) {
+      toast({
+        title: 'Chord chart is too long',
+        description: `Keep it under ${CHORD_PRO_MAX_LENGTH.toLocaleString()} characters.`,
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     const extractedId = extractYoutubeId(youtubeId);
     await store.songs.update(songId, church.id, {
       title, artist, default_key: defaultKey || 'C', ccli_number: normalizeCcliNumber(ccli),
       tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean),
       youtube_video_id: extractedId || undefined,
     });
+
+    const chartChanged = chordProText !== initialChordProText;
+    if (chartChanged && chordProText.trim()) {
+      const existingChart = findChordProFile(files);
+      if (existingChart) {
+        await store.songFiles.update(existingChart.id, church.id, {
+          file_url: buildChordProFileInput({
+            songId,
+            title: title || song.title,
+            chart: chordProText,
+            uploadedBy: user?.id || null,
+          }).file_url,
+          file_size: new TextEncoder().encode(chordProText).length,
+        });
+      } else {
+        await store.songFiles.create(
+          buildChordProFileInput({
+            songId,
+            title: title || song.title,
+            chart: chordProText,
+            uploadedBy: user?.id || null,
+          }),
+        );
+      }
+    }
+
     setEditing(false);
+    setShowChartPreview(false);
     await loadData();
     toast({ title: 'Song updated', status: 'success', duration: 2000 });
   };
@@ -332,18 +338,11 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   const isChordPro = (f: SongFile) => /\.(cho|chordpro|chopro)$/i.test(f.file_name);
   const isText = (f: SongFile) => f.file_name.toLowerCase().endsWith('.txt') || isChordPro(f);
 
-  const decodeTextFile = (dataUrl: string): string => {
-    try {
-      const base64 = dataUrl.split(',')[1];
-      return atob(base64);
-    } catch { return ''; }
-  };
-
   const health = getRotationHealth();
 
   // Chart view transposition is derived on every render from the original
   // file text; nothing here is written back to the database.
-  const chartRaw = viewFile && isChordPro(viewFile) ? decodeTextFile(viewFile.file_url) : '';
+  const chartRaw = viewFile && isChordPro(viewFile) ? decodeTextFileDataUrl(viewFile.file_url) : '';
   const chartOriginalKey = chartRaw
     ? (parseChordPro(chartRaw).meta.key.trim() || song.default_key || '')
     : '';
@@ -440,6 +439,39 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
               <FormControl>
                 <FormLabel fontWeight="600" fontSize="sm">Tags</FormLabel>
                 <Input value={tagsStr} onChange={(e) => setTagsStr(e.target.value)} placeholder="Comma-separated" borderRadius="lg" />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontWeight="600" fontSize="sm">Chord chart (ChordPro)</FormLabel>
+                <Text fontSize="xs" color={subtextColor} mb="2">
+                  Paste or type a ChordPro chart using [G]inline chords. It saves with this song and supports transpose and capo.
+                </Text>
+                <Textarea
+                  value={chordProText}
+                  onChange={(event) => setChordProText(event.target.value)}
+                  maxLength={CHORD_PRO_MAX_LENGTH}
+                  rows={8}
+                  fontFamily="'Courier New', monospace"
+                  fontSize="sm"
+                  placeholder={'{title: Amazing Grace}\n{key: G}\n\n[G]Amazing [C]grace'}
+                  borderRadius="lg"
+                />
+                <HStack justify="space-between" mt="2">
+                  <Text fontSize="xs" color={subtextColor}>
+                    {chordProText.length.toLocaleString()}/{CHORD_PRO_MAX_LENGTH.toLocaleString()} characters
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setShowChartPreview((current) => !current)}
+                  >
+                    {showChartPreview ? 'Hide preview' : 'Preview'}
+                  </Button>
+                </HStack>
+                {showChartPreview && (
+                  <Box mt="2" p="4" bg={codeBg} borderRadius="lg" border="1px solid" borderColor={borderColor}>
+                    <ChordProPreview text={chordProText} />
+                  </Box>
+                )}
               </FormControl>
               <FormControl>
                 <FormLabel fontWeight="600" fontSize="sm">YouTube Link</FormLabel>
@@ -772,13 +804,13 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                 )}
 
                 <Box p="4" bg={codeBg} borderRadius="lg" border="1px solid" borderColor={borderColor}>
-                  {renderChordPro(chartText)}
+                  <ChordProPreview text={chartText} />
                 </Box>
               </Box>
             )}
             {viewFile && viewFile.file_name.toLowerCase().endsWith('.txt') && !isChordPro(viewFile) && (
               <Box p="4" bg={codeBg} borderRadius="lg" border="1px solid" borderColor={borderColor} fontFamily="monospace" fontSize="sm" whiteSpace="pre-wrap">
-                {decodeTextFile(viewFile.file_url)}
+                {decodeTextFileDataUrl(viewFile.file_url)}
               </Box>
             )}
             {viewFile && !isPdf(viewFile) && !isText(viewFile) && (

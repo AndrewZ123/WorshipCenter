@@ -10,43 +10,23 @@ import {
   Center,
   Divider,
   Flex,
-  FormControl,
-  FormHelperText,
-  FormLabel,
   HStack,
-  Modal,
-  ModalBody,
-  ModalCloseButton,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  ModalOverlay,
   Spinner,
   Tag,
   TagLabel,
   Text,
-  Textarea,
   VStack,
   useColorModeValue,
-  useDisclosure,
   useToast,
 } from '@chakra-ui/react';
-import { ArrowLeftRight, Calendar, CheckCircle, Clock, Users } from 'lucide-react';
+import { ArrowLeftRight, Calendar, CheckCircle, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { useStore } from '@/lib/StoreContext';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
-import { formatServiceDate, formatTime } from '@/lib/formatDate';
+import { formatServiceDate } from '@/lib/formatDate';
 import type {
   AssignmentSwapStatus,
   AssignmentSwapSummary,
-  Service,
-  ServiceAssignment,
 } from '@/lib/types';
-
-interface MyAssignmentRow {
-  assignment: ServiceAssignment;
-  service: Service;
-}
 
 function statusColor(status: AssignmentSwapStatus): string {
   switch (status) {
@@ -69,19 +49,12 @@ function formatRole(role: string): string {
 
 export default function SwapSection() {
   const { user, church, loading: authLoading } = useAuth();
-  const store = useStore();
   const toast = useToast();
-  const requestModal = useDisclosure();
 
   const [openSwaps, setOpenSwaps] = useState<AssignmentSwapSummary[]>([]);
   const [mySwaps, setMySwaps] = useState<AssignmentSwapSummary[]>([]);
-  const [myAssignments, setMyAssignments] = useState<MyAssignmentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [requestTarget, setRequestTarget] = useState<MyAssignmentRow | null>(null);
-  const [note, setNote] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState<string | null>(null);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -102,13 +75,9 @@ export default function SwapSection() {
     try {
       setLoading(true);
       const headers = await getAuthHeaders();
-      const [openResponse, mineResponse, assignments, services] = await Promise.all([
+      const [openResponse, mineResponse] = await Promise.all([
         fetch(apiUrl('/api/swaps?status=open'), { headers }),
         fetch(apiUrl('/api/swaps?status=mine'), { headers }),
-        user.team_member_id
-          ? store.assignments.getByTeamMember(user.team_member_id, church.id)
-          : Promise.resolve([]),
-        store.services.getByChurch(church.id),
       ]);
 
       const openData = openResponse.ok ? await parseJsonSafe(openResponse) : {};
@@ -116,31 +85,6 @@ export default function SwapSection() {
 
       setOpenSwaps(Array.isArray(openData.swaps) ? openData.swaps : []);
       setMySwaps(Array.isArray(mineData.swaps) ? mineData.swaps : []);
-
-      const servicesById = new Map<string, Service>(
-        (services as Service[]).map((service) => [service.id, service])
-      );
-      const today = new Date().toISOString().slice(0, 10);
-
-      const upcoming = (assignments as ServiceAssignment[])
-        .map((assignment) => {
-          const service = servicesById.get(assignment.service_id);
-          return service ? { assignment, service } : null;
-        })
-        .filter((row): row is MyAssignmentRow => Boolean(row))
-        .filter(
-          (row) =>
-            row.assignment.status !== 'declined' &&
-            row.service.date.slice(0, 10) >= today
-        )
-        .sort((a, b) => {
-          if (a.service.date !== b.service.date) {
-            return a.service.date < b.service.date ? -1 : 1;
-          }
-          return a.service.time.localeCompare(b.service.time);
-        });
-
-      setMyAssignments(upcoming);
     } catch (error) {
       console.error('[Swaps] Failed to load swap data:', error);
       toast({
@@ -151,54 +95,6 @@ export default function SwapSection() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const activeSwapForAssignment = (assignmentId: string) =>
-    mySwaps.find(
-      (swap) =>
-        swap.assignment_id === assignmentId &&
-        (swap.status === 'open' || swap.status === 'claimed')
-    );
-
-  const openRequestModal = (row: MyAssignmentRow) => {
-    setRequestTarget(row);
-    setNote('');
-    requestModal.onOpen();
-  };
-
-  const handleRequestSwap = async () => {
-    if (!requestTarget) return;
-    try {
-      setSubmitting(true);
-      const response = await fetch(apiUrl('/api/swaps'), {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          assignmentId: requestTarget.assignment.id,
-          note: note.trim() || undefined,
-        }),
-      });
-      const result = await parseJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to request swap');
-      }
-
-      toast({
-        title: 'Swap requested',
-        description: 'Qualified teammates have been notified.',
-        status: 'success',
-      });
-      requestModal.onClose();
-      await loadData();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to request swap',
-        status: 'error',
-      });
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -233,30 +129,6 @@ export default function SwapSection() {
     }
   };
 
-  const handleCancel = async (swapId: string) => {
-    try {
-      setCancelling(swapId);
-      const response = await fetch(apiUrl(`/api/swaps/${swapId}/cancel`), {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-      });
-      const result = await parseJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to cancel swap');
-      }
-      toast({ title: 'Swap request cancelled', status: 'info' });
-      await loadData();
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to cancel swap',
-        status: 'error',
-      });
-    } finally {
-      setCancelling(null);
-    }
-  };
-
   if (authLoading) {
     return (
       <Center py="6">
@@ -278,10 +150,9 @@ export default function SwapSection() {
   const claimable = openSwaps.filter(
     (swap) => swap.status === 'open' && swap.can_claim && !swap.is_mine
   );
-  const hasMyAssignments = myAssignments.length > 0;
   const hasMySwaps = mySwaps.length > 0;
 
-  if (!hasMyAssignments && claimable.length === 0 && !hasMySwaps) {
+  if (claimable.length === 0 && !hasMySwaps) {
     return null;
   }
 
@@ -300,91 +171,6 @@ export default function SwapSection() {
         </Box>
         <ArrowLeftRight size={20} color="var(--chakra-colors-teal-500)" />
       </Flex>
-
-      {hasMyAssignments && (
-        <Box mb="5">
-          <Text fontWeight="600" fontSize="sm" mb="2" color={subtextColor}>
-            My upcoming assignments
-          </Text>
-          <VStack spacing="2" align="stretch">
-            {myAssignments.map((row) => {
-              const activeSwap = activeSwapForAssignment(row.assignment.id);
-              return (
-                <Card
-                  key={row.assignment.id}
-                  bg={cardBg}
-                  border="1px solid"
-                  borderColor={borderColor}
-                  borderRadius="lg"
-                  size="sm"
-                >
-                  <CardBody py="3" px="4">
-                    <Flex
-                      direction={{ base: 'column', md: 'row' }}
-                      align={{ base: 'stretch', md: 'center' }}
-                      justify="space-between"
-                      gap="3"
-                    >
-                      <Box flex="1">
-                        <HStack spacing="2" wrap="wrap" mb="1">
-                          <Text fontWeight="600" fontSize="sm" color={textColor}>
-                            {row.service.title}
-                          </Text>
-                          <Tag size="sm" colorScheme="teal" variant="subtle" borderRadius="full">
-                            <TagLabel>{formatRole(row.assignment.role)}</TagLabel>
-                          </Tag>
-                          {activeSwap && (
-                            <Badge
-                              colorScheme={statusColor(activeSwap.status)}
-                              borderRadius="full"
-                              px="2"
-                              textTransform="capitalize"
-                            >
-                              {activeSwap.status === 'open' ? 'Swap requested' : activeSwap.status}
-                            </Badge>
-                          )}
-                        </HStack>
-                        <HStack spacing="3" color={subtextColor}>
-                          <HStack spacing="1.5">
-                            <Calendar size={13} />
-                            <Text fontSize="xs">
-                              {formatServiceDate(row.service.date, row.service.time)}
-                            </Text>
-                          </HStack>
-                          <HStack spacing="1.5">
-                            <Clock size={13} />
-                            <Text fontSize="xs">{formatTime(row.service.time)}</Text>
-                          </HStack>
-                        </HStack>
-                      </Box>
-                      {activeSwap ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          colorScheme="red"
-                          isLoading={cancelling === activeSwap.id}
-                          onClick={() => handleCancel(activeSwap.id)}
-                        >
-                          Cancel request
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          leftIcon={<ArrowLeftRight size={14} />}
-                          onClick={() => openRequestModal(row)}
-                        >
-                          Request swap
-                        </Button>
-                      )}
-                    </Flex>
-                  </CardBody>
-                </Card>
-              );
-            })}
-          </VStack>
-        </Box>
-      )}
 
       {claimable.length > 0 && (
         <Box mb="5">
@@ -493,54 +279,6 @@ export default function SwapSection() {
         </Box>
       )}
 
-      <Modal isOpen={requestModal.isOpen} onClose={requestModal.onClose} isCentered size="md">
-        <ModalOverlay backdropBlur="sm" />
-        <ModalContent borderRadius="2xl">
-          <ModalHeader fontWeight="700">Request a swap</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            {requestTarget && (
-              <VStack spacing="4" align="stretch">
-                <Box bg="teal.50" borderRadius="lg" p="4" border="1px solid" borderColor="teal.100">
-                  <Text fontWeight="600" fontSize="sm" color="teal.800">
-                    {requestTarget.service.title}
-                  </Text>
-                  <Text mt="1" fontSize="sm" color="teal.600">
-                    {formatServiceDate(requestTarget.service.date, requestTarget.service.time)} ·{' '}
-                    {formatRole(requestTarget.assignment.role)}
-                  </Text>
-                </Box>
-                <FormControl>
-                  <FormLabel fontSize="sm">Note for your teammates (optional)</FormLabel>
-                  <Textarea
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    maxLength={500}
-                    rows={3}
-                    placeholder="Let the team know why you need coverage."
-                  />
-                  <FormHelperText fontSize="xs">
-                    {note.length}/500 characters
-                  </FormHelperText>
-                </FormControl>
-              </VStack>
-            )}
-          </ModalBody>
-          <ModalFooter gap="2">
-            <Button variant="ghost" onClick={requestModal.onClose}>
-              Cancel
-            </Button>
-            <Button
-              colorScheme="teal"
-              onClick={handleRequestSwap}
-              isLoading={submitting}
-              isDisabled={!requestTarget}
-            >
-              Request swap
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
     </Box>
   );
 }

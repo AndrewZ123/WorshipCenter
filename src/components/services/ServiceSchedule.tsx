@@ -24,7 +24,8 @@ import type {
   Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate,
   SchedulingConflict, ServiceRolePosition, AssignmentSwapSummary,
 } from '@/lib/types';
-import { deriveOpenSlots } from '@/lib/scheduling/autoFill';
+import { getFillRolesHint, getFillRolesState } from '@/lib/scheduling/rolesNeeded';
+import { shouldShowSwapRequest } from '@/lib/swaps/ui';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
@@ -32,6 +33,8 @@ import StatusBadge, { mapAssignmentStatus } from '@/components/ui/StatusBadge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import SchedulingSuggestions from './SchedulingSuggestions';
 import AutoFillRolesModal from './AutoFillRolesModal';
+import RolesNeededEditor from './RolesNeededEditor';
+import SwapRequestAction from '@/components/serve/SwapRequestAction';
 
 interface ServiceScheduleProps {
   service: Service;
@@ -59,6 +62,7 @@ export default function ServiceSchedule({
 }: ServiceScheduleProps) {
   const [assignments, setAssignments] = useState<ServiceAssignmentPopulated[]>([]);
   const [swaps, setSwaps] = useState<AssignmentSwapSummary[]>([]);
+  const [openSwapCount, setOpenSwapCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [swapProcessing, setSwapProcessing] = useState<string | null>(null);
@@ -100,17 +104,28 @@ export default function ServiceSchedule({
 
   // Fetch configured role positions so the "Fill open roles" action knows
   // whether any staffing slots are still empty.
-  useEffect(() => {
+  const loadRolePositions = () => {
     if (!churchId || !service.id) return;
     db.rolePositions
       .getByService(service.id, churchId)
       .then(setRolePositions)
       .catch(console.error);
+  };
+
+  useEffect(() => {
+    loadRolePositions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [service.id, churchId]);
 
-  const openSlots = useMemo(
-    () => deriveOpenSlots(rolePositions, assignments),
+  const fillRolesState = useMemo(
+    () => getFillRolesState(rolePositions, assignments),
     [rolePositions, assignments],
+  );
+  const fillRolesHint = getFillRolesHint(fillRolesState);
+
+  const assignmentRoleNames = useMemo(
+    () => Array.from(new Set(assignments.map((assignment) => assignment.role))),
+    [assignments],
   );
 
   const isBlockedOut = (memberId: string): TeamMemberBlockoutDate | undefined => {
@@ -171,13 +186,28 @@ export default function ServiceSchedule({
   // approve/decline them inline; volunteers just see the badge on their row.
   const loadSwaps = async () => {
     try {
-      const response = await fetch(
-        apiUrl(`/api/swaps?status=pending&serviceId=${service.id}`),
-        { headers: await getAuthHeaders() }
-      );
-      if (!response.ok) return;
-      const data = await parseJsonSafe(response);
-      setSwaps(Array.isArray(data.swaps) ? data.swaps : []);
+      const headers = await getAuthHeaders();
+      const [serviceResponse, openResponse] = await Promise.all([
+        fetch(
+          apiUrl(`/api/swaps?status=pending&serviceId=${service.id}`),
+          { headers }
+        ),
+        fetch(apiUrl('/api/swaps?status=open'), { headers }),
+      ]);
+
+      if (serviceResponse.ok) {
+        const data = await parseJsonSafe(serviceResponse);
+        setSwaps(Array.isArray(data.swaps) ? data.swaps : []);
+      }
+
+      if (openResponse.ok) {
+        const openData = await parseJsonSafe(openResponse);
+        setOpenSwapCount(
+          Array.isArray(openData.swaps)
+            ? openData.swaps.filter((swap: AssignmentSwapSummary) => swap.status === 'open').length
+            : 0
+        );
+      }
     } catch (error) {
       console.error('[ServiceSchedule] Failed to load swaps:', error);
     }
@@ -593,17 +623,29 @@ export default function ServiceSchedule({
   return (
     <Box p="6">
       {/* Toolbar */}
-      <HStack justify="space-between" align="center" mb="4">
-        <Text fontSize="sm" color={subTextColor}>
-          {assignments.length} {assignments.length === 1 ? 'person' : 'people'} scheduled
-        </Text>
+      <HStack justify="space-between" align="center" mb="4" wrap="wrap" gap="2">
+        <HStack spacing="2" wrap="wrap">
+          <Text fontSize="sm" color={subTextColor}>
+            {assignments.length} {assignments.length === 1 ? 'person' : 'people'} scheduled
+          </Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={ArrowLeftRight}
+            href="/serve"
+          >
+            Open swaps ({openSwapCount})
+          </Button>
+        </HStack>
         <HStack spacing="2">
-          {!showBulkAdd && !readOnly && openSlots.length > 0 && (
+          {!showBulkAdd && isLeader && !readOnly && (
             <Button
               variant="primary"
               size="sm"
               leftIcon={Sparkles}
               onClick={() => setShowAutoFill(true)}
+              isDisabled={fillRolesState !== 'open'}
+              disabledTooltip={fillRolesHint || undefined}
             >
               Fill open roles
             </Button>
@@ -620,6 +662,19 @@ export default function ServiceSchedule({
           )}
         </HStack>
       </HStack>
+
+      {!showBulkAdd && isLeader && !readOnly && (
+        <RolesNeededEditor
+          serviceId={service.id}
+          serviceTitle={service.title}
+          serviceDate={service.date}
+          serviceTime={service.time}
+          churchId={churchId}
+          positions={rolePositions}
+          assignmentRoles={assignmentRoleNames}
+          onSaved={loadRolePositions}
+        />
+      )}
 
       {/* Bulk Add Panel */}
       {showBulkAdd && !readOnly && (
@@ -851,6 +906,20 @@ export default function ServiceSchedule({
             const isOwn = isOwnAssignment(assignment);
             const showActions = isOwn && assignment.status === 'pending';
             const swap = swapByAssignment.get(assignment.id);
+            const showRequestSwap = shouldShowSwapRequest(
+              {
+                team_member_id: assignment.team_member_id,
+                team_member_user_id: assignment.team_member?.user_id,
+                status: assignment.status,
+              },
+              {
+                currentUserId,
+                currentTeamMemberId: user?.team_member_id,
+                serviceDate: service.date,
+                serviceTime: service.time,
+                activeSwapStatus: swap?.status ?? null,
+              },
+            );
             const blockout = assignment.team_member ? isBlockedOut(assignment.team_member.id) : undefined;
             const statusTimestamp = assignment.status === 'confirmed'
               ? assignment.confirmed_at
@@ -915,7 +984,9 @@ export default function ServiceSchedule({
                           label={
                             swap.status === 'claimed'
                               ? `${swap.claimed_by?.name || 'A teammate'} claimed this swap — awaiting leader approval`
-                              : 'This volunteer is looking for a swap'
+                              : isOwn
+                                ? 'You asked teammates to cover this role'
+                                : 'This volunteer is looking for a swap'
                           }
                         >
                           <Badge
@@ -926,7 +997,11 @@ export default function ServiceSchedule({
                             px="1.5"
                           >
                             <ArrowLeftRight size={10} style={{ display: 'inline', marginRight: 2 }} />
-                            {swap.status === 'claimed' ? 'Swap claimed' : 'Swap open'}
+                            {swap.status === 'claimed'
+                              ? 'Swap claimed'
+                              : isOwn
+                                ? 'Swap requested'
+                                : 'Swap open'}
                           </Badge>
                         </Tooltip>
                       )}
@@ -963,6 +1038,20 @@ export default function ServiceSchedule({
                         Decline
                       </Button>
                     </>
+                  )}
+                  {(showRequestSwap || (isOwn && swap)) && (
+                    <SwapRequestAction
+                      assignmentId={assignment.id}
+                      role={assignment.role}
+                      serviceTitle={service.title}
+                      serviceDate={service.date}
+                      serviceTime={service.time}
+                      activeSwap={swap ? { id: swap.id, status: swap.status } : null}
+                      showBadge={false}
+                      onChanged={async () => {
+                        await Promise.all([loadAssignments(), loadSwaps()]);
+                      }}
+                    />
                   )}
                   {!readOnly && isLeader && swap && (
                     <>

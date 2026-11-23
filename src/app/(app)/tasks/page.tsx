@@ -13,6 +13,7 @@ import { useStore } from '@/lib/StoreContext';
 import ServiceDetailClient from '@/app/(app)/services/[id]/ServiceDetailClient';
 import type { ServiceTask } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
+import UpcomingAssignmentsList from '@/components/serve/UpcomingAssignmentsList';
 import { formatServiceDate } from '@/lib/formatDate';
 import { Search, Calendar, ArrowRight } from 'lucide-react';
 
@@ -119,6 +120,8 @@ export default function MyTasksPage() {
           Tasks assigned to you across all services.
         </Text>
       </VStack>
+
+      <UpcomingAssignmentsList title="My upcoming assignments" />
 
       {/* Search */}
       <InputGroup mb="6">

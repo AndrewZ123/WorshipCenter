@@ -56,6 +56,22 @@ export interface SwapEligibilityResult {
   reasons: SwapIneligibilityReason[];
 }
 
+/** True when a service date/time is still in the future. */
+export function isServiceInFuture(
+  serviceDate: string,
+  serviceTime?: string | null,
+  now: Date = new Date()
+): boolean {
+  if (!serviceDate) return false;
+  const time =
+    serviceTime && /^\d{2}:\d{2}/.test(serviceTime)
+      ? serviceTime.slice(0, 5)
+      : '23:59';
+  const parsed = Date.parse(`${serviceDate.slice(0, 10)}T${time}:00Z`);
+  if (!Number.isFinite(parsed)) return false;
+  return parsed > now.getTime();
+}
+
 /** True when an ISO date falls inside an inclusive blockout range. */
 export function isDateBlocked(
   date: string,

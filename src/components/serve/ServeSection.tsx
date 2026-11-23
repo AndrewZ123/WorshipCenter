@@ -15,6 +15,7 @@ import type { ServiceRolePosition, SignupRequestPopulated } from '@/lib/types';
 import { Calendar, Clock, Users, UserPlus, CheckCircle, AlertCircle, XCircle, Filter } from 'lucide-react';
 import { formatTime } from '@/lib/formatDate';
 import SwapSection from '@/components/serve/SwapSection';
+import UpcomingAssignmentsList from '@/components/serve/UpcomingAssignmentsList';
 
 const ROLE_OPTIONS = [
   'worship_leader', 'vocals', 'acoustic', 'electric', 'keys', 'bass', 'drums',
@@ -208,6 +209,7 @@ export default function ServeSection() {
 
       <Divider mb="4" borderColor={borderColor} />
 
+      <UpcomingAssignmentsList />
       <SwapSection />
 
       {/* My Requests */}

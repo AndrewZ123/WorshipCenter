@@ -8,7 +8,7 @@ import {
   ModalHeader, ModalBody, ModalCloseButton, ModalFooter, FormControl,
   FormLabel, VStack, useToast, Badge, Card, CardBody, IconButton,
   Menu, MenuButton, MenuList, MenuItem, useColorModeValue, Spinner, Center,
-  InputGroup, InputLeftElement,
+  InputGroup, InputLeftElement, Textarea,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/lib/PermissionsContext';
@@ -17,9 +17,15 @@ import type { Song, SongUsage } from '@/lib/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
 import SongDetailClient from './[id]/SongDetailClient';
+import ChordProPreview from '@/components/songs/ChordProPreview';
 import { parseChordPro } from '@/lib/chordpro';
 import type { ChordProParsed } from '@/lib/chordpro';
 import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
+import {
+  CHORD_PRO_MAX_LENGTH,
+  buildChordProFileInput,
+  isChordProWithinLimit,
+} from '@/lib/song-chart';
 import { getSongUsageDisplayLines, summarizeSongUsageDates } from '@/lib/song-usage';
 
 // Lucide icons
@@ -57,6 +63,8 @@ export default function SongsPage() {
   const [defaultKey, setDefaultKey] = useState('');
   const [ccli, setCcli] = useState('');
   const [tagsStr, setTagsStr] = useState('');
+  const [chordProText, setChordProText] = useState('');
+  const [showChartPreview, setShowChartPreview] = useState(false);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -129,9 +137,32 @@ export default function SongsPage() {
 
   const handleCreate = async () => {
     if (!church || !title) return;
-    await store.songs.create({ church_id: church.id, title, artist, default_key: defaultKey || 'C', ccli_number: normalizeCcliNumber(ccli), tags: tagsStr.split(',').map((t) => t.trim()).filter(Boolean) });
+    if (!isChordProWithinLimit(chordProText)) {
+      toast({
+        title: 'Chord chart is too long',
+        description: `Keep it under ${CHORD_PRO_MAX_LENGTH.toLocaleString()} characters.`,
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    const createdSong = await store.songs.create({ church_id: church.id, title, artist, default_key: defaultKey || 'C', ccli_number: normalizeCcliNumber(ccli), tags: tagsStr.split(',').map((t) => t.trim()).filter(Boolean) });
+
+    if (chordProText.trim() && createdSong?.id) {
+      await store.songFiles.create(
+        buildChordProFileInput({
+          songId: createdSong.id,
+          title: title || createdSong.title,
+          chart: chordProText,
+          uploadedBy: user?.id || null,
+        }),
+      );
+    }
+
     toast({ title: 'Song added', status: 'success', duration: 2000 });
     setTitle(''); setArtist(''); setDefaultKey(''); setCcli(''); setTagsStr('');
+    setChordProText(''); setShowChartPreview(false);
     onClose(); await loadSongs();
   };
 
@@ -619,6 +650,39 @@ export default function SongsPage() {
                   placeholder="e.g. worship, easter, uptempo"
                   borderRadius="lg"
                 />
+              </FormControl>
+              <FormControl>
+                <FormLabel fontWeight="600" fontSize="sm">Chord chart (ChordPro)</FormLabel>
+                <Text fontSize="xs" color={subtextColor} mb="2">
+                  Paste or type a ChordPro chart using [G]inline chords. Saving it enables transpose and capo on the song page.
+                </Text>
+                <Textarea
+                  value={chordProText}
+                  onChange={(e) => setChordProText(e.target.value)}
+                  maxLength={CHORD_PRO_MAX_LENGTH}
+                  rows={8}
+                  fontFamily="'Courier New', monospace"
+                  fontSize="sm"
+                  placeholder={'{title: Amazing Grace}\n{key: G}\n\n[G]Amazing [C]grace'}
+                  borderRadius="lg"
+                />
+                <HStack justify="space-between" mt="2">
+                  <Text fontSize="xs" color={subtextColor}>
+                    {chordProText.length.toLocaleString()}/{CHORD_PRO_MAX_LENGTH.toLocaleString()} characters
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => setShowChartPreview((current) => !current)}
+                  >
+                    {showChartPreview ? 'Hide preview' : 'Preview'}
+                  </Button>
+                </HStack>
+                {showChartPreview && (
+                  <Box mt="2" p="4" bg={hoverBg} borderRadius="lg" border="1px solid" borderColor={borderColor}>
+                    <ChordProPreview text={chordProText} />
+                  </Box>
+                )}
               </FormControl>
             </VStack>
           </ModalBody>
