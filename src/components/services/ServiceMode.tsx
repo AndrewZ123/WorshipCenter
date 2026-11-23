@@ -329,8 +329,13 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
         borderRadius="0"
         m="0"
         h="100dvh"
+        maxH="100dvh"
         maxW="100vw"
         overflow="hidden"
+        display="flex"
+        flexDirection="column"
+        pt="env(safe-area-inset-top)"
+        pb="env(safe-area-inset-bottom)"
       >
         {/* Top Bar */}
         <Flex
@@ -340,6 +345,7 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
           py={{ base: '3', md: '4' }}
           borderBottom="1px solid"
           borderColor="whiteAlpha.200"
+          flexShrink={0}
         >
           <HStack spacing={{ base: '3', md: '4' }}>
             <Badge colorScheme="teal" fontSize="sm" px="3" py="1" borderRadius="full">
@@ -404,20 +410,21 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
 
         {/* Main Content */}
         <Flex
-          h={{ base: 'calc(100dvh - 52px)', md: 'calc(100dvh - 60px)', lg: 'calc(100vh - 73px)' }}
-          direction={{ base: 'column', md: 'row' }}
+          flex="1"
+          minH="0"
+          direction={{ base: 'column', lg: 'row' }}
         >
           {/* Presenter Notes Panel */}
           {showPresenterNotes && (
             <Box
-              w={{ base: 'full', md: '280px', lg: '320px' }}
+              w={{ base: 'full', lg: '280px', xl: '320px' }}
               bg="blackAlpha.400"
-              borderRight={{ base: 'none', md: '1px solid' }}
-              borderBottom={{ base: '1px solid', md: 'none' }}
+              borderRight={{ base: 'none', lg: '1px solid' }}
+              borderBottom={{ base: '1px solid', lg: 'none' }}
               borderColor="purple.500"
               overflowY="auto"
               flexShrink={0}
-              maxH={{ base: '200px', md: 'none' }}
+              maxH={{ base: '200px', lg: 'none' }}
               p={{ base: '3', md: '4' }}
             >
               <HStack mb="3" justify="space-between">
@@ -530,14 +537,23 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
           {/* Current Item Display */}
           <Flex
             flex="1"
+            minH="0"
             direction="column"
             align="center"
-            justify="center"
             p={{ base: '4', md: '8', lg: '12' }}
             position="relative"
           >
             {currentItem ? (
-              <VStack spacing={{ base: '4', md: '6' }} align="center" maxW="800px" w="full">
+              <>
+                <Flex
+                  flex="1"
+                  minH="0"
+                  w="full"
+                  align="center"
+                  justify="center"
+                  overflowY="auto"
+                >
+                  <VStack spacing={{ base: '4', md: '6' }} align="center" maxW="800px" w="full">
                 <Text fontSize="xs" color={subtextColor} letterSpacing="wider" textTransform="uppercase">
                   Item {currentIndex + 1} of {items.length}
                 </Text>
@@ -623,8 +639,17 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
                   )}
                 </VStack>
 
-                {/* Playback Controls */}
-                <HStack spacing={{ base: '4', md: '6' }} mt={{ base: '4', md: '8' }}>
+                  </VStack>
+                </Flex>
+
+                {/* Playback Controls stay pinned above the Service Flow footer
+                    so narrow/touch viewports never clip Prev/Play/Next. */}
+                <HStack
+                  spacing={{ base: '4', md: '6' }}
+                  mt={{ base: '3', md: '6' }}
+                  pt={{ base: '2', md: '3' }}
+                  flexShrink={0}
+                >
                   <IconButton
                     aria-label="Previous item"
                     icon={<SkipBack size={24} />}
@@ -665,7 +690,7 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
                     minH={{ base: '44px', md: 'auto' }}
                   />
                 </HStack>
-              </VStack>
+              </>
             ) : (
               <VStack spacing="4">
                 <Text fontSize="2xl" color={subtextColor}>No items in service</Text>
@@ -677,14 +702,14 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
           {/* Sidebar - Service Flow */}
           {!isFullscreen && items.length > 0 && (
             <Box
-              w={{ base: 'full', md: '260px', lg: '350px' }}
+              w={{ base: 'full', lg: '260px', xl: '350px' }}
               bg="blackAlpha.300"
-              borderLeft={{ base: 'none', md: '1px solid' }}
-              borderTop={{ base: '1px solid', md: 'none' }}
+              borderLeft={{ base: 'none', lg: '1px solid' }}
+              borderTop={{ base: '1px solid', lg: 'none' }}
               borderColor="whiteAlpha.200"
               overflowY="auto"
               flexShrink={0}
-              maxH={{ base: '240px', md: 'none' }}
+              maxH={{ base: '240px', lg: 'none' }}
             >
               <VStack spacing="2" align="stretch" p="4">
                 <Text fontSize="xs" fontWeight="bold" color={subtextColor} letterSpacing="wide" textTransform="uppercase" mb="2">
@@ -757,17 +782,19 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
           )}
         </Flex>
 
-        {/* Keyboard hints (only when not fullscreen) */}
+        {/* Keyboard hints (roomy desktop only, never fullscreen, never touch) */}
         {!isFullscreen && (
           <Box
-            position="absolute"
-            bottom="4"
-            left="50%"
-            transform="translateX(-50%)"
+            display={{ base: 'none', lg: 'block' }}
+            alignSelf="center"
+            flexShrink={0}
+            mx="4"
+            mb="2"
             bg="blackAlpha.500"
             borderRadius="full"
             px="4"
             py="2"
+            sx={{ '@media (pointer: coarse)': { display: 'none' } }}
           >
             <HStack spacing="4" fontSize="xs" color="whiteAlpha.600">
               <Text><kbd>Space</kbd> Play/Pause</Text>
