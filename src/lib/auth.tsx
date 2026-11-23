@@ -442,16 +442,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 2. Call server-side API to create church, subscription, user profile, and team member
-      //    (bypasses the buggy signup_church RPC function that causes duplicate key errors)
+      //    (bypasses the buggy signup_church RPC function that causes duplicate key errors).
+      //    The API binds the profile to the bearer token, so there is nothing to do
+      //    until email confirmation produces a session.
+      const accessToken = authData.session?.access_token;
+      if (!accessToken) {
+        return { success: true, requiresEmailConfirmation: true };
+      }
+
       const signupResponse = await fetch(`${apiBaseUrl()}/api/auth/signup`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           churchName,
           userName,
           email,
-          password,
-          authUserId: authData.user.id,
         }),
       });
 

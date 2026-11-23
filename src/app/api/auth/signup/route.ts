@@ -16,6 +16,23 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse(limit);
     }
 
+    // Signup creates rows with the service role, so the profile must be bound
+    // to the caller's verified JWT rather than an `authUserId` from the body.
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.slice('Bearer '.length).trim();
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -29,6 +46,23 @@ export async function POST(request: NextRequest) {
     }
 
     const { churchName, userName, email, authUserId } = parsed.data;
+
+    // Never create a church/profile for a different auth user than the caller.
+    if (authUserId && authUserId !== authUser.id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const tokenEmail = authUser.email?.toLowerCase();
+    if (!tokenEmail) {
+      return NextResponse.json({ error: 'Account has no email address' }, { status: 400 });
+    }
+
+    if (email && email !== tokenEmail) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    const profileUserId = authUser.id;
+    const profileEmail = tokenEmail;
 
     // 1. Create the church (churches table only has id, name, created_at)
     const { data: churchData, error: churchError } = await supabaseAdmin
@@ -74,10 +108,10 @@ export async function POST(request: NextRequest) {
     const { error: userError } = await supabaseAdmin
       .from('users')
       .insert({
-        id: authUserId,
+        id: profileUserId,
         church_id: churchId,
         name: userName,
-        email: email,
+        email: profileEmail,
         role: 'admin',
       });
 
@@ -97,16 +131,16 @@ export async function POST(request: NextRequest) {
       .insert({
         church_id: churchId,
         name: userName,
-        email: email,
+        email: profileEmail,
         phone: '',
         roles: ['Worship Leader'],
-        user_id: authUserId,
+        user_id: profileUserId,
       });
 
     if (teamMemberError) {
       console.error('[Signup API] Team member creation error:', teamMemberError.message);
       // Clean up the church and user profile we just created
-      await supabaseAdmin.from('users').delete().eq('id', authUserId);
+      await supabaseAdmin.from('users').delete().eq('id', profileUserId);
       await supabaseAdmin.from('churches').delete().eq('id', churchId);
       return NextResponse.json(
         { error: `Failed to create team member: ${teamMemberError.message}` },

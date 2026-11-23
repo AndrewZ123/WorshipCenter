@@ -60,9 +60,11 @@ export const ResetPasswordRequestSchema = z.object({
 export const SignupAccountSchema = z.object({
   churchName: z.string().trim().min(2, 'Church name too short').max(200, 'Church name too long'),
   userName: z.string().trim().min(2, 'Name too short').max(100, 'Name too long'),
-  email: EmailSchema,
-  password: z.string().min(6, 'Password must be at least 6 characters').max(200),
-  authUserId: UUIDSchema,
+  // Identity and credentials come from Supabase Auth / the bearer token. These
+  // fields are accepted for backwards compatibility only when they match the
+  // authenticated user.
+  email: EmailSchema.optional(),
+  authUserId: UUIDSchema.optional(),
 });
 
 export const SendWelcomeSchema = z.object({

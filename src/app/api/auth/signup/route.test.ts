@@ -11,37 +11,73 @@ vi.mock('@supabase/supabase-js', () => ({
 const fake = createFakeSupabaseClient();
 vi.mocked(createClient).mockReturnValue(fake as never);
 
-const authUserId = '00000000-0000-4000-8000-000000000010';
+const tokenUserId = '00000000-0000-4000-8000-000000000010';
+const otherUserId = '00000000-0000-4000-8000-000000000011';
+const tokenEmail = 'user@example.test';
+const accessToken = 'test-access-token';
 
 function signupRequest(
   body: Record<string, unknown>,
-  ip = '203.0.113.10'
+  ip = '203.0.113.10',
+  token: string | null = accessToken
 ): NextRequest {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-forwarded-for': ip,
+  };
+  if (token) {
+    headers.authorization = `Bearer ${token}`;
+  }
+
   return new NextRequest('http://localhost/api/auth/signup', {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-forwarded-for': ip,
-    },
+    headers,
     body: JSON.stringify(body),
   });
 }
 
+const validBody = {
+  churchName: 'Grace Church',
+  userName: 'Test User',
+  email: tokenEmail,
+};
+
 beforeEach(() => {
   fake.reset();
+  fake.auth.getUser.mockResolvedValue({
+    data: { user: { id: tokenUserId, email: tokenEmail } },
+    error: null,
+  });
 });
 
 describe('POST /api/auth/signup', () => {
+  it('returns 401 without a bearer token and creates nothing', async () => {
+    const response = await POST(
+      signupRequest(validBody, '203.0.113.14', null)
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+    expect(fake.auth.getUser).not.toHaveBeenCalled();
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when the token is invalid', async () => {
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'invalid token' },
+    });
+
+    const response = await POST(signupRequest(validBody, '203.0.113.15'));
+
+    expect(response.status).toBe(401);
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
   it('returns 400 for an invalid email and creates nothing', async () => {
     const response = await POST(
       signupRequest(
-        {
-          churchName: 'Grace Church',
-          userName: 'Test User',
-          email: 'not-an-email',
-          password: 'secret123',
-          authUserId,
-        },
+        { ...validBody, email: 'not-an-email' },
         '203.0.113.11'
       )
     );
@@ -58,24 +94,38 @@ describe('POST /api/auth/signup', () => {
     expect(fake.from).not.toHaveBeenCalled();
   });
 
-  it('creates the church and admin profile for a valid public signup', async () => {
+  it('rejects a body authUserId that differs from the JWT subject', async () => {
+    const response = await POST(
+      signupRequest(
+        { ...validBody, authUserId: otherUserId },
+        '203.0.113.16'
+      )
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: 'Access denied' });
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it('rejects a body email that differs from the JWT email', async () => {
+    const response = await POST(
+      signupRequest(
+        { ...validBody, email: 'other@example.test' },
+        '203.0.113.17'
+      )
+    );
+
+    expect(response.status).toBe(403);
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it('creates the church and admin profile for the JWT subject', async () => {
     fake.setTableResult('churches', {
       data: { id: 'church-1' },
       error: null,
     });
 
-    const response = await POST(
-      signupRequest(
-        {
-          churchName: 'Grace Church',
-          userName: 'Test User',
-          email: 'User@Example.test',
-          password: 'secret123',
-          authUserId,
-        },
-        '203.0.113.13'
-      )
-    );
+    const response = await POST(signupRequest(validBody, '203.0.113.13'));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -83,6 +133,7 @@ describe('POST /api/auth/signup', () => {
       church_id: 'church-1',
     });
 
+    expect(fake.auth.getUser).toHaveBeenCalledWith(accessToken);
     expect(fake.operationsFor('churches')).toContainEqual({
       table: 'churches',
       method: 'insert',
@@ -93,11 +144,25 @@ describe('POST /api/auth/signup', () => {
       method: 'insert',
       args: [
         {
-          id: authUserId,
+          id: tokenUserId,
           church_id: 'church-1',
           name: 'Test User',
-          email: 'user@example.test',
+          email: tokenEmail,
           role: 'admin',
+        },
+      ],
+    });
+    expect(fake.operationsFor('team_members')).toContainEqual({
+      table: 'team_members',
+      method: 'insert',
+      args: [
+        {
+          church_id: 'church-1',
+          name: 'Test User',
+          email: tokenEmail,
+          phone: '',
+          roles: ['Worship Leader'],
+          user_id: tokenUserId,
         },
       ],
     });
