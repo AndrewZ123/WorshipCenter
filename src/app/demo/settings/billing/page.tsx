@@ -119,7 +119,7 @@ export default function DemoBillingPage() {
                       'Unlimited songs & team members',
                       'Team scheduling',
                       'CCLI reporting',
-                      'Mobile app access',
+                      'Works in any mobile browser',
                     ].map((feature) => (
                       <ListItem key={feature} display="flex" alignItems="center">
                         <ListIcon as={FiCheck} color="brand.500" />

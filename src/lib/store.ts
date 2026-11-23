@@ -802,15 +802,15 @@ export const db = {
     },
     createForService: async (serviceId: string, churchId: string, date: string) => {
       // Verify the service belongs to this church
-      const { data: service } = await supabase
+      const { data: service, error: serviceError } = await supabase
         .from('services')
         .select('church_id')
         .eq('id', serviceId)
         .single();
       
-      if (!service || service.church_id !== churchId) {
+      if (serviceError || !service || service.church_id !== churchId) {
         console.error('[SongUsage] CreateForService failed: service not found or access denied', { serviceId, churchId });
-        return;
+        throw new Error('Could not verify the service for song usage');
       }
       
       const items = await db.serviceItems.getByService(serviceId);
@@ -828,7 +828,11 @@ export const db = {
           song_id: item.song_id!,
           date,
         }));
-        await supabase.from('song_usage').insert(usages);
+        const { error } = await supabase.from('song_usage').insert(usages);
+        if (error) {
+          console.error('[SongUsage] Failed to insert song usage:', error.message, { serviceId, churchId });
+          throw new Error(`Failed to record song usage: ${error.message}`);
+        }
       }
     },
   },

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function SongUsageSection() {
-  const { church } = useAuth();
+  const { church, loading: authLoading } = useAuth();
   const store = useStore();
   const router = useRouter();
   const toast = useToast();
@@ -29,20 +29,26 @@ export default function SongUsageSection() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
   const headingColor = useColorModeValue('gray.900', 'white');
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
   const hoverBg = useColorModeValue('gray.50', 'gray.700');
+  const theadBg = useColorModeValue('gray.50', 'gray.700');
 
   useEffect(() => {
     if (church) loadUsage();
   }, [church]);
 
   const loadUsage = async () => {
-    if (!church) return;
+    if (!church) {
+      setLoading(false);
+      return;
+    }
     try {
+      setLoadError(false);
       setLoading(true);
       setAllUsage(await store.songUsage.getByChurch(church.id));
       setSongs(await store.songs.getByChurch(church.id));
@@ -56,6 +62,7 @@ export default function SongUsageSection() {
       setAllServiceItems(items);
     } catch (error) {
       console.error('Error loading usage:', error);
+      setLoadError(true);
       toast({ title: 'Error loading data', status: 'error', duration: 3000 });
     } finally {
       setLoading(false);
@@ -128,6 +135,35 @@ export default function SongUsageSection() {
     setDateFrom(from);
     setDateTo(to);
   };
+
+  if (authLoading) {
+    return (
+      <Center py="8">
+        <Spinner size="xl" color="teal.500" />
+      </Center>
+    );
+  }
+
+  // No church means the profile fetch failed. Show a retry instead of spinning.
+  if (!church || loadError) {
+    return (
+      <Center py="12">
+        <VStack spacing="3" textAlign="center" px="6">
+          <Text fontWeight="600">Couldn&apos;t load song usage</Text>
+          <Text fontSize="sm" color={subtextColor}>
+            Check your internet connection and try again.
+          </Text>
+          <Button
+            size="sm"
+            colorScheme="teal"
+            onClick={() => { if (church) loadUsage(); else window.location.reload(); }}
+          >
+            Retry
+          </Button>
+        </VStack>
+      </Center>
+    );
+  }
 
   if (loading) {
     return (
@@ -256,7 +292,7 @@ export default function SongUsageSection() {
           {/* Desktop Table */}
           <Box display={{ base: 'none', md: 'block' }} bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} overflow="hidden" boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
             <Table variant="simple">
-              <Thead bg={useColorModeValue('gray.50', 'gray.700')}>
+              <Thead bg={theadBg}>
                 <Tr>
                   <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Date</Th>
                   <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Service</Th>

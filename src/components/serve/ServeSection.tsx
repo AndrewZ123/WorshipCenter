@@ -35,13 +35,14 @@ interface OpenPosition extends ServiceRolePosition {
 type RawOpenPosition = Omit<OpenPosition, 'filled' | 'pending'>;
 
 export default function ServeSection() {
-  const { user, church } = useAuth();
+  const { user, church, loading: authLoading } = useAuth();
   const store = useStore();
   const toast = useToast();
   const signupModal = useDisclosure();
   const [positions, setPositions] = useState<OpenPosition[]>([]);
   const [myRequests, setMyRequests] = useState<SignupRequestPopulated[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [roleFilter, setRoleFilter] = useState('all');
   const [signingUp, setSigningUp] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<OpenPosition | null>(null);
@@ -56,8 +57,12 @@ export default function ServeSection() {
   }, [church]);
 
   const loadData = async () => {
-    if (!church) return;
+    if (!church) {
+      setLoading(false);
+      return;
+    }
     try {
+      setLoadError(false);
       setLoading(true);
       const rawPositions = await store.rolePositions.getOpenForChurch(church.id) as RawOpenPosition[];
       const enriched: OpenPosition[] = await Promise.all(
@@ -75,6 +80,13 @@ export default function ServeSection() {
       }
     } catch (error) {
       console.error('Error loading serve data:', error);
+      setLoadError(true);
+      toast({
+        title: 'Error loading serve data',
+        description: 'Please try again.',
+        status: 'error',
+        duration: 4000,
+      });
     } finally {
       setLoading(false);
     }
@@ -142,6 +154,41 @@ export default function ServeSection() {
   const filteredPositions = roleFilter === 'all'
     ? positions
     : positions.filter(p => p.role === roleFilter);
+
+  if (authLoading) {
+    return (
+      <Center py="8">
+        <Spinner size="xl" color="teal.500" />
+      </Center>
+    );
+  }
+
+  // No signed-in user (e.g. the public demo) — there is nothing to load.
+  if (!user) return null;
+
+  // Auth has finished but there is no church (the profile fetch failed), or
+  // the positions request failed. Show a retry instead of an endless spinner.
+  if (!church || loadError) {
+    return (
+      <Center py="12">
+        <VStack spacing="3" textAlign="center" px="6">
+          <Text fontWeight="600" color={textColor}>
+            {church ? "Couldn't load open positions" : "Couldn't load your church data"}
+          </Text>
+          <Text fontSize="sm" color={subtextColor}>
+            Check your internet connection and try again.
+          </Text>
+          <Button
+            size="sm"
+            colorScheme="teal"
+            onClick={() => { if (church) loadData(); else window.location.reload(); }}
+          >
+            Retry
+          </Button>
+        </VStack>
+      </Center>
+    );
+  }
 
   if (loading) {
     return (

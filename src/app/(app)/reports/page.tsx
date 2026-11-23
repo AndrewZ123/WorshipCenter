@@ -40,13 +40,18 @@ export default function ReportsPage() {
   const { user, church, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [range, setRange] = useState<DateRange>('90d');
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
 
   const loadData = useCallback(async () => {
-    if (!church) return;
+    if (!church) {
+      setLoading(false);
+      return;
+    }
+    setLoadError(false);
     setLoading(true);
     try {
       const now = new Date();
@@ -123,6 +128,7 @@ export default function ReportsPage() {
       });
     } catch (err) {
       console.error('[Reports] Failed to load:', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -151,6 +157,23 @@ export default function ReportsPage() {
           </Text>
           <Button size="sm" colorScheme="teal" onClick={() => window.location.reload()}>
             Refresh
+          </Button>
+        </VStack>
+      </Center>
+    );
+  }
+
+  // A failed fetch must not leave the "Loading reports..." spinner up forever.
+  if (loadError) {
+    return (
+      <Center h="50vh">
+        <VStack spacing={3} textAlign="center" px={6}>
+          <Text fontWeight="600">Couldn&apos;t load reports</Text>
+          <Text fontSize="sm" color="gray.500">
+            Check your internet connection and try again.
+          </Text>
+          <Button size="sm" colorScheme="teal" onClick={() => loadData()}>
+            Retry
           </Button>
         </VStack>
       </Center>

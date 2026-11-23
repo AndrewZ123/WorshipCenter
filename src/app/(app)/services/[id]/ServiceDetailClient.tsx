@@ -346,6 +346,12 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
           );
         } catch (e) {
           console.error('[SongUsage] Failed to log song usage:', e);
+          toast({
+            title: 'CCLI song usage not recorded',
+            description: 'The service was saved, but song usage could not be logged. Try saving the service again to fix the CCLI export.',
+            status: 'warning',
+            duration: 6000,
+          });
         }
         // Notify assigned team members
         if (user && church) {
@@ -1030,19 +1036,21 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
               <Portal>
               <MenuList borderRadius="xl" zIndex={50}>
                 <MenuItem onClick={() => { setEditing(true); setActiveTab(0); setPrimaryTab(0); }} icon={<Edit size={16} />}>Edit Service</MenuItem>
-                <MenuItem onClick={() => {
-                  // generateServicePDF is async — catch failures so a PDF
-                  // error surfaces as a toast instead of a silent rejection
-                  generateServicePDF({
-                    service: service!,
-                    items,
-                    assignments,
-                    teamMembers,
-                    churchName: church?.name || 'Church',
-                  }).catch((error) => {
+                <MenuItem onClick={async () => {
+                  // generateServicePDF is async — await and catch failures so a
+                  // PDF error surfaces as a toast instead of a silent rejection
+                  try {
+                    await generateServicePDF({
+                      service: service!,
+                      items,
+                      assignments,
+                      teamMembers,
+                      churchName: church?.name || 'Church',
+                    });
+                  } catch (error) {
                     console.error('[PDF] Export failed:', error);
                     toast({ title: 'PDF export failed', description: 'Please try again.', status: 'error', duration: 3000 });
-                  });
+                  }
                 }} icon={<Printer size={16} />}>Export / Print PDF</MenuItem>
                 <MenuItem onClick={handleDuplicateService} icon={<Copy size={16} />}>Duplicate</MenuItem>
                 <Divider />
