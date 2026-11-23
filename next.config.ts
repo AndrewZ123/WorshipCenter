@@ -128,11 +128,9 @@ const nextConfig: NextConfig = {
             key: 'Server',
             value: 'WorshipCenter'
           },
-          // Remove technology fingerprints
-          {
-            key: 'X-Content-Security-Policy',
-            value: 'default-src \'self\''
-          },
+          // Do not add a second, weaker CSP. The standard
+          // Content-Security-Policy above is the single source of truth.
+
         ],
       },
       // API routes get additional security

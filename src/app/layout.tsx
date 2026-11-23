@@ -45,15 +45,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
         <link rel="apple-touch-startup-image" href="/icons/icon-512.png" />
         
-        {/* Security Headers */}
+        {/* Security headers that browsers still honor from meta. Clickjacking
+            protection (X-Frame-Options / CSP frame-ancestors) is sent as real
+            HTTP headers from next.config.ts; meta versions are ignored. */}
         <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
-        <meta httpEquiv="X-Frame-Options" content="DENY" />
         <meta httpEquiv="X-XSS-Protection" content="1; mode=block" />
         <meta name="referrer" content="strict-origin-when-cross-origin" />
-        <meta
-          httpEquiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://m.stripe.com https://m.stripe.network; style-src 'self' 'unsafe-inline' 'unsafe-hashes' https://js.stripe.com https://m.stripe.network https://fonts.googleapis.com; img-src 'self' data: blob: https: https://*.stripe.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://m.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com https://m.stripe.network https://m.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"
-        />
       </head>
       <body style={{ margin: 0 }} suppressHydrationWarning>
         <ChakraProviderWrapper>
