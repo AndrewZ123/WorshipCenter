@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { PushRegisterSchema, invalidInputResponse } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,21 +16,19 @@ export async function POST(request: NextRequest) {
       return subscriptionCheck;
     }
 
-    const { token, platform } = await request.json();
-
-    if (!token || !platform) {
-      return NextResponse.json(
-        { error: 'Missing required fields: token, platform' },
-        { status: 400 }
-      );
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return invalidInputResponse();
     }
 
-    if (!['ios', 'android'].includes(platform)) {
-      return NextResponse.json(
-        { error: 'Platform must be ios or android' },
-        { status: 400 }
-      );
+    const parsedBody = PushRegisterSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
     }
+
+    const { token, platform } = parsedBody.data;
 
     const { data: existing } = await supabaseAdmin
       .from('device_tokens')

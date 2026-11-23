@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { PushUnregisterSchema, invalidInputResponse } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,14 +16,19 @@ export async function POST(request: NextRequest) {
       return subscriptionCheck;
     }
 
-    const { token } = await request.json();
-
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Missing required field: token' },
-        { status: 400 }
-      );
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return invalidInputResponse();
     }
+
+    const parsedBody = PushUnregisterSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const { token } = parsedBody.data;
 
     await supabaseAdmin
       .from('device_tokens')

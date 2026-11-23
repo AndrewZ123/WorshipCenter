@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { handleRemindersRequest } from '@/lib/reminders';
+import { ReminderAuthSchema } from '@/lib/validation';
 
 // Reminder Job API Endpoint
 // This endpoint can be called by Vercel Cron Jobs or external cron services
@@ -64,5 +65,14 @@ function isAuthorized(request: Request): boolean {
   }
   const header = request.headers.get('authorization');
   const querySecret = new URL(request.url).searchParams.get('secret');
+
+  const parsed = ReminderAuthSchema.safeParse({
+    header: header ?? undefined,
+    secret: querySecret ?? undefined,
+  });
+  if (!parsed.success) {
+    return false;
+  }
+
   return header === `Bearer ${secret}` || querySecret === secret;
 }

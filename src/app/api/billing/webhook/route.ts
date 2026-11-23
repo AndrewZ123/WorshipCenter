@@ -19,10 +19,20 @@ import { getStripe } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase';
 import type Stripe from 'stripe';
 import { env } from '@/lib/env';
+import { StripeWebhookEventSchema, invalidInputResponse } from '@/lib/validation';
 import type { SubscriptionStatus } from '@/lib/types';
 
 // Disable body parsing — we need the raw body for signature verification
 export const runtime = 'nodejs';
+
+interface SubscriptionPeriodFields {
+  id: string;
+  status: string;
+  metadata?: { church_id?: string; price_type?: string } | null;
+  current_period_start: number;
+  current_period_end: number;
+  canceled_at?: number | null;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,9 +62,17 @@ export async function POST(request: NextRequest) {
     let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } catch (err: any) {
-      console.error('[Webhook] Signature verification failed:', err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[Webhook] Signature verification failed:', message);
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+    }
+
+    // Signature is valid — now validate the event shape before touching the DB.
+    const parsedEvent = StripeWebhookEventSchema.safeParse(event);
+    if (!parsedEvent.success) {
+      console.error('[Webhook] Event payload failed validation');
+      return invalidInputResponse();
     }
 
     console.log('[Webhook] Received event:', event.type, event.id);
@@ -82,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ received: true });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Webhook] Fatal error:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
@@ -115,7 +133,10 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   }
 
   const stripe = getStripe()!;
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId) as unknown as {
+    current_period_start: number;
+    current_period_end: number;
+  };
 
   // Calculate period end
   const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
@@ -153,7 +174,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
  * Subscription was updated (plan change, renewal, etc.)
  */
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const sub = subscription as any;
+  const sub = subscription as unknown as SubscriptionPeriodFields;
   console.log('[Webhook] Subscription updated:', sub.id);
 
   const churchId = sub.metadata?.church_id;
@@ -276,7 +297,11 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     return;
   }
 
-  const churchId = (sub as any).church_id as string;
+  const churchId = (sub as { church_id?: string }).church_id;
+  if (!churchId) {
+    console.error('[Webhook] Subscription row has no church_id for customer:', invoice.customer);
+    return;
+  }
 
   const { error } = await supabaseAdmin
     .from('subscriptions')

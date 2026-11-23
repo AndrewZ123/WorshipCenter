@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env';
-import { checkRateLimit, sanitizeRequestBody } from '@/lib/auth-middleware';
+import { checkRateLimit } from '@/lib/auth-middleware';
+import { ResetPasswordRequestSchema, invalidInputResponse } from '@/lib/validation';
 
 /**
  * Rate limit password reset requests to prevent abuse
@@ -12,30 +13,23 @@ const RESET_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 export async function POST(request: NextRequest) {
   try {
     // Parse and validate request body
-    const body = await request.json();
-    const sanitized = sanitizeRequestBody(body);
-    const { email } = sanitized;
-
-    // Validate email
-    if (!email || typeof email !== 'string') {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      );
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return invalidInputResponse();
     }
 
-    // Basic email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: 'Invalid email format' },
-        { status: 400 }
-      );
+    const parsed = ResetPasswordRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return invalidInputResponse();
     }
+
+    const { email } = parsed.data;
 
     // Rate limiting by email
     const rateLimit = checkRateLimit(
-      `reset-password-${email.toLowerCase()}`,
+      `reset-password-${email}`,
       MAX_RESET_ATTEMPTS,
       RESET_WINDOW_MS
     );

@@ -78,6 +78,31 @@ describe('GET /api/chat/giphy', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('returns 400 for an invalid offset after authentication', async () => {
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'user-1@example.test' } },
+      error: null,
+    });
+    fake.setTableResult('users', {
+      data: {
+        id: 'user-1',
+        email: 'user-1@example.test',
+        role: 'admin',
+        church_id: 'church-1',
+      },
+      error: null,
+    });
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/chat/giphy?q=celebration&offset=-1', {
+        headers: { authorization: 'Bearer test-token' },
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('returns 402 for an expired trial', async () => {
     fake.auth.getUser.mockResolvedValue({
       data: { user: { id: 'user-1', email: 'user-1@example.test' } },

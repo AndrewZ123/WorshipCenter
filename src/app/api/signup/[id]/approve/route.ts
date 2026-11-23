@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { SignupParamsSchema, invalidInputResponse } from '@/lib/validation';
 
 export async function POST(
   request: NextRequest,
@@ -18,7 +19,11 @@ export async function POST(
       return subscriptionCheck;
     }
 
-    const { id } = await params;
+    const paramsResult = SignupParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { id } = paramsResult.data;
 
     // Fetch the signup request
     const { data: signupRequest, error: fetchError } = await supabaseAdmin
@@ -44,15 +49,21 @@ export async function POST(
 
     const churchId = service.church_id;
 
-    // Verify the current user is an admin/leader of this church
+    // Verify the current user is an admin/leader of this church. The admin
+    // client bypasses RLS, so this church check is what prevents acting on
+    // another church's signup request.
     const { data: currentUser } = await supabaseAdmin
       .from('users')
-      .select('role')
+      .select('role, church_id')
       .eq('id', user.id)
       .eq('church_id', churchId)
       .single();
 
-    if (!currentUser || !['admin', 'leader'].includes(currentUser.role)) {
+    if (
+      !currentUser ||
+      currentUser.church_id !== churchId ||
+      !['admin', 'leader'].includes(currentUser.role)
+    ) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

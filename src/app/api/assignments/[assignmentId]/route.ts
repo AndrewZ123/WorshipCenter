@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { AssignmentParamsSchema, invalidInputResponse } from '@/lib/validation';
 
 export async function DELETE(
   request: NextRequest,
@@ -18,7 +19,11 @@ export async function DELETE(
       return subscriptionCheck;
     }
 
-    const { assignmentId } = await params;
+    const paramsResult = AssignmentParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { assignmentId } = paramsResult.data;
 
     const { data: userData } = await supabaseAdmin
       .from('users')

@@ -16,9 +16,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/auth-middleware';
 import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
-import { getStripe, PRICING, isStripeConfigured, getMissingStripeConfig, type PriceTier } from '@/lib/stripe';
+import { getStripe, PRICING, isStripeConfigured, getMissingStripeConfig } from '@/lib/stripe';
 import { supabaseAdmin, isSupabaseAdminConfigured, getMissingSupabaseConfig } from '@/lib/supabase';
 import { env } from '@/lib/env';
+import { BillingCheckoutRequestSchema, invalidInputResponse } from '@/lib/validation';
 import type { Subscription } from '@/lib/types';
 
 /**
@@ -86,24 +87,23 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 2. Parse and validate request body ────────────────────────────────
-    let body: { priceType?: string; successUrl?: string; cancelUrl?: string };
+    let rawBody: unknown;
     try {
-      body = await request.json();
+      rawBody = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+      return invalidInputResponse();
     }
 
-    const priceType = body.priceType as PriceTier;
-    if (priceType !== 'monthly' && priceType !== 'yearly') {
-      return NextResponse.json(
-        { error: 'Invalid price type. Must be "monthly" or "yearly".' },
-        { status: 400 }
-      );
+    const parsedBody = BillingCheckoutRequestSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
     }
+
+    const { priceType } = parsedBody.data;
 
     // Use custom URLs if provided, otherwise use defaults
-    const successUrl = body.successUrl || `${env.appUrl()}/settings/billing?success=true`;
-    const cancelUrl = body.cancelUrl || `${env.appUrl()}/settings/billing?canceled=true`;
+    const successUrl = parsedBody.data.successUrl || `${env.appUrl()}/settings/billing?success=true`;
+    const cancelUrl = parsedBody.data.cancelUrl || `${env.appUrl()}/settings/billing?canceled=true`;
 
     // ── 3. Authenticate the user via Authorization header ──────────────────
     const authHeader = request.headers.get('Authorization');

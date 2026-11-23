@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
+import { SongParamsSchema, invalidInputResponse } from '@/lib/validation';
 import { z } from 'zod';
 
 // GET /api/songs/[songId]/arrangements - List all arrangements for a song
@@ -10,7 +11,6 @@ export async function GET(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -20,6 +20,12 @@ export async function GET(
     if (subscriptionCheck !== true) {
       return subscriptionCheck;
     }
+
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { songId } = paramsResult.data;
 
     const arrangements = await db.songArrangements.getBySong(songId, user.church_id);
     return NextResponse.json({ arrangements });
@@ -35,7 +41,6 @@ export async function POST(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -45,6 +50,12 @@ export async function POST(
     if (subscriptionCheck !== true) {
       return subscriptionCheck;
     }
+
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { songId } = paramsResult.data;
 
     // Verify song belongs to user's church
     const song = await db.songs.getById(songId, user.church_id);
@@ -59,8 +70,19 @@ export async function POST(
       time_signature: z.enum(['2/4', '3/4', '4/4', '6/8', '5/4', '7/8']).optional().default('4/4'),
     });
 
-    const body = CreateArrangementSchema.parse(await req.json());
-    const { name, key, tempo, time_signature } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return invalidInputResponse();
+    }
+
+    const parsedBody = CreateArrangementSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const { name, key, tempo, time_signature } = parsedBody.data;
 
     const arrangement = await db.songArrangements.create({
       song_id: songId,
@@ -91,7 +113,6 @@ export async function PATCH(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -100,6 +121,11 @@ export async function PATCH(
     const subscriptionCheck = await requireActiveSubscription(req);
     if (subscriptionCheck !== true) {
       return subscriptionCheck;
+    }
+
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
     }
 
     const UpdateArrangementSchema = z.object({
@@ -112,8 +138,19 @@ export async function PATCH(
       is_default: z.boolean().optional(),
     });
 
-    const body = UpdateArrangementSchema.parse(await req.json());
-    const { arrangementId, ...updates } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return invalidInputResponse();
+    }
+
+    const parsedBody = UpdateArrangementSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const { arrangementId, ...updates } = parsedBody.data;
 
     const arrangement = await db.songArrangements.update(
       arrangementId,
@@ -137,7 +174,6 @@ export async function DELETE(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -148,11 +184,28 @@ export async function DELETE(
       return subscriptionCheck;
     }
 
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+
     const DeleteArrangementSchema = z.object({
       arrangementId: z.string().uuid('Invalid arrangement ID'),
     });
 
-    const { arrangementId } = DeleteArrangementSchema.parse(await req.json());
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return invalidInputResponse();
+    }
+
+    const parsedBody = DeleteArrangementSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const { arrangementId } = parsedBody.data;
 
     const success = await db.songArrangements.delete(arrangementId, user.church_id);
     if (!success) {

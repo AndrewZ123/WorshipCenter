@@ -4,6 +4,7 @@ import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { assignmentDeclinedEmail } from '@/lib/email-templates';
+import { AssignmentParamsSchema, invalidInputResponse } from '@/lib/validation';
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
@@ -38,7 +39,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ assignmentId: string }> }
 ) {
-  const { assignmentId } = await params;
+  const paramsResult = AssignmentParamsSchema.safeParse(await params);
+  if (!paramsResult.success) {
+    return invalidInputResponse();
+  }
+  const { assignmentId } = paramsResult.data;
 
   // Fetch via supabaseAdmin (no login needed)
   const { data: assignment, error: fetchError } = await supabaseAdmin
@@ -118,7 +123,11 @@ export async function POST(
       return subscriptionCheck;
     }
 
-    const { assignmentId } = await params;
+    const paramsResult = AssignmentParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { assignmentId } = paramsResult.data;
 
     const { data: userData } = await supabaseAdmin
       .from('users')

@@ -63,6 +63,22 @@ describe('POST /api/billing/create-checkout-session', () => {
     expect(response.status).toBe(401);
   });
 
+  it('returns 400 for an invalid price type', async () => {
+    const response = await POST(
+      new NextRequest('http://localhost/api/billing/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: 'Bearer test-token',
+        },
+        body: JSON.stringify({ priceType: 'weekly' }),
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid request' });
+  });
+
   it('stays reachable for an authenticated expired trial (no subscription gate)', async () => {
     fake.auth.getUser.mockResolvedValue({
       data: { user: { id: 'user-1', email: 'user-1@example.test' } },

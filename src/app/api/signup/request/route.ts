@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
+import { SignupRequestBodySchema, invalidInputResponse } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,12 +16,19 @@ export async function POST(request: NextRequest) {
       return subscriptionCheck;
     }
 
-    const body = await request.json();
-    const { serviceId, role, teamMemberId, name, email, phone, churchId } = body;
-
-    if (!serviceId || !role || !churchId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return invalidInputResponse();
     }
+
+    const parsedBody = SignupRequestBodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const { serviceId, role, teamMemberId, name, email, phone, churchId } = parsedBody.data;
 
     // Verify user belongs to this church
     const { data: userData } = await supabaseAdmin

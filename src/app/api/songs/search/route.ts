@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
+import { SongSearchQuerySchema, invalidInputResponse } from '@/lib/validation';
 
 // GET /api/songs/search?q=<query>&tags=tag1,tag2&key=C&artist=...&limit=20
 export async function GET(req: NextRequest) {
@@ -17,14 +18,14 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const query = searchParams.get('q') || '';
-    const tagsParam = searchParams.get('tags');
-    const key = searchParams.get('key') || undefined;
-    const artist = searchParams.get('artist') || undefined;
-    const limit = searchParams.get('limit')
-      ? parseInt(searchParams.get('limit')!, 10)
-      : undefined;
+    const parsedQuery = SongSearchQuerySchema.safeParse(
+      Object.fromEntries(searchParams.entries())
+    );
+    if (!parsedQuery.success) {
+      return invalidInputResponse();
+    }
 
+    const { q: query, tags: tagsParam, key, artist, limit } = parsedQuery.data;
     const tags = tagsParam ? tagsParam.split(',').filter(Boolean) : undefined;
 
     const songs = await db.songSearch.search(user.church_id, query, {

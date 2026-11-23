@@ -39,8 +39,19 @@ export async function POST(request: NextRequest) {
       return subscriptionCheck;
     }
 
-    const body = SendReminderSchema.parse(await request.json());
-    const { serviceId, churchId, serviceTitle, serviceDate, serviceTime } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return jsonResponse({ error: 'Invalid request' }, 400);
+    }
+
+    const parsedBody = SendReminderSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return jsonResponse({ error: 'Invalid request' }, 400);
+    }
+
+    const { serviceId, churchId, serviceTitle, serviceDate, serviceTime } = parsedBody.data;
 
     if (user.church_id !== churchId) {
       return jsonResponse({ error: 'Access denied' }, 403);

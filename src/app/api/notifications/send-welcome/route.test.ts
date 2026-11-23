@@ -49,6 +49,29 @@ describe('POST /api/notifications/send-welcome', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('returns 400 for an invalid body without sending email', async () => {
+    fake.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'user-1@example.test' } },
+      error: null,
+    });
+    fake.setTableResult('users', {
+      data: {
+        id: 'user-1',
+        name: 'Test User',
+        email: 'user-1@example.test',
+        role: 'admin',
+        church_id: 'church-1',
+      },
+      error: null,
+    });
+
+    const response = await POST(welcomeRequest({}, 'test-token'));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid request' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('returns 403 when posting a different userId', async () => {
     fake.auth.getUser.mockResolvedValue({
       data: { user: { id: 'user-1', email: 'user-1@example.test' } },

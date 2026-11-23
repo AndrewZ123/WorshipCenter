@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
+import { GiphySearchQuerySchema, invalidInputResponse } from '@/lib/validation';
 
 interface GiphyGif {
   id: string;
@@ -31,10 +32,16 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const q = searchParams.get('q');
-  const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const parsedQuery = GiphySearchQuerySchema.safeParse(
+    Object.fromEntries(searchParams.entries())
+  );
+  if (!parsedQuery.success) {
+    return invalidInputResponse();
+  }
 
-  if (!q || !q.trim()) {
+  const { q, offset } = parsedQuery.data;
+
+  if (!q.trim()) {
     return NextResponse.json({ results: [] });
   }
 

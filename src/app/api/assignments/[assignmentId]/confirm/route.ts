@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { sendEmail, isEmailConfigured } from '@/lib/email';
 import { assignmentConfirmedEmail } from '@/lib/email-templates';
 import { sendConfirmationNotification } from '@/lib/notifications';
+import { AssignmentParamsSchema, invalidInputResponse } from '@/lib/validation';
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
@@ -39,7 +40,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ assignmentId: string }> }
 ) {
-  const { assignmentId } = await params;
+  const paramsResult = AssignmentParamsSchema.safeParse(await params);
+  if (!paramsResult.success) {
+    return invalidInputResponse();
+  }
+  const { assignmentId } = paramsResult.data;
 
   // Fetch assignment with team member + service via supabaseAdmin (bypasses RLS)
   const { data: assignment, error: fetchError } = await supabaseAdmin
@@ -136,7 +141,11 @@ export async function POST(
       return subscriptionCheck;
     }
 
-    const { assignmentId } = await params;
+    const paramsResult = AssignmentParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { assignmentId } = paramsResult.data;
 
     const { data: userData } = await supabaseAdmin
       .from('users')

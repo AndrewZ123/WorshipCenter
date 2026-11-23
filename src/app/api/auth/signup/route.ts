@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { checkRateLimit, getClientIp, rateLimitResponse } from '@/lib/auth-middleware';
 import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
+import { SignupAccountSchema, invalidInputResponse } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,23 +16,19 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse(limit);
     }
 
-    const body = await request.json();
-    const { churchName, userName, email, password, authUserId } = body;
-
-    // Validate required fields
-    if (!churchName || !userName || !email || !password || !authUserId) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return invalidInputResponse();
     }
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 400 }
-      );
+    const parsed = SignupAccountSchema.safeParse(body);
+    if (!parsed.success) {
+      return invalidInputResponse();
     }
+
+    const { churchName, userName, email, authUserId } = parsed.data;
 
     // 1. Create the church (churches table only has id, name, created_at)
     const { data: churchData, error: churchError } = await supabaseAdmin

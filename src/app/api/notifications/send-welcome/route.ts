@@ -3,11 +3,7 @@ import { checkRateLimit, getClientIp, getRequestUser, rateLimitResponse } from '
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { supabaseAdmin } from '@/lib/supabase';
 import { welcomeEmail } from '@/lib/email-templates';
-
-interface WelcomeEmailRequest {
-  userId: string;
-  churchId: string;
-}
+import { SendWelcomeSchema, invalidInputResponse } from '@/lib/validation';
 
 function jsonResponse(data: Record<string, unknown>, status: number = 200): NextResponse {
   return new NextResponse(JSON.stringify(data), {
@@ -33,20 +29,19 @@ export async function POST(request: NextRequest) {
       return subscriptionCheck;
     }
 
-    let body: WelcomeEmailRequest;
+    let rawBody: unknown;
     try {
-      body = await request.json();
-    } catch (parseError) {
-      console.error('[Welcome Email] Failed to parse request body:', parseError);
-      return jsonResponse({ error: 'Invalid request body', details: parseError instanceof Error ? parseError.message : 'Unknown parsing error' }, 400);
+      rawBody = await request.json();
+    } catch {
+      return invalidInputResponse();
     }
 
-    const { userId, churchId } = body;
-
-    if (!userId || !churchId) {
-      console.error('[Welcome Email] Missing required fields');
-      return jsonResponse({ error: 'userId and churchId are required' }, 400);
+    const parsedBody = SendWelcomeSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
     }
+
+    const { userId, churchId } = parsedBody.data;
 
     // A user may only trigger a welcome email for themselves, within their own church.
     if (userId !== authUser.id || churchId !== authUser.church_id) {

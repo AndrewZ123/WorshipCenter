@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthToken, checkRateLimit } from '@/lib/auth-middleware';
+import { AuthorizationHeaderSchema } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
   // Rate limiting by IP
@@ -28,7 +29,13 @@ export async function GET(request: NextRequest) {
   }
   
   const authHeader = request.headers.get('authorization');
-  const authResult = await verifyAuthToken(authHeader);
+  const parsedHeader = AuthorizationHeaderSchema.safeParse(authHeader);
+
+  if (!parsedHeader.success) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const authResult = await verifyAuthToken(parsedHeader.data);
   
   if (!authResult.success || !authResult.user) {
     return NextResponse.json(

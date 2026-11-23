@@ -4,6 +4,7 @@ import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
 import { validateFile } from '@/lib/validateFile';
+import { SongParamsSchema, invalidInputResponse } from '@/lib/validation';
 import { z } from 'zod';
 import type { SongFileType } from '@/lib/types';
 
@@ -16,7 +17,6 @@ export async function GET(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,6 +26,12 @@ export async function GET(
     if (subscriptionCheck !== true) {
       return subscriptionCheck;
     }
+
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { songId } = paramsResult.data;
 
     const files = await db.songFiles.getBySong(songId, user.church_id);
     return NextResponse.json({ files });
@@ -43,7 +49,6 @@ export async function POST(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -53,6 +58,12 @@ export async function POST(
     if (subscriptionCheck !== true) {
       return subscriptionCheck;
     }
+
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { songId } = paramsResult.data;
 
     // Verify song belongs to church
     const song = await db.songs.getById(songId, user.church_id);
@@ -151,7 +162,6 @@ export async function DELETE(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -162,9 +172,24 @@ export async function DELETE(
       return subscriptionCheck;
     }
 
-    const body = DeleteFileSchema.parse(await req.json());
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
 
-    const success = await db.songFiles.delete(body.fileId, user.church_id);
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return invalidInputResponse();
+    }
+
+    const parsedBody = DeleteFileSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const success = await db.songFiles.delete(parsedBody.data.fileId, user.church_id);
     if (!success) {
       return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 });
     }

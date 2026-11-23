@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/auth-middleware';
 import { requireActiveSubscription } from '@/lib/subscription-middleware';
 import { db } from '@/lib/store';
+import { SongParamsSchema, invalidInputResponse } from '@/lib/validation';
 import { z } from 'zod';
 
 // GET /api/songs/[songId]/versions - List all versions for a song
@@ -10,7 +11,6 @@ export async function GET(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -20,6 +20,12 @@ export async function GET(
     if (subscriptionCheck !== true) {
       return subscriptionCheck;
     }
+
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { songId } = paramsResult.data;
 
     const versions = await db.songVersions.getBySong(songId, user.church_id);
     return NextResponse.json({ versions });
@@ -35,7 +41,6 @@ export async function POST(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,13 +51,30 @@ export async function POST(
       return subscriptionCheck;
     }
 
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { songId } = paramsResult.data;
+
     const CreateVersionSchema = z.object({
       snapshot: z.object({}).passthrough(),
       changeDescription: z.string().max(5000).optional(),
     });
 
-    const body = CreateVersionSchema.parse(await req.json());
-    const { snapshot, changeDescription } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return invalidInputResponse();
+    }
+
+    const parsedBody = CreateVersionSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const { snapshot, changeDescription } = parsedBody.data;
 
     const version = await db.songVersions.create({
       song_id: songId,
@@ -83,7 +105,6 @@ export async function PATCH(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -94,12 +115,29 @@ export async function PATCH(
       return subscriptionCheck;
     }
 
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+    const { songId } = paramsResult.data;
+
     const RestoreVersionSchema = z.object({
       versionNumber: z.number().int().positive('Version number is required'),
     });
 
-    const body = RestoreVersionSchema.parse(await req.json());
-    const { versionNumber } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return invalidInputResponse();
+    }
+
+    const parsedBody = RestoreVersionSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const { versionNumber } = parsedBody.data;
 
     const result = await db.songVersions.restore(songId, versionNumber, user.church_id);
     if (!result) {
@@ -122,7 +160,6 @@ export async function DELETE(
   { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = await params;
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -133,11 +170,28 @@ export async function DELETE(
       return subscriptionCheck;
     }
 
+    const paramsResult = SongParamsSchema.safeParse(await params);
+    if (!paramsResult.success) {
+      return invalidInputResponse();
+    }
+
     const DeleteVersionSchema = z.object({
       versionId: z.string().uuid('Invalid version ID'),
     });
 
-    const { versionId } = DeleteVersionSchema.parse(await req.json());
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return invalidInputResponse();
+    }
+
+    const parsedBody = DeleteVersionSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return invalidInputResponse();
+    }
+
+    const { versionId } = parsedBody.data;
 
     const success = await db.songVersions.delete(versionId, user.church_id);
     if (!success) {

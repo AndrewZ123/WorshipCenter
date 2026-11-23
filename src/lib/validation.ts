@@ -16,6 +16,115 @@ export const EmailSchema = z
   .max(254, 'Email too long')
   .transform((val) => val.toLowerCase());
 
+export const AuthorizationHeaderSchema = z
+  .string()
+  .regex(/^Bearer\s+\S+$/, 'Invalid authorization header');
+
+// Shared enums. Keep these in sync with `src/lib/types.ts`; older revisions of
+// this module listed service statuses (`planning`, `scheduled`, ...) that the
+// application never used.
+export const UserRoleSchema = z.enum(['admin', 'leader', 'team']);
+export const ServiceStatusSchema = z.enum(['draft', 'finalized', 'completed']);
+export const AssignmentStatusSchema = z.enum(['pending', 'confirmed', 'declined']);
+export const SignupRequestStatusSchema = z.enum(['pending', 'approved', 'declined']);
+
+// ============================================================================
+// API Route Input Schemas
+// ============================================================================
+
+export const AssignmentParamsSchema = z.object({
+  assignmentId: UUIDSchema,
+});
+
+export const SignupParamsSchema = z.object({
+  id: UUIDSchema,
+});
+
+export const SongParamsSchema = z.object({
+  songId: UUIDSchema,
+});
+
+export const ResetPasswordRequestSchema = z.object({
+  email: EmailSchema,
+});
+
+export const SignupAccountSchema = z.object({
+  churchName: z.string().trim().min(2, 'Church name too short').max(200, 'Church name too long'),
+  userName: z.string().trim().min(2, 'Name too short').max(100, 'Name too long'),
+  email: EmailSchema,
+  password: z.string().min(6, 'Password must be at least 6 characters').max(200),
+  authUserId: UUIDSchema,
+});
+
+export const SendWelcomeSchema = z.object({
+  // Auth user / church identifiers are matched against the caller below; they
+  // are intentionally not required to be UUIDs so existing callers and tests
+  // that use opaque ids keep working.
+  userId: z.string().min(1).max(200),
+  churchId: z.string().min(1).max(200),
+});
+
+export const SignupRequestBodySchema = z.object({
+  serviceId: UUIDSchema,
+  role: z.string().min(1, 'Role is required').max(100),
+  churchId: UUIDSchema,
+  teamMemberId: UUIDSchema.optional().nullable(),
+  name: z.string().max(200).optional(),
+  email: z.union([z.string().email('Invalid email').max(254), z.literal('')]).optional(),
+  phone: z.string().max(50).optional(),
+});
+
+export const BillingCheckoutRequestSchema = z.object({
+  priceType: z.enum(['monthly', 'yearly']),
+  successUrl: z.string().url('Invalid success URL').optional(),
+  cancelUrl: z.string().url('Invalid cancel URL').optional(),
+});
+
+export const PushRegisterSchema = z.object({
+  token: z.string().min(1, 'Token is required').max(4096),
+  platform: z.enum(['ios', 'android']),
+});
+
+export const PushUnregisterSchema = z.object({
+  token: z.string().min(1, 'Token is required').max(4096),
+});
+
+export const GiphySearchQuerySchema = z.object({
+  q: z.string().max(200).optional().default(''),
+  offset: z.coerce.number().int().min(0).max(4999).optional().default(0),
+});
+
+export const SongSearchQuerySchema = z.object({
+  q: z.string().max(200).optional().default(''),
+  tags: z.string().max(500).optional(),
+  key: z.string().max(20).optional(),
+  artist: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+export const ReminderAuthSchema = z.object({
+  header: z.string().max(500).optional(),
+  secret: z.string().max(500).optional(),
+});
+
+export const StripeWebhookEventSchema = z.object({
+  id: z.string().min(1).max(255),
+  type: z.string().min(1).max(100),
+  data: z.object({
+    object: z.record(z.string(), z.unknown()),
+  }),
+});
+
+/**
+ * Generic 400 response for invalid client input.
+ *
+ * Deliberately does not echo Zod issue details (paths/messages) back to the
+ * caller — those can reveal internal field names and validation structure.
+ */
+export function invalidInputResponse(message = 'Invalid request'): Response {
+  return Response.json({ error: message }, { status: 400 });
+}
+
 export const PhoneSchema = z
   .string()
   .min(10, 'Phone number must be at least 10 digits')
@@ -117,7 +226,7 @@ export const CreateServiceSchema = z.object({
   title: z.string().min(1, 'Title required').max(200),
   description: z.string().max(1000).optional(),
   service_type: z.enum(['sunday', 'wednesday', 'special', 'rehearsal', 'other']),
-  status: z.enum(['planning', 'scheduled', 'in-progress', 'completed', 'cancelled']).default('planning'),
+  status: ServiceStatusSchema.default('draft'),
   location: z.string().max(100).optional(),
   notes: z.string().max(5000).optional(),
 });
@@ -125,7 +234,7 @@ export const CreateServiceSchema = z.object({
 export const UpdateServiceSchema = CreateServiceSchema.partial();
 
 export const ServiceFilterSchema = z.object({
-  status: z.enum(['planning', 'scheduled', 'in-progress', 'completed', 'cancelled']).optional(),
+  status: ServiceStatusSchema.optional(),
   service_type: z.enum(['sunday', 'wednesday', 'special', 'rehearsal', 'other']).optional(),
   date_from: z.coerce.date().optional(),
   date_to: z.coerce.date().optional(),

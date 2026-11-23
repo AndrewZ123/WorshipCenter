@@ -36,8 +36,19 @@ export async function POST(request: NextRequest) {
       return subscriptionCheck;
     }
 
-    const body = SendPlanChangeSchema.parse(await request.json());
-    const { churchId, serviceId, serviceTitle, changes } = body;
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    }
+
+    const parsedBody = SendPlanChangeSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    }
+
+    const { churchId, serviceId, serviceTitle, changes } = parsedBody.data;
 
     if (user.church_id !== churchId) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
