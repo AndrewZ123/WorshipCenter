@@ -33,6 +33,6 @@ export const GET = withRateLimit(async (request: Request) => {
   
   return NextResponse.json({ configured });
 }, {
-  ...RateLimitTiers.BILLING,
+  ...RateLimitTiers.BILLING_STATUS,
   identifier: 'billing-status',
 });

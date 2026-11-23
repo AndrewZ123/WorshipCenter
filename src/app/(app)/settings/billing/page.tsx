@@ -21,6 +21,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   apiUrl,
   getAccessToken,
+  getApiBase,
   parseJsonSafe,
   waitForAccessToken,
 } from '@/lib/api-base';
@@ -29,6 +30,15 @@ import { getBillingPeriodText, getPlanCtaLabel } from '@/lib/billing-display';
 
 const BRAND_TEAL = '#0D9488';
 const BRAND_TEAL_DARK = '#0b8278';
+
+/**
+ * Absolute origin for Stripe return URLs. Web uses the current origin; the
+ * native shell (whose WebView origin has no server) uses the deployed app URL.
+ */
+function checkoutOrigin(): string {
+  if (typeof window === 'undefined') return '';
+  return getApiBase() || window.location.origin;
+}
 
 // ─── Status Badge ──────────────────────────────────────────────────────────────
 
@@ -78,13 +88,28 @@ export default function BillingPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+
+    // Never leave "Checking payment configuration…" on screen. A stuck
+    // getSession()/fetch is bounded to ~2s; after that the page lets the user
+    // try checkout anyway (the route returns a clear 503 if Stripe is unset).
+    const deadline = setTimeout(() => {
+      if (cancelled) return;
+      controller.abort();
+      setStripeStatusError('error');
+      setStripeStatusLoading(false);
+    }, 2000);
+
     (async () => {
       try {
         // The Supabase session can still be hydrating on first mount. Prefer a
         // token that is already available and only wait briefly if it is not.
-        const accessToken =
-          (await getAccessToken()) ||
-          (await waitForAccessToken({ attempts: 3, delayMs: 150 }));
+        const accessToken = await Promise.race([
+          (async () =>
+            (await getAccessToken()) ||
+            (await waitForAccessToken({ attempts: 2, delayMs: 100, timeoutMs: 400 })))(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800)),
+        ]);
         if (cancelled) return;
         if (!accessToken) {
           setStripeStatusError('signed_out');
@@ -93,6 +118,7 @@ export default function BillingPage() {
 
         const res = await fetch(apiUrl('/api/billing/status'), {
           headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
         });
         if (!res.ok) {
           if (!cancelled) setStripeStatusError('error');
@@ -101,12 +127,18 @@ export default function BillingPage() {
         const data = await parseJsonSafe(res);
         if (!cancelled) setStripeReady(Boolean(data?.configured));
       } catch {
-        if (!cancelled) setStripeStatusError('error');
+        if (!cancelled && !controller.signal.aborted) setStripeStatusError('error');
       } finally {
+        clearTimeout(deadline);
         if (!cancelled) setStripeStatusLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+      clearTimeout(deadline);
+      controller.abort();
+    };
   }, []);
 
   // ── Checkout: Subscribe ─────────────────────────────────────────────────
@@ -128,10 +160,12 @@ export default function BillingPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           priceType,
-          successUrl: `${apiUrl('')}/settings/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancelUrl: `${apiUrl('')}/settings/billing`,
+          // Stripe requires absolute return URLs. On the web this is the
+          // current origin; on native it is the deployed app URL.
+          successUrl: `${checkoutOrigin()}/settings/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${checkoutOrigin()}/settings/billing`,
         }),
       });
 
@@ -262,11 +296,11 @@ export default function BillingPage() {
     );
   }
 
-  const showPricingCards = stripeReady || stripeStatusLoading;
+  const showPricingCards = stripeReady || stripeStatusLoading || stripeStatusError === 'error';
   const showManageButton = isActive && !isCanceled && !isTrialing;
   const currentPlan = subscription?.price_type || null;
   const hasSubscription = Boolean(subscription);
-  const planActionsDisabled = checkoutLoading || !stripeReady;
+  const planActionsDisabled = checkoutLoading || stripeStatusLoading;
 
   const planCta = (priceType: 'monthly' | 'yearly') =>
     getPlanCtaLabel({
@@ -511,7 +545,7 @@ export default function BillingPage() {
               >
                 {currentPlan === 'monthly'
                   ? 'Current Plan'
-                  : !stripeReady
+                  : !stripeReady && stripeStatusLoading
                     ? 'Checking…'
                     : checkoutLoading
                       ? 'Processing...'
@@ -595,7 +629,7 @@ export default function BillingPage() {
               >
                 {currentPlan === 'yearly'
                   ? 'Current Plan'
-                  : !stripeReady
+                  : !stripeReady && stripeStatusLoading
                     ? 'Checking…'
                     : checkoutLoading
                       ? 'Processing...'
@@ -637,7 +671,8 @@ export default function BillingPage() {
             Unable to check billing status
           </p>
           <p style={{ fontSize: '14px', color: '#718096' }}>
-            Please refresh the page and try again.
+            We couldn&apos;t confirm payment configuration. You can still try
+            upgrading below.
           </p>
         </div>
       ) : !stripeReady ? (

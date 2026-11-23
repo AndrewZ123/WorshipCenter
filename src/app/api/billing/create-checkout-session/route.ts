@@ -35,6 +35,34 @@ function isValidStripeCustomerId(id: string | null | undefined): id is string {
   return /^cus_[A-Za-z0-9]+$/.test(id) && !id.startsWith('cus_pending_');
 }
 
+/**
+ * Resolve a client-supplied return URL to an absolute http(s) URL.
+ *
+ * Older clients sent protocol-relative paths (`//settings/billing`), which
+ * Stripe rejects. Treat those (and plain relative paths) as app paths and
+ * prefix them with the configured app URL. Absolute http(s) URLs are kept
+ * verbatim so Stripe's `{CHECKOUT_SESSION_ID}` placeholder is not encoded.
+ */
+function resolveReturnUrl(value: string | undefined, fallbackPath: string): string {
+  const fallback = `${env.appUrl()}${fallbackPath}`;
+  if (!value) return fallback;
+
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Any other scheme (javascript:, data:, etc.) is not a safe return URL.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+    return fallback;
+  }
+
+  // Relative or protocol-relative: strip the leading slashes and append.
+  return `${env.appUrl()}/${trimmed.replace(/^\/+/, '')}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // ── 0. Rate limit ─────────────────────────────────────────────────────
@@ -101,9 +129,16 @@ export async function POST(request: NextRequest) {
 
     const { priceType } = parsedBody.data;
 
-    // Use custom URLs if provided, otherwise use defaults
-    const successUrl = parsedBody.data.successUrl || `${env.appUrl()}/settings/billing?success=true`;
-    const cancelUrl = parsedBody.data.cancelUrl || `${env.appUrl()}/settings/billing?canceled=true`;
+    // Use custom URLs if provided, otherwise use defaults. The client may send
+    // a relative/protocol-relative path; Stripe requires an absolute URL.
+    const successUrl = resolveReturnUrl(
+      parsedBody.data.successUrl,
+      '/settings/billing?success=true'
+    );
+    const cancelUrl = resolveReturnUrl(
+      parsedBody.data.cancelUrl,
+      '/settings/billing?canceled=true'
+    );
 
     // ── 3. Authenticate the user via Authorization header ──────────────────
     const authHeader = request.headers.get('Authorization');

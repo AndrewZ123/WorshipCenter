@@ -76,8 +76,11 @@ export const SignupRequestBodySchema = z.object({
 
 export const BillingCheckoutRequestSchema = z.object({
   priceType: z.enum(['monthly', 'yearly']),
-  successUrl: z.string().url('Invalid success URL').optional(),
-  cancelUrl: z.string().url('Invalid cancel URL').optional(),
+  // Return URLs may arrive absolute, relative, or protocol-relative (older
+  // clients sent `//settings/...`). The route resolves them against the app
+  // URL before handing them to Stripe, so the schema only bounds the string.
+  successUrl: z.string().trim().max(2048).optional(),
+  cancelUrl: z.string().trim().max(2048).optional(),
 });
 
 export const PushRegisterSchema = z.object({

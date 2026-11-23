@@ -85,6 +85,9 @@ export const RateLimitTiers = {
 
   // Lenient limits for billing operations (should be protected by auth anyway)
   BILLING: { requests: 20, window: 60 * 60 * 1000 }, // 20 requests per hour
+  // Status is a cheap authenticated read shown on every billing-page visit, so
+  // give it more headroom than checkout/portal (which still hit Stripe).
+  BILLING_STATUS: { requests: 120, window: 60 * 60 * 1000 }, // 120 requests per hour
 
   // Strict limits for sensitive operations
   TEAM_INVITATION: { requests: 10, window: 60 * 60 * 1000 }, // 10 requests per hour
