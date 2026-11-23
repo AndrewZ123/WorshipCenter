@@ -93,7 +93,25 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Group not found' }, { status: 404 });
       }
 
-      const rows = parsed.data.memberIds.map((id) => ({
+      // Only allow members that belong to the admin's church. The admin client
+      // bypasses RLS, so this filter is what prevents cross-church attachment.
+      const { data: validMembers, error: membersError } = await supabaseAdmin
+        .from('team_members')
+        .select('id')
+        .in('id', parsed.data.memberIds)
+        .eq('church_id', userData.church_id);
+
+      if (membersError) {
+        console.error('[BulkTeam] addToGroup member check error:', membersError);
+        return NextResponse.json({ error: 'Failed to add to group' }, { status: 500 });
+      }
+
+      const validIds = (validMembers ?? []).map((member) => member.id);
+      if (!validIds.length) {
+        return NextResponse.json({ error: 'No valid members to add' }, { status: 400 });
+      }
+
+      const rows = validIds.map((id) => ({
         group_id: parsed.data.groupId,
         team_member_id: id,
       }));
