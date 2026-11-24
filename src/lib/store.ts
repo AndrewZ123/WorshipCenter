@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { sanitizeString, sanitizeHtml } from '@/lib/sanitize';
 import { SONG_SELECT } from '@/lib/song-columns';
 import type {
@@ -162,6 +163,31 @@ export const db = {
       const sanitized = sanitizeInput.church(c);
       const { data } = await supabase.from('churches').insert(sanitized).select().single();
       return data as Church;
+    },
+    /**
+     * Persist the church onboarding flag through the authenticated API route.
+     * The route derives the church from the caller's profile, so `churchId`
+     * is only used to reject a mismatched client context.
+     */
+    markOnboardingComplete: async (churchId: string) => {
+      const response = await fetch(apiUrl('/api/church/onboarding-complete'), {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ churchId }),
+      });
+      const result = await parseJsonSafe(response);
+
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.error || 'Failed to save onboarding status');
+      }
+      if (result?.church_id && result.church_id !== churchId) {
+        throw new Error('Onboarding status was saved for a different church');
+      }
+      return result as {
+        success: boolean;
+        church_id: string;
+        onboarding_completed_at: string;
+      };
     },
   },
 

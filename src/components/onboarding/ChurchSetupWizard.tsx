@@ -20,7 +20,7 @@ import {
   IconButton,
   useToast,
 } from '@chakra-ui/react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
 import { useTour } from '@/lib/tour/TourContext';
@@ -32,6 +32,7 @@ import {
   churchSetupStorageKey,
   profileSetupStorageKey,
   hasTeamMemberBeyondCreator,
+  isChurchSetupComplete,
   shouldOpenChurchSetup,
   validateChurchSetupService,
   validateChurchSetupTeamMember,
@@ -103,7 +104,9 @@ export default function ChurchSetupWizard() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<ChurchSetupStep>('service');
-  const [loaded, setLoaded] = useState(false);
+  const [contentLoaded, setContentLoaded] = useState(false);
+  const [setupFlagLoaded, setSetupFlagLoaded] = useState(false);
+  const [serverSetupCompleted, setServerSetupCompleted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [setupData, setSetupData] = useState<ChurchSetupData>({
     hasService: false,
@@ -134,12 +137,18 @@ export default function ChurchSetupWizard() {
 
     (async () => {
       try {
-        const [services, songs, members] = await Promise.all([
+        const [services, songs, members, freshChurch] = await Promise.all([
           store.services.getByChurch(church.id),
           store.songs.getByChurch(church.id),
           store.teamMembers.getByChurch(church.id),
+          // Fetch the church row explicitly so the server flag is known to
+          // have loaded, rather than relying on a stale cached profile.
+          store.churches.getById(church.id, church.id),
         ]);
         if (cancelled) return;
+        if (!freshChurch) {
+          throw new Error('Church not found');
+        }
 
         setSetupData({
           hasService: services.length > 0,
@@ -150,17 +159,16 @@ export default function ChurchSetupWizard() {
             email: user.email,
           }),
         });
+        setServerSetupCompleted(Boolean(freshChurch.onboarding_completed_at));
+        setContentLoaded(true);
+        setSetupFlagLoaded(true);
       } catch (error) {
         console.error('[ChurchSetup] Failed to load setup data:', error);
+        // Never infer "brand new" from a failed load.
         if (!cancelled) {
-          setSetupData({
-            hasService: false,
-            hasSong: false,
-            hasTeamMemberBeyondCreator: false,
-          });
+          setContentLoaded(false);
+          setSetupFlagLoaded(false);
         }
-      } finally {
-        if (!cancelled) setLoaded(true);
       }
     })();
 
@@ -192,15 +200,44 @@ export default function ChurchSetupWizard() {
     setIsOpen(true);
   }, []);
 
+  const markServerCompleted = useCallback(async () => {
+    if (!church || user?.role !== 'admin') return;
+    try {
+      await store.churches.markOnboardingComplete(church.id);
+    } catch (error) {
+      console.warn('[ChurchSetup] Failed to persist completion:', error);
+    }
+  }, [church, user?.role, store]);
+
+  const markCompleted = useCallback(() => {
+    if (!church || typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(churchSetupStorageKey(church.id), 'true');
+    } catch {
+      // Storage can be unavailable in private/locked modes; the wizard still closes.
+    }
+    void markServerCompleted();
+  }, [church, markServerCompleted]);
+
   const evaluateAutoOpen = useCallback(() => {
-    if (!user || !church || !loaded || isOpen) return;
+    if (
+      !user ||
+      !church ||
+      !contentLoaded ||
+      !setupFlagLoaded ||
+      isOpen
+    ) {
+      return;
+    }
 
     if (
       shouldOpenChurchSetup({
         ...setupData,
         role: user.role,
-        setupCompleted: churchIsDismissed(),
+        setupCompleted: serverSetupCompleted || churchIsDismissed(),
         profileSetupCompleted: profileIsComplete(),
+        contentLoaded,
+        setupFlagLoaded,
       })
     ) {
       openAt('service');
@@ -208,12 +245,39 @@ export default function ChurchSetupWizard() {
   }, [
     user,
     church,
-    loaded,
+    contentLoaded,
+    setupFlagLoaded,
+    serverSetupCompleted,
     isOpen,
     setupData,
     churchIsDismissed,
     profileIsComplete,
     openAt,
+  ]);
+
+  // Existing churches never auto-open. Persist the server flag once detected
+  // (and backfill old localStorage-only skips) so new devices stay closed.
+  useEffect(() => {
+    if (
+      !contentLoaded ||
+      !setupFlagLoaded ||
+      serverSetupCompleted ||
+      user?.role !== 'admin'
+    ) {
+      return;
+    }
+
+    if (isChurchSetupComplete(setupData) || churchIsDismissed()) {
+      markCompleted();
+    }
+  }, [
+    contentLoaded,
+    setupFlagLoaded,
+    serverSetupCompleted,
+    user?.role,
+    setupData,
+    churchIsDismissed,
+    markCompleted,
   ]);
 
   // Dashboard CTAs / Setup guide open the wizard through this event.
@@ -263,7 +327,7 @@ export default function ChurchSetupWizard() {
 
   // Auto-open once data has loaded and any pending tour/profile step is done.
   useEffect(() => {
-    if (!loaded || isOpen || tour.isActive) return;
+    if (isOpen || tour.isActive) return;
 
     const pending = pendingOpenRef.current;
     if (pending && profileIsComplete()) {
@@ -273,16 +337,15 @@ export default function ChurchSetupWizard() {
     }
 
     evaluateAutoOpen();
-  }, [loaded, isOpen, tour.isActive, profileIsComplete, openAt, evaluateAutoOpen]);
-
-  const markCompleted = useCallback(() => {
-    if (!church || typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(churchSetupStorageKey(church.id), 'true');
-    } catch {
-      // Storage can be unavailable in private/locked modes; the wizard still closes.
-    }
-  }, [church]);
+  }, [
+    contentLoaded,
+    setupFlagLoaded,
+    isOpen,
+    tour.isActive,
+    profileIsComplete,
+    openAt,
+    evaluateAutoOpen,
+  ]);
 
   const handleDismiss = useCallback(() => {
     markCompleted();
@@ -575,7 +638,7 @@ export default function ChurchSetupWizard() {
     <Modal
       isOpen={isOpen}
       onClose={handleDismiss}
-      closeOnOverlayClick={false}
+      closeOnOverlayClick
       size="md"
       isCentered
       scrollBehavior="inside"
@@ -599,6 +662,15 @@ export default function ChurchSetupWizard() {
             >
               Skip setup
             </Button>
+            <IconButton
+              aria-label="Close setup"
+              icon={<X size={16} />}
+              variant="ghost"
+              size="xs"
+              color="gray.400"
+              onClick={handleDismiss}
+              minH="36px"
+            />
           </HStack>
         </ModalHeader>
 

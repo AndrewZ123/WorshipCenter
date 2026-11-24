@@ -182,6 +182,17 @@ export function createDemoStore(getDemoContext: () => DemoContextType) {
       create: async (_c: Omit<Church, 'id' | 'created_at'>): Promise<Church> => {
         throw new Error('Not implemented in demo');
       },
+      markOnboardingComplete: async (churchId: string) => {
+        const demo = getDemoContext();
+        if (demo.church?.id !== churchId) {
+          throw new Error('Church not found');
+        }
+        return {
+          success: true,
+          church_id: churchId,
+          onboarding_completed_at: new Date().toISOString(),
+        };
+      },
     },
     
     users: {

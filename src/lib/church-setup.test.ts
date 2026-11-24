@@ -18,74 +18,108 @@ const incomplete = {
   hasTeamMemberBeyondCreator: false,
 };
 
+const loaded = {
+  contentLoaded: true,
+  setupFlagLoaded: true,
+};
+
+const newChurch = {
+  ...incomplete,
+  ...loaded,
+  role: 'admin',
+  setupCompleted: false,
+  profileSetupCompleted: true,
+};
+
 describe('shouldOpenChurchSetup', () => {
-  it('opens for an admin after profile setup when the church is still new', () => {
-    expect(
-      shouldOpenChurchSetup({
-        ...incomplete,
-        role: 'admin',
-        setupCompleted: false,
-        profileSetupCompleted: true,
-      })
-    ).toBe(true);
+  it('opens only for a brand-new admin church after profile setup', () => {
+    expect(shouldOpenChurchSetup(newChurch)).toBe(true);
   });
 
   it('stays closed while the profile wizard has not been handled yet', () => {
     expect(
       shouldOpenChurchSetup({
-        ...incomplete,
-        role: 'admin',
-        setupCompleted: false,
+        ...newChurch,
         profileSetupCompleted: false,
       })
     ).toBe(false);
   });
 
-  it('stays closed after skip/dismiss even when the church is incomplete', () => {
+  it('stays closed after skip/dismiss even when the church is brand new', () => {
     expect(
       shouldOpenChurchSetup({
-        ...incomplete,
-        role: 'admin',
+        ...newChurch,
         setupCompleted: true,
-        profileSetupCompleted: true,
       })
     ).toBe(false);
   });
 
-  it('stays closed when the church already has a service, another member, and a song', () => {
+  it('stays closed when the server flag is set', () => {
     expect(
       shouldOpenChurchSetup({
+        ...newChurch,
+        setupCompleted: true,
+      })
+    ).toBe(false);
+  });
+
+  it('stays closed when the church already has any setup content', () => {
+    const existingChurches = [
+      { ...newChurch, hasService: true },
+      { ...newChurch, hasSong: true },
+      { ...newChurch, hasTeamMemberBeyondCreator: true },
+      {
         hasService: true,
         hasSong: true,
         hasTeamMemberBeyondCreator: true,
+        ...loaded,
         role: 'admin',
         setupCompleted: false,
         profileSetupCompleted: true,
+      },
+    ];
+
+    for (const state of existingChurches) {
+      expect(shouldOpenChurchSetup(state)).toBe(false);
+    }
+  });
+
+  it('never opens when setup content has not loaded or failed', () => {
+    expect(
+      shouldOpenChurchSetup({
+        ...newChurch,
+        contentLoaded: false,
+      })
+    ).toBe(false);
+    expect(
+      shouldOpenChurchSetup({
+        ...newChurch,
+        contentLoaded: undefined,
       })
     ).toBe(false);
   });
 
-  it('opens when only some setup data exists', () => {
+  it('never opens when the server setup flag has not loaded or failed', () => {
     expect(
       shouldOpenChurchSetup({
-        hasService: true,
-        hasSong: false,
-        hasTeamMemberBeyondCreator: true,
-        role: 'admin',
-        setupCompleted: false,
-        profileSetupCompleted: true,
+        ...newChurch,
+        setupFlagLoaded: false,
       })
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      shouldOpenChurchSetup({
+        ...newChurch,
+        setupFlagLoaded: undefined,
+      })
+    ).toBe(false);
   });
 
   it('is hidden from leaders and team volunteers', () => {
     for (const role of ['leader', 'team'] as const) {
       expect(
         shouldOpenChurchSetup({
-          ...incomplete,
+          ...newChurch,
           role,
-          setupCompleted: false,
-          profileSetupCompleted: true,
         })
       ).toBe(false);
       expect(canRunChurchSetup(role)).toBe(false);
@@ -94,15 +128,16 @@ describe('shouldOpenChurchSetup', () => {
 });
 
 describe('isChurchSetupComplete', () => {
-  it('requires all three setup signals', () => {
+  it('treats any existing content as an already set-up church', () => {
     expect(isChurchSetupComplete(incomplete)).toBe(false);
+    expect(isChurchSetupComplete({ ...incomplete, hasService: true })).toBe(true);
+    expect(isChurchSetupComplete({ ...incomplete, hasSong: true })).toBe(true);
     expect(
       isChurchSetupComplete({
-        hasService: true,
-        hasSong: true,
-        hasTeamMemberBeyondCreator: false,
+        ...incomplete,
+        hasTeamMemberBeyondCreator: true,
       })
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isChurchSetupComplete({
         hasService: true,

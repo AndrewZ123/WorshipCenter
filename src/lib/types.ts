@@ -16,6 +16,8 @@ export interface Church {
   name: string;
   slug: string;
   created_at: string;
+  /** Set once the church setup wizard is finished, skipped, or dismissed. */
+  onboarding_completed_at?: string | null;
 }
 
 export interface User {

@@ -45,6 +45,13 @@ export interface ChurchSetupState extends ChurchSetupData {
   setupCompleted: boolean;
   /** The personal profile wizard was skipped or finished first. */
   profileSetupCompleted: boolean;
+  /**
+   * Services, songs, and team members loaded successfully. Unknown or failed
+   * loads must never be treated as "brand new".
+   */
+  contentLoaded?: boolean;
+  /** The server-side onboarding flag loaded successfully. */
+  setupFlagLoaded?: boolean;
 }
 
 /**
@@ -57,22 +64,29 @@ export function canRunChurchSetup(role: UserRole | string | null | undefined): b
   return role === 'admin';
 }
 
+/**
+ * An existing church is one that already has any content: a service, a song,
+ * or a team member beyond the creator. Requiring all three used to re-open the
+ * wizard for churches that were clearly already in use.
+ */
 export function isChurchSetupComplete(data: ChurchSetupData): boolean {
   return Boolean(
-    data.hasService && data.hasSong && data.hasTeamMemberBeyondCreator
+    data.hasService || data.hasSong || data.hasTeamMemberBeyondCreator
   );
 }
 
 /**
  * Decide whether the church wizard should open automatically.
  *
- * The profile wizard always wins when both would open. A persisted skip or a
- * church that already has a service, a real teammate, and a song stays closed.
- * Manual re-opens from the dashboard bypass this helper (they are explicit).
+ * Only a brand-new church opens: no services, no songs, no extra teammate, no
+ * persisted completion flag. The profile wizard always wins when both would
+ * open. Unknown data (not loaded or a failed fetch) stays closed. Manual
+ * re-opens from the dashboard/checklist bypass this helper (they are explicit).
  */
 export function shouldOpenChurchSetup(state: ChurchSetupState): boolean {
   if (!canRunChurchSetup(state.role)) return false;
   if (!state.profileSetupCompleted) return false;
+  if (!state.contentLoaded || !state.setupFlagLoaded) return false;
   if (state.setupCompleted) return false;
   return !isChurchSetupComplete(state);
 }
