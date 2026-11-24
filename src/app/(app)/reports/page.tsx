@@ -9,16 +9,25 @@ import {
   Table, Thead, Tbody, Tr, Th, Td, TableContainer, Badge, Spinner, Center,
   useColorModeValue, Card, CardBody, CardHeader, Button,
 } from '@chakra-ui/react';
-import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, TrendingUp, CheckSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import SongUsageSection from '@/components/reports/SongUsageSection';
 import { countServiceStatuses } from '@/lib/service-status';
-
-interface MemberStat {
-  name: string;
-  assignments: number;
-  confirmed: number;
-  declined: number;
-}
+import { formatShortDate } from '@/lib/formatDate';
+import {
+  buildAttendanceReport,
+  formatServedFrequency,
+  sortAttendanceRows,
+  type AttendanceAssignment,
+  type AttendanceMember,
+  type AttendanceSortKey,
+  type MemberAttendance,
+} from '@/lib/reports/attendance';
+import {
+  computeBurnoutFlags,
+  DEFAULT_BURNOUT_STREAK_WEEKS,
+  formatBurnoutStreak,
+  type BurnoutFlag,
+} from '@/lib/reports/burnout';
 
 interface ReportData {
   totalServices: number;
@@ -29,7 +38,8 @@ interface ReportData {
   totalTasks: number;
   completedTasks: number;
   pendingTasks: number;
-  memberParticipation: MemberStat[];
+  memberParticipation: MemberAttendance[];
+  burnoutFlags: BurnoutFlag[];
   upcomingPlanned: number;
   upcomingFinalized: number;
   pastServices: number;
@@ -43,6 +53,10 @@ export default function ReportsPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [range, setRange] = useState<DateRange>('90d');
+  const [sort, setSort] = useState<{ key: AttendanceSortKey; direction: 'asc' | 'desc' }>({
+    key: 'servedDateCount',
+    direction: 'desc',
+  });
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -77,7 +91,7 @@ export default function ReportsPage() {
       let totalConfirmed = 0;
       let totalDeclined = 0;
       let totalPending = 0;
-      const memberStats: Record<string, MemberStat> = {};
+      const assignmentRows: AttendanceAssignment[] = [];
 
       for (const svc of filteredServices) {
         const assignments = await db.assignments.getByService(svc.id, church.id);
@@ -86,14 +100,11 @@ export default function ReportsPage() {
           else if (a.status === 'declined') totalDeclined++;
           else totalPending++;
 
-          if (a.team_member_id) {
-            if (!memberStats[a.team_member_id]) {
-              memberStats[a.team_member_id] = { name: '', assignments: 0, confirmed: 0, declined: 0 };
-            }
-            memberStats[a.team_member_id].assignments++;
-            if (a.status === 'confirmed') memberStats[a.team_member_id].confirmed++;
-            else if (a.status === 'declined') memberStats[a.team_member_id].declined++;
-          }
+          assignmentRows.push({
+            service_id: svc.id,
+            team_member_id: a.team_member_id,
+            status: a.status,
+          });
         }
       }
 
@@ -107,15 +118,22 @@ export default function ReportsPage() {
       const upcomingFinalized = statusCounts.upcomingFinalized;
       const upcomingPlanned = statusCounts.upcomingPlanned;
 
-      const memberParticipation = members
-        .map((m) => ({
-          name: m.name,
-          assignments: memberStats[m.id]?.assignments || 0,
-          confirmed: memberStats[m.id]?.confirmed || 0,
-          declined: memberStats[m.id]?.declined || 0,
-        }))
-        .filter((m) => m.assignments > 0)
-        .sort((a, b) => b.assignments - a.assignments);
+      const reportMembers: AttendanceMember[] = members.map((m) => ({
+        id: m.id,
+        name: m.name,
+      }));
+      const memberParticipation = buildAttendanceReport(
+        filteredServices,
+        assignmentRows,
+        reportMembers,
+        { asOf: now }
+      );
+      const burnoutFlags = computeBurnoutFlags(
+        filteredServices,
+        assignmentRows,
+        reportMembers,
+        { threshold: DEFAULT_BURNOUT_STREAK_WEEKS, asOf: now }
+      );
 
       setData({
         totalServices: filteredServices.length,
@@ -127,6 +145,7 @@ export default function ReportsPage() {
         completedTasks: completedTasks.length,
         pendingTasks: filteredTasks.length - completedTasks.length,
         memberParticipation,
+        burnoutFlags,
         upcomingPlanned,
         upcomingFinalized,
         // Completed services count as completed regardless of date; past
@@ -201,6 +220,36 @@ export default function ReportsPage() {
   const confirmRate = data.totalAssignments > 0 ? Math.round((data.confirmedCount / data.totalAssignments) * 100) : 0;
   const declineRate = data.totalAssignments > 0 ? Math.round((data.declinedCount / data.totalAssignments) * 100) : 0;
   const taskCompletionRate = data.totalTasks > 0 ? Math.round((data.completedTasks / data.totalTasks) * 100) : 0;
+  const sortedMembers = sortAttendanceRows(data.memberParticipation, sort.key, sort.direction);
+
+  const toggleSort = (key: AttendanceSortKey) => {
+    setSort((previous) => (
+      previous.key === key
+        ? { key, direction: previous.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'name' ? 'asc' : 'desc' }
+    ));
+  };
+
+  const sortIndicator = (key: AttendanceSortKey) => {
+    if (sort.key !== key) return null;
+    return sort.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />;
+  };
+
+  const renderSortHeader = (label: string, key: AttendanceSortKey, numeric = false) => (
+    <Th
+      isNumeric={numeric}
+      color={tableHeaderColor}
+      cursor="pointer"
+      userSelect="none"
+      onClick={() => toggleSort(key)}
+      title={`Sort by ${label.toLowerCase()}`}
+    >
+      <HStack spacing={1} justify={numeric ? 'flex-end' : 'flex-start'}>
+        <Text>{label}</Text>
+        {sortIndicator(key)}
+      </HStack>
+    </Th>
+  );
 
   return (
     <Box w="full" mx="auto" px={{ base: 4, md: 6 }} pt={{ base: 2, md: 8 }} pb={{ base: 4, md: 8 }} maxW="1200px">
@@ -288,12 +337,12 @@ export default function ReportsPage() {
         </Card>
       </SimpleGrid>
 
-      {/* Team Participation Table */}
+      {/* Volunteer Attendance Table */}
       <Card bg={cardBg} border="1px solid" borderColor={borderColor} shadow="sm" mb={6}>
         <CardHeader pb={2}>
           <HStack spacing={2}>
             <Users size={20} color="var(--chakra-colors-teal-500)" />
-            <Heading size="sm">Team Participation</Heading>
+            <Heading size="sm">Volunteer Attendance</Heading>
           </HStack>
         </CardHeader>
         <CardBody pt={2}>
@@ -302,22 +351,24 @@ export default function ReportsPage() {
               No assignments in this period.
             </Text>
           ) : (
-            <TableContainer>
-              <Table size="sm">
-                <Thead>
-                  <Tr>
-                    <Th color={tableHeaderColor}>Member</Th>
-                    <Th isNumeric color={tableHeaderColor}>Assigned</Th>
-                    <Th isNumeric color={tableHeaderColor}>Confirmed</Th>
-                    <Th isNumeric color={tableHeaderColor}>Declined</Th>
-                    <Th color={tableHeaderColor}>Confirm Rate</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {data.memberParticipation.map((m) => {
-                    const rate = m.assignments > 0 ? Math.round((m.confirmed / m.assignments) * 100) : 0;
-                    return (
-                      <Tr key={m.name}>
+            <>
+              <TableContainer overflowX="auto">
+                <Table size="sm">
+                  <Thead>
+                    <Tr>
+                      {renderSortHeader('Member', 'name')}
+                      {renderSortHeader('Assigned', 'assignments', true)}
+                      {renderSortHeader('Confirmed', 'confirmed', true)}
+                      {renderSortHeader('Declined', 'declined', true)}
+                      {renderSortHeader('Pending', 'pending', true)}
+                      {renderSortHeader('Confirm Rate', 'confirmationRate')}
+                      {renderSortHeader('Served', 'servedDateCount', true)}
+                      {renderSortHeader('Avg Gap', 'averageGapDays', true)}
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {sortedMembers.map((m) => (
+                      <Tr key={m.memberId}>
                         <Td fontWeight="500">{m.name}</Td>
                         <Td isNumeric>{m.assignments}</Td>
                         <Td isNumeric>
@@ -326,24 +377,89 @@ export default function ReportsPage() {
                         <Td isNumeric>
                           <Text color={m.declined > 0 ? 'red.500' : mutedLabelColor}>{m.declined}</Text>
                         </Td>
+                        <Td isNumeric>
+                          <Text color={m.pending > 0 ? 'yellow.600' : mutedLabelColor}>{m.pending}</Text>
+                        </Td>
                         <Td>
                           <HStack spacing={2}>
                             <Progress
-                              value={rate}
+                              value={m.confirmationRate}
                               size="xs"
                               bg={progressTrackBg}
-                              colorScheme={rate >= 75 ? 'green' : rate >= 50 ? 'yellow' : 'red'}
+                              colorScheme={m.confirmationRate >= 75 ? 'green' : m.confirmationRate >= 50 ? 'yellow' : 'red'}
                               maxW="100px"
                             />
-                            <Text fontSize="xs" color={mutedLabelColor} minW="40px">{rate}%</Text>
+                            <Text fontSize="xs" color={mutedLabelColor} minW="40px">{m.confirmationRate}%</Text>
                           </HStack>
                         </Td>
+                        <Td isNumeric title={formatServedFrequency(m)}>
+                          <HStack spacing={1} justify="flex-end">
+                            <Text fontWeight="500">{m.servedDateCount}</Text>
+                            <Text fontSize="xs" color={mutedLabelColor}>of {m.totalServiceDates}</Text>
+                          </HStack>
+                        </Td>
+                        <Td isNumeric>
+                          <Text color={m.averageGapDays === null ? mutedLabelColor : undefined}>
+                            {m.averageGapDays === null ? '—' : `${m.averageGapDays}d`}
+                          </Text>
+                        </Td>
                       </Tr>
-                    );
-                  })}
-                </Tbody>
-              </Table>
-            </TableContainer>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+              <Text mt={3} fontSize="xs" color={mutedLabelColor}>
+                Served counts distinct service dates with a confirmed assignment on or before today.
+                Average gap is the typical number of days between those dates.
+              </Text>
+            </>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Heavy Recent Schedule */}
+      <Card bg={cardBg} border="1px solid" borderColor={borderColor} shadow="sm" mb={6}>
+        <CardHeader pb={2}>
+          <HStack spacing={2}>
+            <Calendar size={20} color="var(--chakra-colors-orange-500)" />
+            <Heading size="sm">Heavy Recent Schedule</Heading>
+          </HStack>
+        </CardHeader>
+        <CardBody pt={2}>
+          <Text fontSize="sm" color={mutedLabelColor} mb={data.burnoutFlags.length > 0 ? 3 : 0}>
+            Volunteers with confirmed assignments in {DEFAULT_BURNOUT_STREAK_WEEKS} or more consecutive
+            weeks. A calm heads-up to check in or rotate the schedule.
+          </Text>
+          {data.burnoutFlags.length === 0 ? (
+            <Text fontSize="sm" color={mutedLabelColor}>
+              No one has served {DEFAULT_BURNOUT_STREAK_WEEKS} weeks in a row right now.
+            </Text>
+          ) : (
+            <VStack spacing={3} align="stretch">
+              {data.burnoutFlags.map((flag) => (
+                <HStack
+                  key={flag.memberId}
+                  justify="space-between"
+                  align="flex-start"
+                  spacing={3}
+                  flexWrap="wrap"
+                  border="1px solid"
+                  borderColor={borderColor}
+                  borderRadius="lg"
+                  p={3}
+                >
+                  <VStack align="start" spacing={0}>
+                    <Text fontWeight="600">{flag.name}</Text>
+                    <Text fontSize="xs" color={mutedLabelColor}>
+                      {flag.dates.map((date) => formatShortDate(date)).join(' · ')}
+                    </Text>
+                  </VStack>
+                  <Badge colorScheme="orange" variant="subtle" borderRadius="full" px={2}>
+                    {formatBurnoutStreak(flag.streakWeeks)}
+                  </Badge>
+                </HStack>
+              ))}
+            </VStack>
           )}
         </CardBody>
       </Card>

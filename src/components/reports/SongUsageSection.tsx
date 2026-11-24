@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box, Text, HStack, Button, Table, Thead, Tbody, Tr, Th, Td,
-  Input, Flex, useToast, useColorModeValue,
+  TableContainer, Input, Flex, useToast, useColorModeValue,
   Spinner, Center, VStack, Badge, Tooltip, Divider,
 } from '@chakra-ui/react';
 import { useAuth } from '@/lib/auth';
@@ -13,6 +13,7 @@ import type { Song, Service, SongUsage, ServiceItem } from '@/lib/types';
 import EmptyState from '@/components/ui/EmptyState';
 import { formatShortDate, isFutureCalendarDate } from '@/lib/formatDate';
 import { buildCcliCsv } from '@/lib/reports/ccliCsv';
+import { summarizeSongUsage } from '@/lib/reports/songUsage';
 
 import {
   Download, Music, X
@@ -106,13 +107,26 @@ export default function SongUsageSection() {
           upcoming: isFutureCalendarDate(u.date),
           serviceTitle: service?.title || 'Unknown',
           serviceId: u.service_id,
+          songId: u.song_id,
           songTitle: song?.title || 'Unknown',
+          artist: song?.artist || '',
           ccliNumber: song?.ccli_number || '',
           key: keyUsed,
         };
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allUsage, songs, services, allServiceItems, dateFrom, dateTo]);
+
+  const frequencyRows = useMemo(
+    () => summarizeSongUsage(rows.map((row) => ({
+      date: row.date,
+      songId: row.songId,
+      title: row.songTitle,
+      artist: row.artist,
+      ccliNumber: row.ccliNumber,
+    }))),
+    [rows]
+  );
 
   const ccliRows = useMemo(() => {
     return allUsage.map((usage) => {
@@ -338,6 +352,54 @@ export default function SongUsageSection() {
         />
       ) : (
         <>
+          {/* Song Frequency Summary */}
+          <Box
+            bg={cardBg}
+            borderRadius="xl"
+            border="1px solid"
+            borderColor={borderColor}
+            mb="6"
+            overflow="hidden"
+            boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)"
+          >
+            <Box px="4" pt="4" pb="2">
+              <HStack spacing="2">
+                <Music size={16} color="var(--chakra-colors-teal-500)" />
+                <Text fontSize="sm" fontWeight="600" color={headingColor}>Song Frequency</Text>
+              </HStack>
+              <Text fontSize="xs" color={subtextColor} mt="0.5">
+                How often each song was played in this date range, most played first.
+              </Text>
+            </Box>
+            <TableContainer overflowX="auto">
+              <Table size="sm">
+                <Thead bg={theadBg}>
+                  <Tr>
+                    <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Song</Th>
+                    <Th isNumeric fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Times Played</Th>
+                    <Th fontSize="xs" fontWeight="600" textTransform="uppercase" letterSpacing="wide" color="gray.500">Last Used</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {frequencyRows.map((row) => (
+                    <Tr key={row.songKey}>
+                      <Td fontSize="sm">
+                        <Text fontWeight="500" color={headingColor}>{row.title}</Text>
+                        {row.artist && (
+                          <Text fontSize="xs" color={subtextColor}>{row.artist}</Text>
+                        )}
+                      </Td>
+                      <Td isNumeric fontSize="sm" fontWeight="600">{row.timesPlayed}</Td>
+                      <Td fontSize="sm" color={subtextColor}>
+                        {row.lastUsed ? formatShortDate(row.lastUsed) : '—'}
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </TableContainer>
+          </Box>
+
           {/* Desktop Table */}
           <Box display={{ base: 'none', md: 'block' }} bg={cardBg} borderRadius="xl" border="1px solid" borderColor={borderColor} overflow="hidden" boxShadow="0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)">
             <Table variant="simple">
