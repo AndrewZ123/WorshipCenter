@@ -3,6 +3,7 @@ import {
   countAssignmentStatuses,
   getNextUpcomingService,
   getServicesForDate,
+  getSundayFocusService,
   getTodaysServices,
   groupAssignmentsByRole,
   pickDefaultTodayService,
@@ -71,6 +72,38 @@ describe('Sunday morning service helpers', () => {
   it('finds the earliest upcoming service for the empty state', () => {
     const now = new Date(`${SUNDAY}T10:30:00Z`);
     expect(getNextUpcomingService(services, now)?.id).toBe('next-week');
+  });
+
+  it('focuses today’s default pick when there is a service today', () => {
+    const now = new Date(`${SUNDAY}T10:30:00Z`);
+    expect(getSundayFocusService(services, now)?.id).toBe('mid');
+  });
+
+  it('focuses the earliest upcoming service when today is empty', () => {
+    const monday = new Date('2026-11-30T09:00:00Z');
+    expect(getSundayFocusService(services, monday)?.id).toBe('next-week');
+  });
+
+  it('picks the nearest upcoming date before considering time', () => {
+    const monday = new Date('2026-11-30T09:00:00Z');
+    const schedule = [
+      { id: 'later', title: 'Later Sunday', date: '2026-12-13', time: '09:00' },
+      { id: 'sooner-late', title: 'Sooner Late', date: '2026-12-06', time: '17:00' },
+      { id: 'sooner-early', title: 'Sooner Early', date: '2026-12-06', time: '08:00' },
+    ];
+
+    expect(getSundayFocusService(schedule, monday)?.id).toBe('sooner-early');
+  });
+
+  it('returns null when there is no service today or upcoming', () => {
+    const monday = new Date('2026-11-30T09:00:00Z');
+    expect(getSundayFocusService([], monday)).toBeNull();
+    expect(
+      getSundayFocusService(
+        [{ id: 'past', title: 'Past Service', date: '2026-11-22', time: '09:00' }],
+        monday
+      )
+    ).toBeNull();
   });
 
   it('counts confirmed, declined, and pending responses', () => {

@@ -36,8 +36,8 @@ import {
   ArrowLeftRight,
   CalendarDays,
   CheckCircle2,
-  ChevronRight,
   Clock,
+  ExternalLink,
   Monitor,
   RefreshCw,
   UserPlus,
@@ -64,9 +64,11 @@ import {
   countAssignmentStatuses,
   formatRoleLabel,
   getNextUpcomingService,
+  getSundayFocusService,
   getTodaysServices,
   groupAssignmentsByRole,
-  pickDefaultTodayService,
+  type AssignmentStatusCounts,
+  type RoleGroup,
 } from '@/lib/sunday';
 import {
   formatFullDate,
@@ -111,6 +113,355 @@ function StatTile({
   );
 }
 
+interface ServiceRosterProps {
+  service: Service;
+  assignments: ServiceAssignmentPopulated[];
+  assignmentsLoading: boolean;
+  groups: RoleGroup<ServiceAssignmentPopulated>[];
+  counts: AssignmentStatusCounts;
+  swapsByAssignment: Map<string, AssignmentSwapSummary>;
+  userId?: string | null;
+  userTeamMemberId?: string | null;
+  isLeader: boolean;
+  isToday: boolean;
+  processingId: string | null;
+  swapProcessingId: string | null;
+  onConfirm: (assignmentId: string) => void;
+  onDecline: (assignmentId: string) => void;
+  onSwapDecision: (swapId: string, action: 'approve' | 'decline') => void;
+  onReassign: (assignment: ServiceAssignmentPopulated) => void;
+  onRosterChanged: () => Promise<void>;
+  onOpenSchedule: () => void;
+}
+
+/**
+ * Shared inner view for a service's roster: status tiles, confirmation
+ * progress, per-role groups, and the confirm/swap/reassign actions. Used by
+ * both the today view and the "next service" preview when today is empty.
+ */
+function ServiceRoster({
+  service,
+  assignments,
+  assignmentsLoading,
+  groups,
+  counts,
+  swapsByAssignment,
+  userId,
+  userTeamMemberId,
+  isLeader,
+  isToday,
+  processingId,
+  swapProcessingId,
+  onConfirm,
+  onDecline,
+  onSwapDecision,
+  onReassign,
+  onRosterChanged,
+  onOpenSchedule,
+}: ServiceRosterProps) {
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const headingColor = useColorModeValue('gray.900', 'white');
+  const textColor = useColorModeValue('gray.700', 'gray.200');
+  const subtextColor = useColorModeValue('gray.500', 'gray.400');
+  const ownBg = useColorModeValue('teal.50', 'rgba(13,148,136,0.12)');
+  const ownBorder = useColorModeValue('teal.300', 'teal.600');
+  const confirmedBg = useColorModeValue('green.50', 'rgba(22,163,74,0.16)');
+  const confirmedColor = useColorModeValue('green.700', 'green.200');
+  const declinedBg = useColorModeValue('red.50', 'rgba(220,38,38,0.16)');
+  const declinedColor = useColorModeValue('red.600', 'red.200');
+  const pendingBg = useColorModeValue('orange.50', 'rgba(217,119,6,0.16)');
+  const pendingColor = useColorModeValue('orange.700', 'orange.200');
+
+  const confirmedPercent = counts.total > 0
+    ? Math.round((counts.confirmed / counts.total) * 100)
+    : 0;
+
+  return (
+    <>
+      <SimpleGrid columns={3} spacing={{ base: 2, md: 3 }} mb="4">
+        <StatTile
+          label="Confirmed"
+          value={counts.confirmed}
+          icon={CheckCircle2}
+          bg={confirmedBg}
+          color={confirmedColor}
+        />
+        <StatTile
+          label="Declined"
+          value={counts.declined}
+          icon={XCircle}
+          bg={declinedBg}
+          color={declinedColor}
+        />
+        <StatTile
+          label="No response"
+          value={counts.pending}
+          icon={Clock}
+          bg={pendingBg}
+          color={pendingColor}
+        />
+      </SimpleGrid>
+
+      <Box mb="6">
+        <HStack justify="space-between" mb="1.5" spacing="3">
+          <Text fontSize="sm" fontWeight="600" color={textColor}>
+            {counts.confirmed} of {counts.total} confirmed
+          </Text>
+          <Text fontSize="sm" color={subtextColor}>
+            {groups.length} {groups.length === 1 ? 'position' : 'positions'}
+          </Text>
+        </HStack>
+        <Progress
+          value={confirmedPercent}
+          size="sm"
+          borderRadius="full"
+          colorScheme="green"
+          aria-label={`${confirmedPercent}% of the team confirmed`}
+        />
+      </Box>
+
+      {assignmentsLoading ? (
+        <Center py="10">
+          <Spinner size="lg" color="teal.500" />
+        </Center>
+      ) : assignments.length === 0 ? (
+        <EmptyState
+          icon="users"
+          title="No one is assigned yet"
+          description={
+            isLeader
+              ? `Open the full schedule to add team members to ${isToday ? 'today’s service' : 'this service'}.`
+              : 'Your leader hasn’t added anyone to this service yet.'
+          }
+          ctaLabel={isLeader ? 'Open schedule' : undefined}
+          ctaOnClick={isLeader ? onOpenSchedule : undefined}
+        />
+      ) : (
+        <VStack spacing="6" align="stretch">
+          {groups.map((group) => {
+            const groupCounts = countAssignmentStatuses(group.assignments);
+
+            return (
+              <Box key={group.role}>
+                <Flex justify="space-between" align="center" mb="2" gap="3">
+                  <HStack spacing="2" minW="0">
+                    <Text fontWeight="700" color={headingColor} noOfLines={1}>
+                      {group.label}
+                    </Text>
+                    <Badge
+                      borderRadius="full"
+                      colorScheme="gray"
+                      variant="subtle"
+                      px="2"
+                      flexShrink={0}
+                    >
+                      {group.assignments.length}
+                    </Badge>
+                  </HStack>
+                  <Text fontSize="xs" color={subtextColor} flexShrink={0}>
+                    {groupCounts.confirmed}/{groupCounts.total} confirmed
+                  </Text>
+                </Flex>
+
+                <VStack spacing="2" align="stretch">
+                  {group.assignments.map((assignment) => {
+                    const own = isOwnAssignment(
+                      {
+                        team_member_id: assignment.team_member_id,
+                        team_member_user_id: assignment.team_member?.user_id,
+                        status: assignment.status,
+                      },
+                      userId ?? undefined,
+                      userTeamMemberId ?? undefined
+                    );
+                    const swap = swapsByAssignment.get(assignment.id);
+                    const showSwapRequest = shouldShowSwapRequest(
+                      {
+                        team_member_id: assignment.team_member_id,
+                        team_member_user_id: assignment.team_member?.user_id,
+                        status: assignment.status,
+                      },
+                      {
+                        currentUserId: userId ?? undefined,
+                        currentTeamMemberId: userTeamMemberId ?? undefined,
+                        serviceDate: service.date,
+                        serviceTime: service.time,
+                        activeSwapStatus: swap?.status ?? null,
+                      }
+                    );
+                    const statusTimestamp = assignment.status === 'confirmed'
+                      ? assignment.confirmed_at
+                      : assignment.status === 'declined'
+                        ? assignment.declined_at
+                        : undefined;
+                    const statusTooltip = statusTimestamp
+                      ? `${assignment.status === 'confirmed' ? 'Confirmed' : 'Declined'} ${new Date(statusTimestamp).toLocaleString()}`
+                      : 'No response yet';
+
+                    return (
+                      <Card
+                        key={assignment.id}
+                        bg={own ? ownBg : cardBg}
+                        border="1px solid"
+                        borderColor={own ? ownBorder : borderColor}
+                        borderRadius="xl"
+                        boxShadow="0 1px 2px rgba(0,0,0,0.04)"
+                      >
+                        <CardBody p={{ base: '3', md: '4' }}>
+                          <Flex
+                            direction={{ base: 'column', md: 'row' }}
+                            align={{ base: 'stretch', md: 'center' }}
+                            gap="3"
+                          >
+                            <HStack spacing="3" flex="1" minW="0">
+                              <Avatar
+                                name={assignment.team_member?.name || 'Unknown'}
+                                src={assignment.team_member?.avatar_url}
+                                size="md"
+                              />
+                              <Box minW="0" flex="1">
+                                <HStack spacing="2" wrap="wrap">
+                                  <Text fontWeight="700" color={headingColor} noOfLines={1}>
+                                    {own ? 'You' : (assignment.team_member?.name || 'Unknown')}
+                                  </Text>
+                                  <Tooltip label={statusTooltip} hasArrow>
+                                    <Box as="span" display="inline-flex">
+                                      <StatusBadge
+                                        status={mapAssignmentStatus(assignment.status)}
+                                        size="sm"
+                                      />
+                                    </Box>
+                                  </Tooltip>
+                                  {swap && (
+                                    <Tooltip
+                                      label={
+                                        swap.status === 'claimed'
+                                          ? `${swap.claimed_by?.name || 'A teammate'} claimed this swap — awaiting leader approval`
+                                          : `${swap.requester.name} is looking for coverage`
+                                      }
+                                      hasArrow
+                                    >
+                                      <Badge
+                                        variant="subtle"
+                                        colorScheme={swap.status === 'claimed' ? 'blue' : 'yellow'}
+                                        fontSize="xs"
+                                        borderRadius="full"
+                                        px="2"
+                                      >
+                                        <ArrowLeftRight size={10} style={{ display: 'inline', marginRight: 3 }} />
+                                        {swap.status === 'claimed'
+                                          ? 'Swap claimed'
+                                          : own
+                                            ? 'Swap requested'
+                                            : 'Swap open'}
+                                      </Badge>
+                                    </Tooltip>
+                                  )}
+                                </HStack>
+                                <Text fontSize="sm" color={subtextColor}>
+                                  {formatRoleLabel(assignment.role)}
+                                </Text>
+                              </Box>
+                            </HStack>
+
+                            <HStack
+                              spacing="2"
+                              wrap="wrap"
+                              justify={{ base: 'stretch', md: 'flex-end' }}
+                            >
+                              {own && assignment.status === 'pending' && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    minH="44px"
+                                    colorScheme="teal"
+                                    leftIcon={<CheckCircle2 size={16} />}
+                                    isLoading={processingId === assignment.id}
+                                    onClick={() => onConfirm(assignment.id)}
+                                  >
+                                    Confirm
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    minH="44px"
+                                    variant="outline"
+                                    colorScheme="red"
+                                    leftIcon={<XCircle size={16} />}
+                                    isDisabled={processingId === assignment.id}
+                                    onClick={() => onDecline(assignment.id)}
+                                  >
+                                    Decline
+                                  </Button>
+                                </>
+                              )}
+
+                              {(showSwapRequest || (own && swap)) && (
+                                <SwapRequestAction
+                                  assignmentId={assignment.id}
+                                  role={assignment.role}
+                                  serviceTitle={service.title}
+                                  serviceDate={service.date}
+                                  serviceTime={service.time}
+                                  activeSwap={swap ? { id: swap.id, status: swap.status } : null}
+                                  showBadge={false}
+                                  size="md"
+                                  onChanged={onRosterChanged}
+                                />
+                              )}
+
+                              {isLeader && swap?.status === 'claimed' && (
+                                <Button
+                                  size="sm"
+                                  minH="44px"
+                                  colorScheme="green"
+                                  onClick={() => onSwapDecision(swap.id, 'approve')}
+                                  isLoading={swapProcessingId === swap.id}
+                                >
+                                  Approve swap
+                                </Button>
+                              )}
+                              {isLeader && swap && (
+                                <Button
+                                  size="sm"
+                                  minH="44px"
+                                  variant="outline"
+                                  colorScheme="red"
+                                  isDisabled={swapProcessingId === swap.id}
+                                  onClick={() => onSwapDecision(swap.id, 'decline')}
+                                >
+                                  Decline swap
+                                </Button>
+                              )}
+
+                              {isLeader && (
+                                <Button
+                                  size="sm"
+                                  minH="44px"
+                                  variant="outline"
+                                  colorScheme="teal"
+                                  leftIcon={<RefreshCw size={16} />}
+                                  onClick={() => onReassign(assignment)}
+                                >
+                                  Reassign
+                                </Button>
+                              )}
+                            </HStack>
+                          </Flex>
+                        </CardBody>
+                      </Card>
+                    );
+                  })}
+                </VStack>
+              </Box>
+            );
+          })}
+        </VStack>
+      )}
+    </>
+  );
+}
+
 export default function SundayPage() {
   const router = useRouter();
   const toast = useToast();
@@ -147,20 +498,31 @@ export default function SundayPage() {
   const subtextColor = useColorModeValue('gray.500', 'gray.400');
   const ownBg = useColorModeValue('teal.50', 'rgba(13,148,136,0.12)');
   const ownBorder = useColorModeValue('teal.300', 'teal.600');
-  const confirmedBg = useColorModeValue('green.50', 'rgba(22,163,74,0.16)');
-  const confirmedColor = useColorModeValue('green.700', 'green.200');
-  const declinedBg = useColorModeValue('red.50', 'rgba(220,38,38,0.16)');
-  const declinedColor = useColorModeValue('red.600', 'red.200');
-  const pendingBg = useColorModeValue('orange.50', 'rgba(217,119,6,0.16)');
   const pendingColor = useColorModeValue('orange.700', 'orange.200');
 
   const todayServices = useMemo(() => getTodaysServices(services), [services]);
   const nextUpcoming = useMemo(() => getNextUpcomingService(services), [services]);
 
-  const selectedService = useMemo(
-    () => todayServices.find((service) => service.id === selectedServiceId) ?? null,
-    [todayServices, selectedServiceId]
+  // When today is empty the page focuses the next upcoming service instead, so
+  // leaders can prep that roster from the same view.
+  const focusCandidates = useMemo(
+    () =>
+      todayServices.length > 0
+        ? todayServices
+        : nextUpcoming
+          ? [nextUpcoming]
+          : [],
+    [todayServices, nextUpcoming]
   );
+
+  const focusService = useMemo(() => getSundayFocusService(services), [services]);
+
+  const selectedService = useMemo(
+    () => focusCandidates.find((service) => service.id === selectedServiceId) ?? null,
+    [focusCandidates, selectedServiceId]
+  );
+
+  const showingNextService = todayServices.length === 0 && selectedService !== null;
 
   const loadServices = useCallback(async () => {
     if (!church || !user) {
@@ -210,16 +572,16 @@ export default function SundayPage() {
     }
   }, [authLoading, loadServices]);
 
-  // Keep the selected service valid as today's list loads or changes.
+  // Keep the selected service valid as the focused list loads or changes.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- selection must follow today's loaded services.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- selection must follow the loaded services.
     setSelectedServiceId((current) => {
-      if (current && todayServices.some((service) => service.id === current)) {
+      if (current && focusCandidates.some((service) => service.id === current)) {
         return current;
       }
-      return pickDefaultTodayService(todayServices)?.id ?? null;
+      return focusService?.id ?? null;
     });
-  }, [todayServices]);
+  }, [focusCandidates, focusService]);
 
   const loadAssignments = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -320,9 +682,6 @@ export default function SundayPage() {
   }, [selectedService, church, loadAssignments, loadSwaps]);
 
   const counts = useMemo(() => countAssignmentStatuses(assignments), [assignments]);
-  const confirmedPercent = counts.total > 0
-    ? Math.round((counts.confirmed / counts.total) * 100)
-    : 0;
 
   const groups = useMemo(() => {
     const sorted = [...assignments].sort((a, b) => {
@@ -369,7 +728,9 @@ export default function SundayPage() {
 
       toast({
         title: 'Confirmed',
-        description: 'Thanks for serving today.',
+        description: showingNextService
+          ? 'Thanks for confirming for the upcoming service.'
+          : 'Thanks for serving today.',
         status: 'success',
       });
       await Promise.all([loadAssignments({ silent: true }), loadSwaps()]);
@@ -591,7 +952,7 @@ export default function SundayPage() {
             textTransform="uppercase"
             letterSpacing="wider"
           >
-            Sunday morning
+            {showingNextService ? 'Next service' : 'Sunday morning'}
           </Text>
           <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="800" color={headingColor} letterSpacing="tight">
             {selectedService ? selectedService.title : 'Today'}
@@ -623,15 +984,17 @@ export default function SundayPage() {
             >
               Full schedule
             </Button>
-            <Button
-              size="sm"
-              minH="44px"
-              colorScheme="teal"
-              leftIcon={<Monitor size={16} />}
-              onClick={() => router.push(`/services/${selectedService.id}?mode=live`)}
-            >
-              Service mode
-            </Button>
+            {todayServices.length > 0 && (
+              <Button
+                size="sm"
+                minH="44px"
+                colorScheme="teal"
+                leftIcon={<Monitor size={16} />}
+                onClick={() => router.push(`/services/${selectedService.id}?mode=live`)}
+              >
+                Service mode
+              </Button>
+            )}
           </HStack>
         )}
       </Flex>
@@ -658,45 +1021,86 @@ export default function SundayPage() {
             title={isLeader ? 'No service today' : 'No service for you today'}
             description={
               isLeader
-                ? 'There isn’t a service on the calendar for today. Enjoy the quiet, or open the full schedule.'
-                : 'You don’t have an assignment for a service today. Check back or open your services list.'
+                ? 'There isn’t a service on the calendar for today. Enjoy the quiet, or prep the next one below.'
+                : 'You don’t have an assignment for a service today. Your next one is below if you’re scheduled.'
             }
             ctaLabel="View all services"
             ctaOnClick={() => router.push('/services')}
           />
 
           {nextUpcoming && (
-            <Card
-              bg={cardBg}
-              border="1px solid"
-              borderColor={borderColor}
-              borderRadius="xl"
-              cursor="pointer"
-              onClick={() => router.push(`/services/${nextUpcoming.id}`)}
-              _hover={{ borderColor: 'teal.300' }}
-            >
-              <CardBody>
-                <HStack spacing="3" justify="space-between">
-                  <HStack spacing="3" minW="0">
-                    <Box color="teal.500" flexShrink={0}>
-                      <CalendarDays size={22} />
-                    </Box>
-                    <Box minW="0">
-                      <Text fontSize="xs" fontWeight="700" color={subtextColor} textTransform="uppercase" letterSpacing="wide">
-                        Next service
-                      </Text>
-                      <Text fontWeight="700" color={headingColor} noOfLines={1}>
-                        {nextUpcoming.title}
-                      </Text>
-                      <Text fontSize="sm" color={subtextColor}>
-                        {formatServiceDate(nextUpcoming.date, nextUpcoming.time || undefined)}
-                      </Text>
-                    </Box>
-                  </HStack>
-                  <ChevronRight size={20} color="var(--chakra-colors-gray-400)" />
-                </HStack>
-              </CardBody>
-            </Card>
+            <Box as="section" aria-label="Next service">
+              <Card bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="xl">
+                <CardBody>
+                  <Flex
+                    direction={{ base: 'column', sm: 'row' }}
+                    align={{ base: 'stretch', sm: 'center' }}
+                    justify="space-between"
+                    gap="3"
+                  >
+                    <HStack spacing="3" minW="0">
+                      <Box color="teal.500" flexShrink={0}>
+                        <CalendarDays size={22} />
+                      </Box>
+                      <Box minW="0">
+                        <Text fontSize="xs" fontWeight="700" color={subtextColor} textTransform="uppercase" letterSpacing="wide">
+                          Next service
+                        </Text>
+                        <Text fontWeight="700" color={headingColor} noOfLines={1}>
+                          {nextUpcoming.title}
+                        </Text>
+                        <Text fontSize="sm" color={subtextColor}>
+                          {formatServiceDate(nextUpcoming.date, nextUpcoming.time || undefined)}
+                        </Text>
+                      </Box>
+                    </HStack>
+                    <Button
+                      colorScheme="teal"
+                      minH="48px"
+                      px="6"
+                      flexShrink={0}
+                      leftIcon={<ExternalLink size={18} />}
+                      onClick={() => router.push(`/services/${nextUpcoming.id}`)}
+                    >
+                      Open service
+                    </Button>
+                  </Flex>
+                </CardBody>
+              </Card>
+
+              {selectedService && (
+                <Box mt="5">
+                  <Text fontSize="xs" fontWeight="700" color={subtextColor} textTransform="uppercase" letterSpacing="wide" mb="3">
+                    Who’s serving
+                  </Text>
+                  <ServiceRoster
+                    service={selectedService}
+                    assignments={assignments}
+                    assignmentsLoading={assignmentsLoading}
+                    groups={groups}
+                    counts={counts}
+                    swapsByAssignment={swapByAssignment}
+                    userId={user?.id}
+                    userTeamMemberId={user?.team_member_id}
+                    isLeader={isLeader}
+                    isToday={false}
+                    processingId={processingId}
+                    swapProcessingId={swapProcessingId}
+                    onConfirm={(assignmentId) => void handleConfirm(assignmentId)}
+                    onDecline={(assignmentId) => void handleDecline(assignmentId)}
+                    onSwapDecision={(swapId, action) => void handleSwapDecision(swapId, action)}
+                    onReassign={(assignment) => void openReassign(assignment)}
+                    onRosterChanged={async () => {
+                      await Promise.all([
+                        loadAssignments({ silent: true }),
+                        loadSwaps(),
+                      ]);
+                    }}
+                    onOpenSchedule={() => router.push(`/services/${selectedService.id}?tab=schedule`)}
+                  />
+                </Box>
+              )}
+            </Box>
           )}
         </VStack>
       ) : (
@@ -734,292 +1138,31 @@ export default function SundayPage() {
           )}
 
           {selectedService && (
-            <>
-              <SimpleGrid columns={3} spacing={{ base: 2, md: 3 }} mb="4">
-                <StatTile
-                  label="Confirmed"
-                  value={counts.confirmed}
-                  icon={CheckCircle2}
-                  bg={confirmedBg}
-                  color={confirmedColor}
-                />
-                <StatTile
-                  label="Declined"
-                  value={counts.declined}
-                  icon={XCircle}
-                  bg={declinedBg}
-                  color={declinedColor}
-                />
-                <StatTile
-                  label="No response"
-                  value={counts.pending}
-                  icon={Clock}
-                  bg={pendingBg}
-                  color={pendingColor}
-                />
-              </SimpleGrid>
-
-              <Box mb="6">
-                <HStack justify="space-between" mb="1.5" spacing="3">
-                  <Text fontSize="sm" fontWeight="600" color={textColor}>
-                    {counts.confirmed} of {counts.total} confirmed
-                  </Text>
-                  <Text fontSize="sm" color={subtextColor}>
-                    {groups.length} {groups.length === 1 ? 'position' : 'positions'}
-                  </Text>
-                </HStack>
-                <Progress
-                  value={confirmedPercent}
-                  size="sm"
-                  borderRadius="full"
-                  colorScheme="green"
-                  aria-label={`${confirmedPercent}% of the team confirmed`}
-                />
-              </Box>
-
-              {assignmentsLoading ? (
-                <Center py="10">
-                  <Spinner size="lg" color="teal.500" />
-                </Center>
-              ) : assignments.length === 0 ? (
-                <EmptyState
-                  icon="users"
-                  title="No one is assigned yet"
-                  description={
-                    isLeader
-                      ? 'Open the full schedule to add team members to today’s service.'
-                      : 'Your leader hasn’t added anyone to this service yet.'
-                  }
-                  ctaLabel={isLeader ? 'Open schedule' : undefined}
-                  ctaOnClick={isLeader ? () => router.push(`/services/${selectedService.id}?tab=schedule`) : undefined}
-                />
-              ) : (
-                <VStack spacing="6" align="stretch">
-                  {groups.map((group) => {
-                    const groupCounts = countAssignmentStatuses(group.assignments);
-
-                    return (
-                      <Box key={group.role}>
-                        <Flex justify="space-between" align="center" mb="2" gap="3">
-                          <HStack spacing="2" minW="0">
-                            <Text fontWeight="700" color={headingColor} noOfLines={1}>
-                              {group.label}
-                            </Text>
-                            <Badge
-                              borderRadius="full"
-                              colorScheme="gray"
-                              variant="subtle"
-                              px="2"
-                              flexShrink={0}
-                            >
-                              {group.assignments.length}
-                            </Badge>
-                          </HStack>
-                          <Text fontSize="xs" color={subtextColor} flexShrink={0}>
-                            {groupCounts.confirmed}/{groupCounts.total} confirmed
-                          </Text>
-                        </Flex>
-
-                        <VStack spacing="2" align="stretch">
-                          {group.assignments.map((assignment) => {
-                            const own = isOwnAssignment(
-                              {
-                                team_member_id: assignment.team_member_id,
-                                team_member_user_id: assignment.team_member?.user_id,
-                                status: assignment.status,
-                              },
-                              user?.id,
-                              user?.team_member_id
-                            );
-                            const swap = swapByAssignment.get(assignment.id);
-                            const showSwapRequest = shouldShowSwapRequest(
-                              {
-                                team_member_id: assignment.team_member_id,
-                                team_member_user_id: assignment.team_member?.user_id,
-                                status: assignment.status,
-                              },
-                              {
-                                currentUserId: user?.id,
-                                currentTeamMemberId: user?.team_member_id,
-                                serviceDate: selectedService.date,
-                                serviceTime: selectedService.time,
-                                activeSwapStatus: swap?.status ?? null,
-                              }
-                            );
-                            const statusTimestamp = assignment.status === 'confirmed'
-                              ? assignment.confirmed_at
-                              : assignment.status === 'declined'
-                                ? assignment.declined_at
-                                : undefined;
-                            const statusTooltip = statusTimestamp
-                              ? `${assignment.status === 'confirmed' ? 'Confirmed' : 'Declined'} ${new Date(statusTimestamp).toLocaleString()}`
-                              : 'No response yet';
-
-                            return (
-                              <Card
-                                key={assignment.id}
-                                bg={own ? ownBg : cardBg}
-                                border="1px solid"
-                                borderColor={own ? ownBorder : borderColor}
-                                borderRadius="xl"
-                                boxShadow="0 1px 2px rgba(0,0,0,0.04)"
-                              >
-                                <CardBody p={{ base: '3', md: '4' }}>
-                                  <Flex
-                                    direction={{ base: 'column', md: 'row' }}
-                                    align={{ base: 'stretch', md: 'center' }}
-                                    gap="3"
-                                  >
-                                    <HStack spacing="3" flex="1" minW="0">
-                                      <Avatar
-                                        name={assignment.team_member?.name || 'Unknown'}
-                                        src={assignment.team_member?.avatar_url}
-                                        size="md"
-                                      />
-                                      <Box minW="0" flex="1">
-                                        <HStack spacing="2" wrap="wrap">
-                                          <Text fontWeight="700" color={headingColor} noOfLines={1}>
-                                            {own ? 'You' : (assignment.team_member?.name || 'Unknown')}
-                                          </Text>
-                                          <Tooltip label={statusTooltip} hasArrow>
-                                            <Box as="span" display="inline-flex">
-                                              <StatusBadge
-                                                status={mapAssignmentStatus(assignment.status)}
-                                                size="sm"
-                                              />
-                                            </Box>
-                                          </Tooltip>
-                                          {swap && (
-                                            <Tooltip
-                                              label={
-                                                swap.status === 'claimed'
-                                                  ? `${swap.claimed_by?.name || 'A teammate'} claimed this swap — awaiting leader approval`
-                                                  : `${swap.requester.name} is looking for coverage`
-                                              }
-                                              hasArrow
-                                            >
-                                              <Badge
-                                                variant="subtle"
-                                                colorScheme={swap.status === 'claimed' ? 'blue' : 'yellow'}
-                                                fontSize="xs"
-                                                borderRadius="full"
-                                                px="2"
-                                              >
-                                                <ArrowLeftRight size={10} style={{ display: 'inline', marginRight: 3 }} />
-                                                {swap.status === 'claimed'
-                                                  ? 'Swap claimed'
-                                                  : own
-                                                    ? 'Swap requested'
-                                                    : 'Swap open'}
-                                              </Badge>
-                                            </Tooltip>
-                                          )}
-                                        </HStack>
-                                        <Text fontSize="sm" color={subtextColor}>
-                                          {formatRoleLabel(assignment.role)}
-                                        </Text>
-                                      </Box>
-                                    </HStack>
-
-                                    <HStack
-                                      spacing="2"
-                                      wrap="wrap"
-                                      justify={{ base: 'stretch', md: 'flex-end' }}
-                                    >
-                                      {own && assignment.status === 'pending' && (
-                                        <>
-                                          <Button
-                                            size="sm"
-                                            minH="44px"
-                                            colorScheme="teal"
-                                            leftIcon={<CheckCircle2 size={16} />}
-                                            isLoading={processingId === assignment.id}
-                                            onClick={() => handleConfirm(assignment.id)}
-                                          >
-                                            Confirm
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            minH="44px"
-                                            variant="outline"
-                                            colorScheme="red"
-                                            leftIcon={<XCircle size={16} />}
-                                            isDisabled={processingId === assignment.id}
-                                            onClick={() => handleDecline(assignment.id)}
-                                          >
-                                            Decline
-                                          </Button>
-                                        </>
-                                      )}
-
-                                      {(showSwapRequest || (own && swap)) && (
-                                        <SwapRequestAction
-                                          assignmentId={assignment.id}
-                                          role={assignment.role}
-                                          serviceTitle={selectedService.title}
-                                          serviceDate={selectedService.date}
-                                          serviceTime={selectedService.time}
-                                          activeSwap={swap ? { id: swap.id, status: swap.status } : null}
-                                          showBadge={false}
-                                          size="md"
-                                          onChanged={async () => {
-                                            await Promise.all([
-                                              loadAssignments({ silent: true }),
-                                              loadSwaps(),
-                                            ]);
-                                          }}
-                                        />
-                                      )}
-
-                                      {isLeader && swap?.status === 'claimed' && (
-                                        <Button
-                                          size="sm"
-                                          minH="44px"
-                                          colorScheme="green"
-                                          onClick={() => handleSwapDecision(swap.id, 'approve')}
-                                          isLoading={swapProcessingId === swap.id}
-                                        >
-                                          Approve swap
-                                        </Button>
-                                      )}
-                                      {isLeader && swap && (
-                                        <Button
-                                          size="sm"
-                                          minH="44px"
-                                          variant="outline"
-                                          colorScheme="red"
-                                          isDisabled={swapProcessingId === swap.id}
-                                          onClick={() => handleSwapDecision(swap.id, 'decline')}
-                                        >
-                                          Decline swap
-                                        </Button>
-                                      )}
-
-                                      {isLeader && (
-                                        <Button
-                                          size="sm"
-                                          minH="44px"
-                                          variant="outline"
-                                          colorScheme="teal"
-                                          leftIcon={<RefreshCw size={16} />}
-                                          onClick={() => void openReassign(assignment)}
-                                        >
-                                          Reassign
-                                        </Button>
-                                      )}
-                                    </HStack>
-                                  </Flex>
-                                </CardBody>
-                              </Card>
-                            );
-                          })}
-                        </VStack>
-                      </Box>
-                    );
-                  })}
-                </VStack>
-              )}
-            </>
+            <ServiceRoster
+              service={selectedService}
+              assignments={assignments}
+              assignmentsLoading={assignmentsLoading}
+              groups={groups}
+              counts={counts}
+              swapsByAssignment={swapByAssignment}
+              userId={user?.id}
+              userTeamMemberId={user?.team_member_id}
+              isLeader={isLeader}
+              isToday
+              processingId={processingId}
+              swapProcessingId={swapProcessingId}
+              onConfirm={(assignmentId) => void handleConfirm(assignmentId)}
+              onDecline={(assignmentId) => void handleDecline(assignmentId)}
+              onSwapDecision={(swapId, action) => void handleSwapDecision(swapId, action)}
+              onReassign={(assignment) => void openReassign(assignment)}
+              onRosterChanged={async () => {
+                await Promise.all([
+                  loadAssignments({ silent: true }),
+                  loadSwaps(),
+                ]);
+              }}
+              onOpenSchedule={() => router.push(`/services/${selectedService.id}?tab=schedule`)}
+            />
           )}
         </>
       )}
@@ -1065,7 +1208,7 @@ export default function SundayPage() {
                     ))}
                   </Select>
                   <FormHelperText fontSize="xs">
-                    Teammates already scheduled today are hidden. The replacement will be asked to confirm.
+                    Teammates already scheduled for this service are hidden. The replacement will be asked to confirm.
                   </FormHelperText>
                 </FormControl>
 

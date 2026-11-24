@@ -134,6 +134,18 @@ export function getNextUpcomingService<T extends DateKeyed & Timed>(
   return sorted[0] ?? null;
 }
 
+/**
+ * The service this page should focus on: today's default pick when there is a
+ * service today, otherwise the earliest upcoming service. Null when neither
+ * exists, which callers render as the plain empty state.
+ */
+export function getSundayFocusService<T extends DateKeyed & Timed>(
+  services: readonly T[],
+  now: Date = new Date()
+): T | null {
+  return pickDefaultTodayService(services, now) ?? getNextUpcomingService(services, now);
+}
+
 /** Count assignment responses. Anything not confirmed/declined is pending. */
 export function countAssignmentStatuses(
   assignments: readonly AssignmentStatusLike[]
