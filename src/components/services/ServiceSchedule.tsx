@@ -34,7 +34,7 @@ import {
   isOwnAssignment,
   shouldShowSwapRequest,
 } from '@/lib/swaps/ui';
-import { notifySwapsChanged, useSwapChanges } from '@/lib/swaps/refresh';
+import { notifySwapsChanged, useSwapChanges, useSwapRealtime } from '@/lib/swaps/refresh';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
@@ -193,34 +193,22 @@ export default function ServiceSchedule({
     }
   };
 
-  // Pending swaps for this service. Leaders see open + claimed requests and can
-  // approve/decline them inline; volunteers just see the badge on their row.
+  // Pending swaps for this service. The counter includes every live request on
+  // the service (any requester); leaders can approve/decline inline and
+  // volunteers see the badge on their row.
   const loadSwaps = async () => {
     try {
       const headers = await getAuthHeaders();
-      const [serviceResponse, openResponse] = await Promise.all([
-        fetch(
-          apiUrl(`/api/swaps?status=pending&serviceId=${service.id}`),
-          { headers }
-        ),
-        fetch(apiUrl('/api/swaps?status=open'), { headers }),
-      ]);
+      const response = await fetch(
+        apiUrl(`/api/swaps?status=pending&serviceId=${service.id}`),
+        { headers }
+      );
 
-      if (serviceResponse.ok) {
-        const data = await parseJsonSafe(serviceResponse);
-        setSwaps(Array.isArray(data.swaps) ? data.swaps : []);
-      }
-
-      if (openResponse.ok) {
-        const openData = await parseJsonSafe(openResponse);
-        setOpenSwapCount(
-          Array.isArray(openData.swaps)
-            ? openData.swaps.filter(
-                (swap: AssignmentSwapSummary) =>
-                  swap.status === 'open' && swap.can_claim && !swap.is_mine
-              ).length
-            : 0
-        );
+      if (response.ok) {
+        const data = await parseJsonSafe(response);
+        const nextSwaps = Array.isArray(data.swaps) ? data.swaps : [];
+        setSwaps(nextSwaps);
+        setOpenSwapCount(nextSwaps.length);
       }
     } catch (error) {
       console.error('[ServiceSchedule] Failed to load swaps:', error);
@@ -261,6 +249,11 @@ export default function ServiceSchedule({
   };
 
   useSwapChanges(() => {
+    loadAssignments({ silent: true });
+    loadSwaps();
+  });
+
+  useSwapRealtime(churchId, () => {
     loadAssignments({ silent: true });
     loadSwaps();
   });
@@ -1126,6 +1119,15 @@ export default function ServiceSchedule({
       <OpenSwapsDrawer
         isOpen={showOpenSwaps}
         onClose={() => setShowOpenSwaps(false)}
+        serviceId={service.id}
+        swaps={swaps}
+        isLeader={isLeader}
+        swapProcessing={swapProcessing}
+        onApprove={(swapId) => handleSwapDecision(swapId, 'approve')}
+        onDecline={(swapId) => handleSwapDecision(swapId, 'decline')}
+        onChanged={async () => {
+          await Promise.all([loadAssignments({ silent: true }), loadSwaps()]);
+        }}
       />
 
       {/* Auto-fill preview */}

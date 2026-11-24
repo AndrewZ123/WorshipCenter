@@ -308,6 +308,112 @@ describe('GET /api/swaps', () => {
     await expect(response.json()).resolves.toEqual({ swaps: [] });
   });
 
+  it('filters pending swaps to the requested service', async () => {
+    authAs();
+    const otherServiceId = '00000000-0000-4000-8000-000000000014';
+    const otherAssignmentId = '00000000-0000-4000-8000-000000000015';
+    const otherSwapId = '00000000-0000-4000-8000-000000000016';
+
+    fake.setTableResult('team_members', { data: callerMember, error: null });
+    fake.setTableResult('team_member_blockout_dates', { data: [], error: null });
+    fake.setTableResult('assignment_swap_requests', {
+      data: [
+        {
+          id: swapId,
+          church_id: 'church-1',
+          assignment_id: assignmentId,
+          requested_by: 'tm-requester',
+          claimed_by: null,
+          status: 'open',
+          note: null,
+          created_at: '2099-06-01T00:00:00.000Z',
+          resolved_at: null,
+        },
+        {
+          id: otherSwapId,
+          church_id: 'church-1',
+          assignment_id: otherAssignmentId,
+          requested_by: 'tm-requester',
+          claimed_by: null,
+          status: 'open',
+          note: null,
+          created_at: '2099-06-02T00:00:00.000Z',
+          resolved_at: null,
+        },
+      ],
+      error: null,
+    });
+    setSequence('service_assignments', [
+      { data: { ...assignment, team_member_id: 'tm-requester' }, error: null },
+      { data: { ...assignment, team_member_id: 'tm-requester' }, error: null },
+      {
+        data: {
+          ...assignment,
+          id: otherAssignmentId,
+          service_id: otherServiceId,
+          team_member_id: 'tm-requester',
+          services: { ...assignment.services, id: otherServiceId },
+        },
+        error: null,
+      },
+      {
+        data: {
+          ...assignment,
+          id: otherAssignmentId,
+          service_id: otherServiceId,
+          team_member_id: 'tm-requester',
+          services: { ...assignment.services, id: otherServiceId },
+        },
+        error: null,
+      },
+    ]);
+
+    const response = await GET(
+      getRequest(`/api/swaps?status=pending&serviceId=${serviceId}`)
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.swaps).toHaveLength(1);
+    expect(body.swaps[0].id).toBe(swapId);
+  });
+
+  it('shows every live request on a service so the counter includes any requester', async () => {
+    authAs();
+    fake.setTableResult('team_members', {
+      data: { ...callerMember, roles: ['drums'] },
+      error: null,
+    });
+    fake.setTableResult('service_assignments', {
+      data: { ...assignment, team_member_id: 'tm-requester' },
+      error: null,
+    });
+    fake.setTableResult('team_member_blockout_dates', { data: [], error: null });
+    fake.setTableResult('assignment_swap_requests', {
+      data: [
+        {
+          id: swapId,
+          church_id: 'church-1',
+          assignment_id: assignmentId,
+          requested_by: 'tm-requester',
+          claimed_by: null,
+          status: 'open',
+          note: null,
+          created_at: '2099-06-01T00:00:00.000Z',
+          resolved_at: null,
+        },
+      ],
+      error: null,
+    });
+
+    const response = await GET(
+      getRequest(`/api/swaps?status=pending&serviceId=${serviceId}`)
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.swaps).toHaveLength(1);
+    expect(body.swaps[0]).toMatchObject({ id: swapId, can_claim: false, is_mine: false });
+  });
+
   it('lets leaders see every pending swap in their church', async () => {
     authAs('leader');
     fake.setTableResult('team_members', {

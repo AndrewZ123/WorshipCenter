@@ -19,7 +19,6 @@ import EmptyState from '@/components/ui/EmptyState';
 import ChordProPreview from '@/components/songs/ChordProPreview';
 import { summarizeSongUsageDates } from '@/lib/song-usage';
 import { isFutureCalendarDate } from '@/lib/formatDate';
-import { parseChordPro } from '@/lib/chordpro';
 import {
   TRANSPOSE_STORAGE_PREFIX,
   capoSuggestions,
@@ -37,6 +36,7 @@ import {
   findChordProFile,
   isChordProFileName,
   isChordProWithinLimit,
+  resolveChartViewerKey,
 } from '@/lib/song-chart';
 
 // Lucide icons
@@ -54,7 +54,16 @@ const YoutubeIcon = () => (
 );
 
 // ========== Main Client Component ==========
-export default function SongDetailClient({ songId: propSongId, onBack }: { songId?: string; onBack?: () => void } = {}) {
+export default function SongDetailClient({
+  songId: propSongId,
+  onBack,
+  serviceKey,
+}: {
+  songId?: string;
+  onBack?: () => void;
+  /** Service item key. Opening from a service context transposes to it. */
+  serviceKey?: string | null;
+} = {}) {
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
@@ -84,10 +93,41 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   const [showChartPreview, setShowChartPreview] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Display-only transpose. Persisted per song in this browser, never saved
-  // back to the song record unless the user explicitly uses Save Changes.
-  const [transposeOffset, setTransposeOffset] = useState(0);
-  const [transposeHydrated, setTransposeHydrated] = useState(false);
+  // Display-only transpose. It always starts at the chart's own key (or an
+  // explicit service key) and is never saved back to the song record. Edits
+  // are keyed to the open file, so switching or reopening a file starts fresh.
+  const [transposeEdit, setTransposeEdit] = useState<{
+    fileId: string | null;
+    offset: number;
+  }>({ fileId: null, offset: 0 });
+
+  // The only transpose restored on open comes from a service item key. Songs
+  // themselves always open at their source key with no offset.
+  const viewerBaseOffset = useMemo(() => {
+    if (!viewFile || !isChordProFileName(viewFile.file_name)) return 0;
+    return resolveChartViewerKey({
+      chartText: decodeTextFileDataUrl(viewFile.file_url),
+      defaultKey: song?.default_key,
+      serviceKey,
+    }).semitones;
+  }, [viewFile, song?.default_key, serviceKey]);
+
+  const transposeOffset =
+    transposeEdit.fileId === (viewFile?.id ?? null)
+      ? transposeEdit.offset
+      : viewerBaseOffset;
+
+  const setTransposeOffset = (next: number | ((current: number) => number)) => {
+    const fileId = viewFile?.id ?? null;
+    setTransposeEdit((current) => {
+      const value =
+        current.fileId === fileId ? current.offset : viewerBaseOffset;
+      return {
+        fileId,
+        offset: typeof next === 'function' ? next(value) : next,
+      };
+    });
+  };
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -134,28 +174,21 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Older builds remembered a per-song transpose. That caused charts to open
+  // at Gb when the song key was G, so clear any leftovers once on load. The
+  // viewer now always derives its opening offset from the chart/service key.
   useEffect(() => {
-    if (!songId) return;
     try {
-      const stored = window.localStorage.getItem(`${TRANSPOSE_STORAGE_PREFIX}${songId}`);
-      setTransposeOffset(stored === null ? 0 : clampTranspose(Number.parseInt(stored, 10)));
+      const staleKeys: string[] = [];
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (key?.startsWith(TRANSPOSE_STORAGE_PREFIX)) staleKeys.push(key);
+      }
+      staleKeys.forEach((key) => window.localStorage.removeItem(key));
     } catch {
-      setTransposeOffset(0);
+      // Storage can be unavailable (private mode / quota); nothing to clear.
     }
-    setTransposeHydrated(true);
-  }, [songId]);
-
-  useEffect(() => {
-    if (!songId || !transposeHydrated) return;
-    try {
-      window.localStorage.setItem(
-        `${TRANSPOSE_STORAGE_PREFIX}${songId}`,
-        String(transposeOffset)
-      );
-    } catch {
-      // Storage can be unavailable (private mode / quota); transpose still works.
-    }
-  }, [songId, transposeOffset, transposeHydrated]);
+  }, []);
 
   const recentServices = useMemo(() => {
     return allUsage
@@ -331,8 +364,23 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   };
 
   const handleViewFile = (file: SongFile) => {
+    const chartText = isChordProFileName(file.file_name)
+      ? decodeTextFileDataUrl(file.file_url)
+      : '';
+    setTransposeOffset(
+      resolveChartViewerKey({
+        chartText,
+        defaultKey: song?.default_key,
+        serviceKey,
+      }).semitones
+    );
     setViewFile(file);
     viewerDisclosure.onOpen();
+  };
+
+  const handleCloseViewer = () => {
+    setTransposeOffset(viewerBaseOffset);
+    viewerDisclosure.onClose();
   };
 
   const formatDate = (d: string) => {
@@ -351,7 +399,11 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   const chartFile = viewFile && isChordPro(viewFile) ? viewFile : findChordProFile(files);
   const chartRaw = chartFile ? decodeTextFileDataUrl(chartFile.file_url) : '';
   const chartOriginalKey = chartRaw
-    ? (parseChordPro(chartRaw).meta.key.trim() || song.default_key || '')
+    ? resolveChartViewerKey({
+        chartText: chartRaw,
+        defaultKey: song.default_key,
+        serviceKey,
+      }).sourceKey
     : '';
   const chartDisplayKey = chartOriginalKey
     ? transposeKey(chartOriginalKey, transposeOffset)
@@ -811,7 +863,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
       )}
 
       {/* Chord Chart Viewer Modal */}
-      <Modal isOpen={viewerDisclosure.isOpen} onClose={viewerDisclosure.onClose} size="xl" isCentered>
+      <Modal isOpen={viewerDisclosure.isOpen} onClose={handleCloseViewer} size="xl" isCentered>
         <ModalOverlay backdropBlur="sm" />
         <ModalContent borderRadius="2xl" maxH="80vh" mx="4">
           <ModalHeader fontWeight="700">{viewFile?.file_name || 'File Viewer'}</ModalHeader>

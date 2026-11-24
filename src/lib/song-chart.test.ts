@@ -9,7 +9,9 @@ import {
   isChordProFileName,
   isChordProWithinLimit,
   normalizeChordProText,
+  resolveChartViewerKey,
 } from './song-chart';
+import { transposeChordPro } from './transpose';
 
 describe('song chart helpers', () => {
   it('normalizes Windows line endings', () => {
@@ -64,5 +66,54 @@ describe('song chart helpers', () => {
     expect(isChordProFileName('song.crd')).toBe(true);
     expect(isChordProFileName('SONG.CHORDPRO')).toBe(true);
     expect(isChordProFileName('chart.pdf')).toBe(false);
+  });
+});
+
+describe('chart viewer key', () => {
+  const chart = '[G]Amazing [C]grace [G]sweet [D]sound';
+
+  it('opens at the default key with no transpose', () => {
+    const viewer = resolveChartViewerKey({ chartText: chart, defaultKey: 'G' });
+
+    expect(viewer).toEqual({ sourceKey: 'G', semitones: 0 });
+    expect(transposeChordPro(chart, viewer.semitones)).toBe(chart);
+  });
+
+  it('prefers the chart key directive over the song default key', () => {
+    const viewer = resolveChartViewerKey({
+      chartText: `{key: Bb}\n${chart}`,
+      defaultKey: 'G',
+    });
+
+    expect(viewer).toEqual({ sourceKey: 'Bb', semitones: 0 });
+  });
+
+  it('opens transposed when a service key is passed in', () => {
+    const viewer = resolveChartViewerKey({
+      chartText: chart,
+      defaultKey: 'G',
+      serviceKey: 'A',
+    });
+
+    expect(viewer).toEqual({ sourceKey: 'G', semitones: 2 });
+    expect(transposeChordPro(chart, viewer.semitones, 'A')).toBe(
+      '[A]Amazing [D]grace [A]sweet [E]sound',
+    );
+  });
+
+  it('starts at zero every time a song is reopened', () => {
+    // There is deliberately no stored transpose to restore: the same input
+    // always yields the same opening offset.
+    expect(resolveChartViewerKey({ chartText: chart, defaultKey: 'G' }).semitones).toBe(0);
+    expect(resolveChartViewerKey({ chartText: chart, defaultKey: 'G' }).semitones).toBe(0);
+  });
+
+  it('handles flat keys and enharmonic service keys', () => {
+    expect(
+      resolveChartViewerKey({ chartText: '{key: Gb}', defaultKey: 'G', serviceKey: 'F#' }),
+    ).toEqual({ sourceKey: 'Gb', semitones: 0 });
+    expect(
+      resolveChartViewerKey({ chartText: '{key: Bb}', defaultKey: 'G', serviceKey: 'Db' }),
+    ).toEqual({ sourceKey: 'Bb', semitones: 3 });
   });
 });

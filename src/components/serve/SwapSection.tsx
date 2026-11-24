@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Badge,
   Box,
@@ -8,6 +8,7 @@ import {
   Card,
   CardBody,
   Center,
+  Collapse,
   Divider,
   Flex,
   HStack,
@@ -19,11 +20,12 @@ import {
   useColorModeValue,
   useToast,
 } from '@chakra-ui/react';
-import { ArrowLeftRight, Calendar, CheckCircle, Users } from 'lucide-react';
+import { ArrowLeftRight, Calendar, CheckCircle, ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { formatServiceDate } from '@/lib/formatDate';
-import { notifySwapsChanged, useSwapChanges } from '@/lib/swaps/refresh';
+import { notifySwapsChanged, useSwapChanges, useSwapRealtime } from '@/lib/swaps/refresh';
+import { groupMySwapRequests } from '@/lib/swaps/history';
 import type {
   AssignmentSwapStatus,
   AssignmentSwapSummary,
@@ -48,12 +50,52 @@ function formatRole(role: string): string {
   return role.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-interface SwapSectionProps {
-  /** "open" renders just the claimable list, for the Team tab drawer. */
-  mode?: 'full' | 'open';
+function MySwapRow({
+  swap,
+  muted = false,
+}: {
+  swap: AssignmentSwapSummary;
+  muted?: boolean;
+}) {
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.100', 'gray.700');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const subtextColor = useColorModeValue('gray.500', 'gray.400');
+
+  return (
+    <HStack
+      justify="space-between"
+      px="4"
+      py="2"
+      bg={cardBg}
+      border="1px solid"
+      borderColor={borderColor}
+      borderRadius="lg"
+      opacity={muted ? 0.75 : 1}
+    >
+      <Box>
+        <Text fontSize="sm" fontWeight="600" color={textColor}>
+          {formatRole(swap.role)} — {swap.service.title}
+        </Text>
+        <Text fontSize="xs" color={subtextColor}>
+          {formatServiceDate(swap.service.date, swap.service.time)}
+          {swap.claimed_by ? ` · ${swap.claimed_by.name} claimed` : ''}
+        </Text>
+      </Box>
+      <Badge
+        colorScheme={statusColor(swap.status)}
+        borderRadius="full"
+        px="2.5"
+        py="0.5"
+        textTransform="capitalize"
+      >
+        {swap.status}
+      </Badge>
+    </HStack>
+  );
 }
 
-export default function SwapSection({ mode = 'full' }: SwapSectionProps) {
+export default function SwapSection() {
   const { user, church, loading: authLoading } = useAuth();
   const toast = useToast();
 
@@ -61,6 +103,7 @@ export default function SwapSection({ mode = 'full' }: SwapSectionProps) {
   const [mySwaps, setMySwaps] = useState<AssignmentSwapSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const cardBg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.100', 'gray.700');
@@ -105,6 +148,7 @@ export default function SwapSection({ mode = 'full' }: SwapSectionProps) {
   };
 
   useSwapChanges(loadData);
+  useSwapRealtime(church?.id, loadData);
 
   const handleClaim = async (swapId: string) => {
     try {
@@ -138,6 +182,11 @@ export default function SwapSection({ mode = 'full' }: SwapSectionProps) {
     }
   };
 
+  const { current: currentMySwaps, history: historyMySwaps } = useMemo(
+    () => groupMySwapRequests(mySwaps),
+    [mySwaps]
+  );
+
   if (authLoading) {
     return (
       <Center py="6">
@@ -159,45 +208,31 @@ export default function SwapSection({ mode = 'full' }: SwapSectionProps) {
   const claimable = openSwaps.filter(
     (swap) => swap.status === 'open' && swap.can_claim && !swap.is_mine
   );
-  const isOpenOnly = mode === 'open';
-  const hasMySwaps = !isOpenOnly && mySwaps.length > 0;
+  const hasMySwaps = mySwaps.length > 0;
 
-  if (claimable.length === 0 && !hasMySwaps) {
-    if (!isOpenOnly) return null;
-    return (
-      <Box py="8" textAlign="center">
-        <Text fontSize="sm" color={subtextColor}>
-          No open swaps you can claim right now.
-        </Text>
-      </Box>
-    );
-  }
+  if (claimable.length === 0 && !hasMySwaps) return null;
 
   return (
-    <Box mb={isOpenOnly ? '0' : '6'}>
-      {!isOpenOnly && <Divider mb="4" borderColor={borderColor} />}
+    <Box mb="6">
+      <Divider mb="4" borderColor={borderColor} />
 
-      {!isOpenOnly && (
-        <Flex justify="space-between" align="center" mb="3">
-          <Box>
-            <Text fontSize="lg" fontWeight="600" color={textColor}>
-              Swaps
-            </Text>
-            <Text mt="0.5" fontSize="sm" color={subtextColor}>
-              Ask a teammate to cover your role, or pick up an open shift
-            </Text>
-          </Box>
-          <ArrowLeftRight size={20} color="var(--chakra-colors-teal-500)" />
-        </Flex>
-      )}
+      <Flex justify="space-between" align="center" mb="3">
+        <Box>
+          <Text fontSize="lg" fontWeight="600" color={textColor}>
+            Swaps
+          </Text>
+          <Text mt="0.5" fontSize="sm" color={subtextColor}>
+            Ask a teammate to cover your role, or pick up an open shift
+          </Text>
+        </Box>
+        <ArrowLeftRight size={20} color="var(--chakra-colors-teal-500)" />
+      </Flex>
 
       {claimable.length > 0 && (
-        <Box mb={isOpenOnly ? '0' : '5'}>
-          {!isOpenOnly && (
-            <Text fontWeight="600" fontSize="sm" mb="2" color={subtextColor}>
-              Open swaps
-            </Text>
-          )}
+        <Box mb="5">
+          <Text fontWeight="600" fontSize="sm" mb="2" color={subtextColor}>
+            Open swaps
+          </Text>
           <VStack spacing="2" align="stretch">
             {claimable.map((swap) => (
               <Card
@@ -264,42 +299,41 @@ export default function SwapSection({ mode = 'full' }: SwapSectionProps) {
           <Text fontWeight="600" fontSize="sm" mb="2" color={subtextColor}>
             My swap requests
           </Text>
-          <VStack spacing="2" align="stretch">
-            {mySwaps.map((swap) => (
-              <HStack
-                key={swap.id}
-                justify="space-between"
-                px="4"
-                py="2"
-                bg={cardBg}
-                border="1px solid"
-                borderColor={borderColor}
-                borderRadius="lg"
+
+          {currentMySwaps.length === 0 ? (
+            <Text fontSize="sm" color={subtextColor} mb="2">
+              No active swap requests.
+            </Text>
+          ) : (
+            <VStack spacing="2" align="stretch">
+              {currentMySwaps.map((swap) => (
+                <MySwapRow key={swap.id} swap={swap} />
+              ))}
+            </VStack>
+          )}
+
+          {historyMySwaps.length > 0 && (
+            <Box mt="2">
+              <Button
+                size="xs"
+                variant="ghost"
+                color={subtextColor}
+                leftIcon={showHistory ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                onClick={() => setShowHistory((current) => !current)}
               >
-                <Box>
-                  <Text fontSize="sm" fontWeight="600" color={textColor}>
-                    {formatRole(swap.role)} — {swap.service.title}
-                  </Text>
-                  <Text fontSize="xs" color={subtextColor}>
-                    {formatServiceDate(swap.service.date, swap.service.time)}
-                    {swap.claimed_by ? ` · ${swap.claimed_by.name} claimed` : ''}
-                  </Text>
-                </Box>
-                <Badge
-                  colorScheme={statusColor(swap.status)}
-                  borderRadius="full"
-                  px="2.5"
-                  py="0.5"
-                  textTransform="capitalize"
-                >
-                  {swap.status}
-                </Badge>
-              </HStack>
-            ))}
-          </VStack>
+                History ({historyMySwaps.length})
+              </Button>
+              <Collapse in={showHistory} animateOpacity>
+                <VStack spacing="2" align="stretch" mt="2">
+                  {historyMySwaps.map((swap) => (
+                    <MySwapRow key={swap.id} swap={swap} muted />
+                  ))}
+                </VStack>
+              </Collapse>
+            </Box>
+          )}
         </Box>
       )}
-
     </Box>
   );
 }

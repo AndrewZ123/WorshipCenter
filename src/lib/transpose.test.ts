@@ -130,6 +130,25 @@ describe('semitonesBetween', () => {
   it('returns 0 for values that are not keys', () => {
     expect(semitonesBetween('Verse', 'A')).toBe(0);
   });
+
+  it('has no off-by-one for any of the 12 keys', () => {
+    const sharps = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const flats = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+    sharps.forEach((key, index) => {
+      expect(semitonesBetween('C', key)).toBe(index);
+      expect(semitonesBetween(key, 'C')).toBe((12 - index) % 12);
+    });
+
+    flats.forEach((key, index) => {
+      expect(semitonesBetween('C', key)).toBe(index);
+      expect(semitonesBetween(key, 'C')).toBe((12 - index) % 12);
+    });
+
+    // Enharmonic spellings are the same pitch.
+    expect(semitonesBetween('Gb', 'F#')).toBe(0);
+    expect(semitonesBetween('C#', 'Db')).toBe(0);
+  });
 });
 
 describe('transposeChordPro', () => {

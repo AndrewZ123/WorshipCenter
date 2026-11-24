@@ -8,8 +8,43 @@
  */
 
 import type { SongFile } from './types';
+import { parseChordPro } from './chordpro';
+import { parseKey, semitonesBetween } from './transpose';
 
 export const CHORD_PRO_MAX_LENGTH = 50_000;
+
+export interface ChartViewerKey {
+  /** The chart's own key: `{key}` directive, else the song's default key. */
+  sourceKey: string;
+  /** Semitones from the source key to an explicit service key (0 otherwise). */
+  semitones: number;
+}
+
+/**
+ * The chart viewer always opens at the chart's source key. Only a service item
+ * key passed in from a service context may open it transposed.
+ */
+export function resolveChartViewerKey(params: {
+  chartText?: string | null;
+  defaultKey?: string | null;
+  serviceKey?: string | null;
+}): ChartViewerKey {
+  const chartKey = params.chartText ? parseChordPro(params.chartText).meta.key.trim() : '';
+  const sourceKey = parseKey(chartKey)
+    ? chartKey
+    : parseKey(params.defaultKey || '')
+      ? (params.defaultKey || '').trim()
+      : '';
+
+  if (!sourceKey) return { sourceKey: '', semitones: 0 };
+
+  const serviceKey = (params.serviceKey || '').trim();
+  const semitones = parseKey(serviceKey)
+    ? semitonesBetween(sourceKey, serviceKey)
+    : 0;
+
+  return { sourceKey, semitones };
+}
 
 export function normalizeChordProText(text: string): string {
   return text.replace(/\r\n?/g, '\n');

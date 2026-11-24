@@ -329,10 +329,15 @@ export async function GET(request: NextRequest) {
           candidateCanClaim(member, eligibility)
       );
 
+      // A service-scoped pending list powers the Team tab's swap counter and
+      // drawer. It shows every live request on that service (any requester),
+      // while claim/approve permissions still come from can_claim/isLeader.
+      const isServicePending =
+        Boolean(serviceId) && (swap.status === 'open' || swap.status === 'claimed');
       const include =
         statusParam === 'mine'
           ? isMine || isClaimedByMe
-          : isMine || isClaimedByMe || canClaim || isLeader;
+          : isServicePending || isMine || isClaimedByMe || canClaim || isLeader;
       if (!include) continue;
 
       if (!membersById.has(swap.requested_by)) {
