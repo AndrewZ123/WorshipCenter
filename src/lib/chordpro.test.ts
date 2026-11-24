@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseChordPro } from './chordpro';
+import { parseChordPro, splitChordProLine } from './chordpro';
 
 describe('parseChordPro line endings', () => {
   it('parses pasted text with Windows CRLF line endings', () => {
@@ -17,5 +17,36 @@ describe('parseChordPro line endings', () => {
       chords: ['G', 'D'],
       text: 'How sweet the sound',
     });
+  });
+});
+
+describe('splitChordProLine', () => {
+  it('keeps each chord above the lyric that follows it', () => {
+    expect(splitChordProLine('[G]Amazing [C]grace')).toEqual([
+      { chord: 'G', lyric: 'Amazing ' },
+      { chord: 'C', lyric: 'grace' },
+    ]);
+  });
+
+  it('preserves leading text and spacing', () => {
+    expect(splitChordProLine('Amazing [C] grace')).toEqual([
+      { chord: '', lyric: 'Amazing ' },
+      { chord: 'C', lyric: ' grace' },
+    ]);
+  });
+
+  it('marks chord-only segments separately', () => {
+    expect(splitChordProLine('[G][C]grace')).toEqual([
+      { chord: 'G', lyric: '' },
+      { chord: 'C', lyric: 'grace' },
+    ]);
+    expect(splitChordProLine('[G]')).toEqual([{ chord: 'G', lyric: '' }]);
+  });
+
+  it('handles lyric-only and empty lines', () => {
+    expect(splitChordProLine('No chords here')).toEqual([
+      { chord: '', lyric: 'No chords here' },
+    ]);
+    expect(splitChordProLine('')).toEqual([]);
   });
 });

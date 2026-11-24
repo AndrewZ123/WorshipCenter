@@ -21,6 +21,7 @@ import { canMarkServiceCompleted, getServiceBadgeStatus, getServiceEditorStatus 
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
 import { formatRelativeDate, formatServiceDate, isTodayOrFutureCalendarDate } from '@/lib/formatDate';
+import { formatKey } from '@/lib/formatKey';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { notifyPushEvent } from '@/lib/push-events-client';
 import { supabase } from '@/lib/supabase';
@@ -1497,7 +1498,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                   </Box>
                                   <Text fontSize="sm" fontWeight="500" color={itemTitleColor} flex="1" noOfLines={1}>{item.title}</Text>
                                   {item.type === 'song' && item.key && (
-                                    <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0}>Key: {item.key}</Badge>
+                                    <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0} textTransform="none">Key: {formatKey(item.key)}</Badge>
                                   )}
                                   {item.duration_minutes && (
                                     <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
@@ -1619,7 +1620,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                   )}
                                 </VStack>
                                 {item.type === 'song' && item.key && (
-                                  <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0}>Key: {item.key}</Badge>
+                                  <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0} textTransform="none">Key: {formatKey(item.key)}</Badge>
                                 )}
                                 {item.duration_minutes && (
                                   <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
@@ -1686,7 +1687,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                                       )}
                                     </VStack>
                                     {item.type === 'song' && item.key && (
-                                      <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0}>Key: {item.key}</Badge>
+                                      <Badge colorScheme="teal" variant="subtle" fontSize="xs" flexShrink={0} textTransform="none">Key: {formatKey(item.key)}</Badge>
                                     )}
                                     {item.duration_minutes && (
                                       <Text fontSize="xs" color="gray.400" flexShrink={0}>{item.duration_minutes} min</Text>
@@ -2159,7 +2160,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                   borderRadius="lg"
                 >
                   {['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab', 'A', 'A#/Bb', 'B'].map(k => (
-                    <option key={k} value={k}>{k}</option>
+                    <option key={k} value={k}>{formatKey(k)}</option>
                   ))}
                 </Select>
               </FormControl>
@@ -2308,7 +2309,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                           <Text fontSize="xs" color={subtextColor}>{song.artist}</Text>
                         )}
                         {song.default_key && (
-                          <Badge variant="subtle" colorScheme="teal" fontSize="xs">{song.default_key}</Badge>
+                          <Badge variant="subtle" colorScheme="teal" fontSize="xs" textTransform="none">{formatKey(song.default_key)}</Badge>
                         )}
                       </HStack>
                     </Box>

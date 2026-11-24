@@ -21,12 +21,14 @@ import { summarizeSongUsageDates } from '@/lib/song-usage';
 import { isFutureCalendarDate } from '@/lib/formatDate';
 import { parseChordPro } from '@/lib/chordpro';
 import { capoSuggestions, transposeChordPro, transposeKey } from '@/lib/transpose';
+import { formatKey } from '@/lib/formatKey';
 import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
 import {
   CHORD_PRO_MAX_LENGTH,
   buildChordProFileInput,
   decodeTextFileDataUrl,
   findChordProFile,
+  isChordProFileName,
   isChordProWithinLimit,
 } from '@/lib/song-chart';
 
@@ -101,15 +103,20 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
     try {
       setLoading(true);
       const s = await store.songs.getById(songId, church.id);
-      if (s) {
-        setSong(s);
-        setTitle(s.title);
-        setArtist(s.artist);
-        setDefaultKey(s.default_key);
-        setCcli(s.ccli_number);
-        setTagsStr(s.tags.join(', '));
-        setYoutubeId(s.youtube_video_id || '');
+      if (!s) {
+        // Stale link or a song that belongs to another church: stop here and
+        // render "Song not found" instead of querying related tables for an
+        // inaccessible id.
+        setSong(null);
+        return;
       }
+      setSong(s);
+      setTitle(s.title);
+      setArtist(s.artist);
+      setDefaultKey(s.default_key);
+      setCcli(s.ccli_number);
+      setTagsStr(s.tags.join(', '));
+      setYoutubeId(s.youtube_video_id || '');
       const songFiles = await store.songFiles.getBySong(songId, church.id);
       setFiles(songFiles);
       const editableChart = findChordProFile(songFiles);
@@ -335,7 +342,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   };
 
   const isPdf = (f: SongFile) => f.file_name.toLowerCase().endsWith('.pdf');
-  const isChordPro = (f: SongFile) => /\.(cho|chordpro|chopro)$/i.test(f.file_name);
+  const isChordPro = (f: SongFile) => isChordProFileName(f.file_name);
   const isText = (f: SongFile) => f.file_name.toLowerCase().endsWith('.txt') || isChordPro(f);
 
   const health = getRotationHealth();
@@ -492,7 +499,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                 <HStack spacing="2">
                   <Music size={14} color="var(--chakra-colors-gray-400)" />
                   <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase">Key:</Text>
-                  <Badge variant="subtle" colorScheme="teal" fontSize="sm" borderRadius="md" px="2">{song.default_key}</Badge>
+                  <Badge variant="subtle" colorScheme="teal" fontSize="sm" borderRadius="md" px="2" textTransform="none">{formatKey(song.default_key)}</Badge>
                 </HStack>
                 {song.ccli_number && (
                   <HStack spacing="2">
@@ -556,7 +563,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
             Upload File
           </Button>
         )}
-        {!isTeam && <input ref={fileInputRef} type="file" accept=".pdf,.cho,.chordpro,.chopro,.txt" style={{ display: 'none' }} onChange={handleFileUpload} />}
+        {!isTeam && <input ref={fileInputRef} type="file" accept=".pdf,.cho,.chordpro,.chopro,.crd,.pro,.txt" style={{ display: 'none' }} onChange={handleFileUpload} />}
       </HStack>
 
       {files.length === 0 ? (
@@ -598,7 +605,19 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                 >
                   <FileText size={16} color="var(--chakra-colors-gray-500)" />
                 </Box>
-                <Link href={f.file_url} download={f.file_name} color="teal.600" fontWeight="500" fontSize="sm" _hover={{ textDecoration: 'underline' }}>
+                <Link
+                  href={f.file_url}
+                  download={f.file_name}
+                  onClick={(event) => {
+                    if (!isChordPro(f)) return;
+                    event.preventDefault();
+                    handleViewFile(f);
+                  }}
+                  color="teal.600"
+                  fontWeight="500"
+                  fontSize="sm"
+                  _hover={{ textDecoration: 'underline' }}
+                >
                   {f.file_name}
                 </Link>
               </HStack>
@@ -743,12 +762,12 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                   <HStack spacing="3" flexWrap="wrap">
                     <Text fontSize="xs" color={subtextColor}>
                       Original key:{' '}
-                      <Text as="span" fontWeight="700" color={headingColor}>{chartOriginalKey || '—'}</Text>
+                      <Text as="span" fontWeight="700" color={headingColor}>{formatKey(chartOriginalKey) || '—'}</Text>
                     </Text>
                     <Text fontSize="xs" color={subtextColor}>
                       Displaying:{' '}
-                      <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md" px="2">
-                        {chartDisplayKey || '—'}
+                      <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md" px="2" textTransform="none">
+                        {formatKey(chartDisplayKey) || '—'}
                       </Badge>
                     </Text>
                   </HStack>
@@ -794,10 +813,11 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                         fontSize="xs"
                         borderRadius="full"
                         px="2"
+                        textTransform="none"
                       >
                         {suggestion.capo === 0
-                          ? `No capo — ${suggestion.shapeKey} shapes`
-                          : `Capo ${suggestion.capo}, play in ${suggestion.shapeKey} shapes`}
+                          ? `No capo — ${formatKey(suggestion.shapeKey)} shapes`
+                          : `Capo ${suggestion.capo}, play in ${formatKey(suggestion.shapeKey)} shapes`}
                       </Badge>
                     ))}
                   </HStack>

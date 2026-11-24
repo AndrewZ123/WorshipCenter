@@ -21,6 +21,7 @@ import CsvImportModal from '@/components/songs/CsvImportModal';
 import { parseChordPro } from '@/lib/chordpro';
 import type { ChordProParsed } from '@/lib/chordpro';
 import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
+import { formatKey } from '@/lib/formatKey';
 import {
   CHORD_PRO_MAX_LENGTH,
   buildChordProFileInput,
@@ -466,7 +467,7 @@ export default function SongsPage() {
                       </Td>
                       <Td color={subtextColor} fontSize="sm">{song.artist || '—'}</Td>
                       <Td>
-                        <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md" px="2" py="0.5">{song.default_key}</Badge>
+                        <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md" px="2" py="0.5" textTransform="none">{formatKey(song.default_key)}</Badge>
                       </Td>
                       <Td>
                         <HStack spacing="2" align="start">
@@ -583,7 +584,7 @@ export default function SongsPage() {
                             <Mic2 size={12} color="var(--chakra-colors-gray-400)" />
                             <Text fontSize="sm" color={subtextColor}>{song.artist || 'Unknown'}</Text>
                             <Text color={mutedText}>·</Text>
-                            <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md">{song.default_key}</Badge>
+                            <Badge variant="subtle" colorScheme="teal" fontSize="xs" borderRadius="md" textTransform="none">{formatKey(song.default_key)}</Badge>
                           </HStack>
                           <HStack spacing="2" mt="1">
                             <Box w="2" h="2" borderRadius="full" bg={health.color} />

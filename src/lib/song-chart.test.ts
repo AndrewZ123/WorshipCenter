@@ -6,6 +6,7 @@ import {
   chordChartFileName,
   decodeTextFileDataUrl,
   findChordProFile,
+  isChordProFileName,
   isChordProWithinLimit,
   normalizeChordProText,
 } from './song-chart';
@@ -57,5 +58,11 @@ describe('song chart helpers', () => {
     ] as SongFile[];
 
     expect(findChordProFile(files)?.id).toBe('2');
+  });
+
+  it('recognizes .crd and .chordpro attachments for the viewer', () => {
+    expect(isChordProFileName('song.crd')).toBe(true);
+    expect(isChordProFileName('SONG.CHORDPRO')).toBe(true);
+    expect(isChordProFileName('chart.pdf')).toBe(false);
   });
 });

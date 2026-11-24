@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { sanitizeString, sanitizeHtml } from '@/lib/sanitize';
+import { SONG_SELECT } from '@/lib/song-columns';
 import type {
   Church,
   User,
@@ -380,21 +381,24 @@ export const db = {
   // Songs
   songs: {
     getByChurch: async (churchId: string) => {
-      const { data } = await supabase.from('songs').select('*').eq('church_id', churchId).order('title');
+      const { data } = await supabase.from('songs').select(SONG_SELECT).eq('church_id', churchId).order('title');
       return (data || []) as Song[];
     },
     getById: async (id: string, churchId: string) => {
+      if (!id || !churchId) return null;
+      // maybeSingle() so a stale id from another church resolves to null
+      // instead of a PGRST116 error. The detail page then shows "Song not found".
       const { data } = await supabase
         .from('songs')
-        .select('*')
+        .select(SONG_SELECT)
         .eq('id', id)
         .eq('church_id', churchId)
-        .single();
+        .maybeSingle();
       return data as Song | null;
     },
     create: async (s: Omit<Song, 'id' | 'created_at'>) => {
       const sanitized = sanitizeInput.song(s);
-      const { data } = await supabase.from('songs').insert(sanitized).select().single();
+      const { data } = await supabase.from('songs').insert(sanitized).select(SONG_SELECT).single();
       return data as Song;
     },
     update: async (id: string, churchId: string, updates: Partial<Song>) => {
@@ -404,7 +408,7 @@ export const db = {
         .update(sanitized)
         .eq('id', id)
         .eq('church_id', churchId)
-        .select()
+        .select(SONG_SELECT)
         .single();
       return data as Song;
     },
@@ -671,7 +675,7 @@ export const db = {
     }) => {
       let queryBuilder = supabase
         .from('songs')
-        .select('*')
+        .select(SONG_SELECT)
         .eq('church_id', churchId);
 
       if (query.trim()) {
@@ -701,7 +705,7 @@ export const db = {
         // Fall back to basic ILIKE search
         const { data: fallbackData } = await supabase
           .from('songs')
-          .select('*')
+          .select(SONG_SELECT)
           .eq('church_id', churchId)
           .or(`title.ilike.%${query}%,artist.ilike.%${query}%`)
           .order('title')

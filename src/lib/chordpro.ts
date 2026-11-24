@@ -18,6 +18,48 @@ export interface ChordProParsed {
   lines: { chords: string[]; text: string }[];
 }
 
+export interface ChordLineSegment {
+  /** Chord above this segment, or an empty string for lyric-only text. */
+  chord: string;
+  /** Lyric text that follows the chord. Spaces are preserved exactly. */
+  lyric: string;
+}
+
+/**
+ * Split one ChordPro lyric line into chord/lyric segments while preserving
+ * spacing. Text before the first chord becomes a lyric-only segment.
+ */
+export function splitChordProLine(line: string): ChordLineSegment[] {
+  const segments: ChordLineSegment[] = [];
+  const chordRe = /\[([^\]]*)\]/g;
+  let cursor = 0;
+  let currentChord: string | null = null;
+  let currentLyric = '';
+
+  for (const match of line.matchAll(chordRe)) {
+    const before = line.slice(cursor, match.index);
+    if (currentChord === null) {
+      if (before) segments.push({ chord: '', lyric: before });
+    } else {
+      currentLyric += before;
+      segments.push({ chord: currentChord, lyric: currentLyric });
+      currentLyric = '';
+    }
+
+    currentChord = match[1];
+    cursor = (match.index ?? 0) + match[0].length;
+  }
+
+  const rest = line.slice(cursor);
+  if (currentChord === null) {
+    if (rest) segments.push({ chord: '', lyric: rest });
+  } else {
+    segments.push({ chord: currentChord, lyric: currentLyric + rest });
+  }
+
+  return segments;
+}
+
 const META_DIRECTIVES = new Map([
   ['title', 'title'], ['t', 'title'],
   ['subtitle', 'subtitle'], ['st', 'subtitle'],
@@ -51,7 +93,7 @@ export function parseChordPro(input: string): ChordProParsed {
         const val = inner.slice(colonIdx + 1).trim();
         const metaKey = META_DIRECTIVES.get(key);
         if (metaKey && metaKey in meta) {
-          (meta as any)[metaKey] = val;
+          (meta as unknown as Record<string, string>)[metaKey] = val;
         }
       } else if (inner.startsWith('comment') || inner.startsWith('c:')) {
         const commentText = inner.includes(':') ? inner.split(':').slice(1).join(':').trim() : inner.replace(/^comment\s*/i, '');

@@ -48,11 +48,14 @@ export function decodeTextFileDataUrl(dataUrl: string): string {
   }
 }
 
+/** True for the text-based ChordPro formats the viewer can render. */
+export function isChordProFileName(fileName: string): boolean {
+  return /\.(cho|chordpro|chopro|crd|pro)$/i.test(fileName);
+}
+
 /** First file in a song's list that can be shown in the ChordPro viewer. */
 export function findChordProFile(files: SongFile[]): SongFile | undefined {
-  return files.find((file) =>
-    /\.(cho|chordpro|chopro|pro)$/i.test(file.file_name),
-  );
+  return files.find((file) => isChordProFileName(file.file_name));
 }
 
 export function buildChordProFileInput(params: {
