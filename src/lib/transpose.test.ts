@@ -1,31 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
-  TRANSPOSE_STORAGE_PREFIX,
   capoSuggestions,
   clampTranspose,
   parseKey,
-  readStoredTransposeOffset,
   semitonesBetween,
   transposeChord,
   transposeChordPro,
   transposeKey,
 } from './transpose';
 
-describe('display transpose storage', () => {
+describe('display transpose range', () => {
   it('clamps offsets to the on-screen transpose range', () => {
     expect(clampTranspose(3)).toBe(3);
     expect(clampTranspose(99)).toBe(11);
     expect(clampTranspose(-99)).toBe(-11);
     expect(clampTranspose(Number.NaN)).toBe(0);
-  });
-
-  it('reads the per-song offset from storage and tolerates bad values', () => {
-    const storage = {
-      getItem: (key: string) => (key === `${TRANSPOSE_STORAGE_PREFIX}song-1` ? '2' : null),
-    };
-    expect(readStoredTransposeOffset('song-1', storage)).toBe(2);
-    expect(readStoredTransposeOffset('song-2', storage)).toBe(0);
-    expect(readStoredTransposeOffset('song-1', { getItem: () => 'nope' })).toBe(0);
   });
 });
 

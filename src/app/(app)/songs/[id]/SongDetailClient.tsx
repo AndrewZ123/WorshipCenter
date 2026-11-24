@@ -31,6 +31,7 @@ import { formatKey } from '@/lib/formatKey';
 import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
 import {
   CHORD_PRO_MAX_LENGTH,
+  buildChartPdfSong,
   buildChordProFileInput,
   decodeTextFileDataUrl,
   findChordProFile,
@@ -428,25 +429,28 @@ export default function SongDetailClient({
       return;
     }
 
-    const capo = chartCapoSuggestions[0];
-    const capoLabel = capo
-      ? (capo.capo === 0
-          ? `No capo - ${formatKey(capo.shapeKey)} shapes`
-          : `Capo ${capo.capo} - play ${formatKey(capo.shapeKey)} shapes`)
-      : undefined;
+    // The song page always prints the source chart. The viewer's +/- buttons
+    // are display-only and must not change the exported key or chords.
+    const pdfSong = buildChartPdfSong({
+      title: song.title,
+      artist: song.artist,
+      ccli: song.ccli_number,
+      chartText: chartRaw,
+      defaultKey: song.default_key,
+    });
+
+    if (!pdfSong) {
+      toast({
+        title: 'No ChordPro chart to print',
+        description: 'Upload or paste a ChordPro chart first, then try again.',
+        status: 'error',
+        duration: 4000,
+      });
+      return;
+    }
 
     try {
-      generateChordChartPDF([
-        {
-          title: song.title,
-          artist: song.artist,
-          key: chartDisplayKey || chartOriginalKey || song.default_key,
-          originalKey: chartOriginalKey || undefined,
-          capo: capoLabel,
-          ccli: song.ccli_number || undefined,
-          chart: chartText,
-        },
-      ]);
+      generateChordChartPDF([pdfSong]);
     } catch (error) {
       console.error('[ChordChartPDF] Export failed:', error);
       toast({
@@ -925,7 +929,7 @@ export default function SongDetailClient({
                   </HStack>
                 </Flex>
 
-                {chartDisplayKey && chartCapoSuggestions.length > 0 && (
+                {transposeOffset !== 0 && chartDisplayKey && chartCapoSuggestions.length > 0 && (
                   <HStack spacing="2" mb="3" flexWrap="wrap">
                     <Text fontSize="xs" fontWeight="600" color="gray.500" textTransform="uppercase">
                       Capo suggestions:

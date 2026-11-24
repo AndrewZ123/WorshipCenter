@@ -9,15 +9,8 @@ import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/StoreContext';
 import type { Service, ServiceItem } from '@/lib/types';
 import { createViewerChannel, getActiveSession } from '@/lib/service-live-sync';
-import {
-  capoSuggestions,
-  readStoredTransposeOffset,
-  semitonesBetween,
-  transposeChordPro,
-  transposeKey,
-} from '@/lib/transpose';
 import { parseChordPro, splitChordProLine } from '@/lib/chordpro';
-import { decodeTextFileDataUrl, findChordProFile } from '@/lib/song-chart';
+import { buildChartView, decodeTextFileDataUrl, findChordProFile } from '@/lib/song-chart';
 import { formatKey } from '@/lib/formatKey';
 import {
   AlignLeft, ArrowLeft, ChevronLeft, ChevronRight,
@@ -318,39 +311,23 @@ export default function StageDisplayClient() {
         }
 
         const meta = parseChordPro(raw).meta;
-        const originalKey = meta.key.trim() || song.default_key || '';
-        const storedOffset = readStoredTransposeOffset(songId);
-
-        // An explicit key on this service item wins for this service. Otherwise
-        // use the same browser-local offset as the on-screen song chart.
-        const semitones = item.key && originalKey
-          ? semitonesBetween(originalKey, item.key)
-          : storedOffset;
-        const displayKey = item.key
-          ? formatKey(item.key)
-          : originalKey
-            ? transposeKey(originalKey, semitones)
-            : '';
-        const chartText = transposeChordPro(
-          raw,
-          semitones,
-          semitones === 0 ? undefined : (displayKey || undefined),
-        );
-        const capo = displayKey ? capoSuggestions(displayKey)[0] : undefined;
+        // Stage and PDFs share one key rule: service item key if set, else the
+        // chart's own key. No browser-local transpose is involved.
+        const view = buildChartView({
+          chartText: raw,
+          defaultKey: song.default_key,
+          serviceKey: item.key,
+        });
 
         setChart({
           status: 'ready',
           title: song.title || meta.title,
           artist: song.artist || meta.artist,
-          key: displayKey || originalKey,
-          originalKey,
+          key: view.displayKey || view.sourceKey,
+          originalKey: view.sourceKey,
           ccli: song.ccli_number || meta.ccli,
-          capo: capo
-            ? (capo.capo === 0
-                ? `No capo - ${formatKey(capo.shapeKey)} shapes`
-                : `Capo ${capo.capo} - play ${formatKey(capo.shapeKey)} shapes`)
-            : undefined,
-          chart: chartText,
+          capo: view.capoLabel,
+          chart: view.chart,
         });
       } catch (error) {
         if (!cancelled) {

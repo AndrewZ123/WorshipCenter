@@ -8,21 +8,52 @@
  */
 
 import type { SongFile } from './types';
+import type { ChordChartPdfSong } from './chord-chart-pdf';
 import { parseChordPro } from './chordpro';
-import { parseKey, semitonesBetween } from './transpose';
+import {
+  capoSuggestions,
+  parseKey,
+  semitonesBetween,
+  transposeChordPro,
+} from './transpose';
+import { formatKey } from './formatKey';
 
 export const CHORD_PRO_MAX_LENGTH = 50_000;
 
 export interface ChartViewerKey {
   /** The chart's own key: `{key}` directive, else the song's default key. */
   sourceKey: string;
+  /** Key this context displays: the service item key when set, else the source key. */
+  displayKey: string;
   /** Semitones from the source key to an explicit service key (0 otherwise). */
   semitones: number;
+  /** Capo hint, only when a service key actually transposes the chart. */
+  capoLabel?: string;
+}
+
+export interface ChartView extends ChartViewerKey {
+  /** ChordPro text already transposed for this context. */
+  chart: string;
+}
+
+/** Format a capo suggestion for the PDF and stage chart headers. */
+export function formatChartCapoLabel(displayKey: string): string | undefined {
+  const capo = capoSuggestions(displayKey)[0];
+  if (!capo) return undefined;
+
+  return capo.capo === 0
+    ? `No capo - ${formatKey(capo.shapeKey)} shapes`
+    : `Capo ${capo.capo} - play ${formatKey(capo.shapeKey)} shapes`;
 }
 
 /**
- * The chart viewer always opens at the chart's source key. Only a service item
- * key passed in from a service context may open it transposed.
+ * One source of truth for chart keys.
+ *
+ * The display key is the service item key when the chart is opened from a
+ * service, otherwise the chart's own key. A capo hint only makes sense when
+ * the service key actually changes the chart; untransposed charts never carry
+ * one. Nothing here reads browser storage: an ad-hoc viewer transpose is
+ * display-only and must not leak into PDFs, the stage display or other views.
  */
 export function resolveChartViewerKey(params: {
   chartText?: string | null;
@@ -36,14 +67,69 @@ export function resolveChartViewerKey(params: {
       ? (params.defaultKey || '').trim()
       : '';
 
-  if (!sourceKey) return { sourceKey: '', semitones: 0 };
+  const serviceKey = formatKey(params.serviceKey || '');
+  const hasServiceKey = Boolean(serviceKey) && Boolean(parseKey(serviceKey));
 
-  const serviceKey = (params.serviceKey || '').trim();
-  const semitones = parseKey(serviceKey)
-    ? semitonesBetween(sourceKey, serviceKey)
-    : 0;
+  if (!sourceKey) {
+    return {
+      sourceKey: '',
+      displayKey: hasServiceKey ? serviceKey : '',
+      semitones: 0,
+      capoLabel: undefined,
+    };
+  }
 
-  return { sourceKey, semitones };
+  const displayKey = hasServiceKey ? serviceKey : sourceKey;
+  const semitones = hasServiceKey ? semitonesBetween(sourceKey, displayKey) : 0;
+
+  return {
+    sourceKey,
+    displayKey,
+    semitones,
+    capoLabel: semitones === 0 ? undefined : formatChartCapoLabel(displayKey),
+  };
+}
+
+/**
+ * Resolve the key and chord text for a chart in a given context. Both chart
+ * PDFs and the stage display go through this so they always agree.
+ */
+export function buildChartView(params: {
+  chartText?: string | null;
+  defaultKey?: string | null;
+  serviceKey?: string | null;
+}): ChartView {
+  const key = resolveChartViewerKey(params);
+  const raw = params.chartText || '';
+  const chart = key.semitones === 0
+    ? raw
+    : transposeChordPro(raw, key.semitones, key.displayKey || undefined);
+
+  return { ...key, chart };
+}
+
+/** Build one printable chart, with no browser-local transpose involved. */
+export function buildChartPdfSong(params: {
+  title: string;
+  artist?: string | null;
+  ccli?: string | null;
+  chartText?: string | null;
+  defaultKey?: string | null;
+  serviceKey?: string | null;
+}): ChordChartPdfSong | null {
+  if (!(params.chartText || '').trim()) return null;
+
+  const view = buildChartView(params);
+
+  return {
+    title: params.title,
+    artist: params.artist || undefined,
+    key: view.displayKey || undefined,
+    originalKey: view.semitones === 0 ? undefined : (view.sourceKey || undefined),
+    capo: view.capoLabel,
+    ccli: params.ccli || undefined,
+    chart: view.chart,
+  };
 }
 
 export function normalizeChordProText(text: string): string {

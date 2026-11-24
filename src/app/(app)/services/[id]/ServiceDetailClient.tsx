@@ -35,14 +35,10 @@ import ServiceDebriefForm from '@/components/services/ServiceDebriefForm';
 import SignupManagement from '@/components/services/SignupManagement';
 import { generateServicePDF } from '@/components/services/ServicePrintView';
 import {
-  capoSuggestions,
-  readStoredTransposeOffset,
-  semitonesBetween,
-  transposeChordPro,
-  transposeKey,
-} from '@/lib/transpose';
-import { parseChordPro } from '@/lib/chordpro';
-import { decodeTextFileDataUrl, findChordProFile } from '@/lib/song-chart';
+  buildChartPdfSong,
+  decodeTextFileDataUrl,
+  findChordProFile,
+} from '@/lib/song-chart';
 import {
   chordChartPdfFileName,
   generateChordChartPDF,
@@ -792,38 +788,17 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         const raw = chartFile ? decodeTextFileDataUrl(chartFile.file_url) : '';
         if (!raw.trim()) continue;
 
-        const meta = parseChordPro(raw).meta;
-        const originalKey = meta.key.trim() || song.default_key || '';
-        // Same rules as the song/stage viewers: an explicit service key wins,
-        // otherwise honour the browser-local per-song transpose offset.
-        const semitones = item.key && originalKey
-          ? semitonesBetween(originalKey, item.key)
-          : readStoredTransposeOffset(songId);
-        const displayKey = item.key
-          ? formatKey(item.key)
-          : originalKey
-            ? transposeKey(originalKey, semitones)
-            : '';
-        const chartText = transposeChordPro(
-          raw,
-          semitones,
-          semitones === 0 ? undefined : (displayKey || undefined),
-        );
-        const capo = displayKey ? capoSuggestions(displayKey)[0] : undefined;
-
-        charts.push({
+        // The service item key is the only transpose input here. Browser-local
+        // viewer offsets are never read, so a stale offset cannot change a PDF.
+        const pdfSong = buildChartPdfSong({
           title: song.title,
           artist: song.artist,
-          key: displayKey || originalKey,
-          originalKey: originalKey || undefined,
-          ccli: song.ccli_number || undefined,
-          capo: capo
-            ? (capo.capo === 0
-                ? `No capo - ${formatKey(capo.shapeKey)} shapes`
-                : `Capo ${capo.capo} - play ${formatKey(capo.shapeKey)} shapes`)
-            : undefined,
-          chart: chartText,
+          ccli: song.ccli_number,
+          chartText: raw,
+          defaultKey: song.default_key,
+          serviceKey: item.key,
         });
+        if (pdfSong) charts.push(pdfSong);
       }
 
       if (charts.length === 0) {
