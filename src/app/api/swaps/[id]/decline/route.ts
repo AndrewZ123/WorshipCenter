@@ -10,12 +10,14 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { RateLimitTiers } from '@/lib/comprehensiveRateLimit';
 import {
   formatSwapRole,
+  getTeamMemberForUser,
   getUserSwapContext,
   isLeaderRole,
   loadAssignmentForSwap,
   loadChurchName,
   loadSwap,
   loadTeamMemberById,
+  scheduleAfterResponse,
   sendSwapNotifications,
   toTeamMemberRecipient,
 } from '@/lib/swaps/service';
@@ -63,6 +65,15 @@ export async function POST(
       return NextResponse.json({ error: 'Swap request not found' }, { status: 404 });
     }
 
+    // A leader who made the request may only withdraw it through cancel.
+    const member = await getTeamMemberForUser(user.id, context.churchId);
+    if (member && swap.requested_by === member.id) {
+      return NextResponse.json(
+        { error: 'Cancel your own swap request instead' },
+        { status: 403 }
+      );
+    }
+
     if (swap.status !== 'open' && swap.status !== 'claimed') {
       return NextResponse.json(
         { error: 'This swap request is already resolved' },
@@ -93,8 +104,10 @@ export async function POST(
       );
     }
 
-    const assignment = await loadAssignmentForSwap(swap.assignment_id);
-    if (assignment && assignment.service.church_id === context.churchId) {
+    scheduleAfterResponse(async () => {
+      const assignment = await loadAssignmentForSwap(swap.assignment_id);
+      if (!assignment || assignment.service.church_id !== context.churchId) return;
+
       const requester = await loadTeamMemberById(swap.requested_by, context.churchId);
       const claimer = swap.claimed_by
         ? await loadTeamMemberById(swap.claimed_by, context.churchId)
@@ -120,7 +133,7 @@ export async function POST(
         serviceTime: assignment.service.time,
         role: assignment.role,
       });
-    }
+    });
 
     return NextResponse.json({ swap: { id: swap.id, status: 'declined' } });
   } catch (error) {

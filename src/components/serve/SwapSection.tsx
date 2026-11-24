@@ -23,6 +23,7 @@ import { ArrowLeftRight, Calendar, CheckCircle, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { formatServiceDate } from '@/lib/formatDate';
+import { notifySwapsChanged, useSwapChanges } from '@/lib/swaps/refresh';
 import type {
   AssignmentSwapStatus,
   AssignmentSwapSummary,
@@ -47,7 +48,12 @@ function formatRole(role: string): string {
   return role.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export default function SwapSection() {
+interface SwapSectionProps {
+  /** "open" renders just the claimable list, for the Team tab drawer. */
+  mode?: 'full' | 'open';
+}
+
+export default function SwapSection({ mode = 'full' }: SwapSectionProps) {
   const { user, church, loading: authLoading } = useAuth();
   const toast = useToast();
 
@@ -98,6 +104,8 @@ export default function SwapSection() {
     }
   };
 
+  useSwapChanges(loadData);
+
   const handleClaim = async (swapId: string) => {
     try {
       setClaiming(swapId);
@@ -117,6 +125,7 @@ export default function SwapSection() {
           : 'Your claim was sent to a leader for approval.',
         status: 'success',
       });
+      notifySwapsChanged();
       await loadData();
     } catch (error) {
       toast({
@@ -150,33 +159,45 @@ export default function SwapSection() {
   const claimable = openSwaps.filter(
     (swap) => swap.status === 'open' && swap.can_claim && !swap.is_mine
   );
-  const hasMySwaps = mySwaps.length > 0;
+  const isOpenOnly = mode === 'open';
+  const hasMySwaps = !isOpenOnly && mySwaps.length > 0;
 
   if (claimable.length === 0 && !hasMySwaps) {
-    return null;
+    if (!isOpenOnly) return null;
+    return (
+      <Box py="8" textAlign="center">
+        <Text fontSize="sm" color={subtextColor}>
+          No open swaps you can claim right now.
+        </Text>
+      </Box>
+    );
   }
 
   return (
-    <Box mb="6">
-      <Divider mb="4" borderColor={borderColor} />
+    <Box mb={isOpenOnly ? '0' : '6'}>
+      {!isOpenOnly && <Divider mb="4" borderColor={borderColor} />}
 
-      <Flex justify="space-between" align="center" mb="3">
-        <Box>
-          <Text fontSize="lg" fontWeight="600" color={textColor}>
-            Swaps
-          </Text>
-          <Text mt="0.5" fontSize="sm" color={subtextColor}>
-            Ask a teammate to cover your role, or pick up an open shift
-          </Text>
-        </Box>
-        <ArrowLeftRight size={20} color="var(--chakra-colors-teal-500)" />
-      </Flex>
+      {!isOpenOnly && (
+        <Flex justify="space-between" align="center" mb="3">
+          <Box>
+            <Text fontSize="lg" fontWeight="600" color={textColor}>
+              Swaps
+            </Text>
+            <Text mt="0.5" fontSize="sm" color={subtextColor}>
+              Ask a teammate to cover your role, or pick up an open shift
+            </Text>
+          </Box>
+          <ArrowLeftRight size={20} color="var(--chakra-colors-teal-500)" />
+        </Flex>
+      )}
 
       {claimable.length > 0 && (
-        <Box mb="5">
-          <Text fontWeight="600" fontSize="sm" mb="2" color={subtextColor}>
-            Open swaps
-          </Text>
+        <Box mb={isOpenOnly ? '0' : '5'}>
+          {!isOpenOnly && (
+            <Text fontWeight="600" fontSize="sm" mb="2" color={subtextColor}>
+              Open swaps
+            </Text>
+          )}
           <VStack spacing="2" align="stretch">
             {claimable.map((swap) => (
               <Card

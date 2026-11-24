@@ -24,8 +24,17 @@ import type {
   Service, ServiceAssignmentPopulated, TeamMember, TeamMemberBlockoutDate,
   SchedulingConflict, ServiceRolePosition, AssignmentSwapSummary,
 } from '@/lib/types';
-import { getFillRolesHint, getFillRolesState } from '@/lib/scheduling/rolesNeeded';
-import { shouldShowSwapRequest } from '@/lib/swaps/ui';
+import {
+  getFillRolesHint,
+  getFillRolesState,
+  getRoleFillBadges,
+} from '@/lib/scheduling/rolesNeeded';
+import {
+  getSwapActionVisibility,
+  isOwnAssignment,
+  shouldShowSwapRequest,
+} from '@/lib/swaps/ui';
+import { notifySwapsChanged, useSwapChanges } from '@/lib/swaps/refresh';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
@@ -35,6 +44,7 @@ import SchedulingSuggestions from './SchedulingSuggestions';
 import AutoFillRolesModal from './AutoFillRolesModal';
 import RolesNeededEditor from './RolesNeededEditor';
 import SwapRequestAction from '@/components/serve/SwapRequestAction';
+import OpenSwapsDrawer from '@/components/serve/OpenSwapsDrawer';
 
 interface ServiceScheduleProps {
   service: Service;
@@ -63,6 +73,7 @@ export default function ServiceSchedule({
   const [assignments, setAssignments] = useState<ServiceAssignmentPopulated[]>([]);
   const [swaps, setSwaps] = useState<AssignmentSwapSummary[]>([]);
   const [openSwapCount, setOpenSwapCount] = useState(0);
+  const [showOpenSwaps, setShowOpenSwaps] = useState(false);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [swapProcessing, setSwapProcessing] = useState<string | null>(null);
@@ -204,7 +215,10 @@ export default function ServiceSchedule({
         const openData = await parseJsonSafe(openResponse);
         setOpenSwapCount(
           Array.isArray(openData.swaps)
-            ? openData.swaps.filter((swap: AssignmentSwapSummary) => swap.status === 'open').length
+            ? openData.swaps.filter(
+                (swap: AssignmentSwapSummary) =>
+                  swap.status === 'open' && swap.can_claim && !swap.is_mine
+              ).length
             : 0
         );
       }
@@ -232,6 +246,7 @@ export default function ServiceSchedule({
             : 'The original assignment is unchanged.',
         status: action === 'approve' ? 'success' : 'info',
       });
+      notifySwapsChanged();
       await Promise.all([loadAssignments(), loadSwaps()]);
     } catch (error) {
       console.error('[ServiceSchedule] Swap decision failed:', error);
@@ -244,6 +259,11 @@ export default function ServiceSchedule({
       setSwapProcessing(null);
     }
   };
+
+  useSwapChanges(() => {
+    loadAssignments({ silent: true });
+    loadSwaps();
+  });
 
   const swapByAssignment = useMemo(
     () => new Map(swaps.map((swap) => [swap.assignment_id, swap])),
@@ -563,21 +583,12 @@ export default function ServiceSchedule({
     });
   };
 
-  const isOwnAssignment = (assignment: ServiceAssignmentPopulated) => {
-    if (!assignment.team_member?.user_id) return false;
-    return assignment.team_member.user_id === currentUserId;
-  };
-
   // ─── Role-based suggestions logic ────────────────────────────────
 
-  const rolesWithAssignments = useMemo(() => {
-    const roleMap = new Map<string, number>();
-    for (const a of assignments) {
-      const role = a.role || 'Unspecified';
-      roleMap.set(role, (roleMap.get(role) || 0) + 1);
-    }
-    return roleMap;
-  }, [assignments]);
+  const roleFillBadges = useMemo(
+    () => getRoleFillBadges(rolePositions, assignments),
+    [rolePositions, assignments],
+  );
 
   const handleSuggestAssign = async (memberId: string) => {
     try {
@@ -632,7 +643,7 @@ export default function ServiceSchedule({
             variant="ghost"
             size="sm"
             leftIcon={ArrowLeftRight}
-            href="/serve"
+            onClick={() => setShowOpenSwaps(true)}
           >
             Open swaps ({openSwapCount})
           </Button>
@@ -857,19 +868,19 @@ export default function ServiceSchedule({
       )}
 
       {/* Role Summary */}
-      {rolesWithAssignments.size > 0 && !showBulkAdd && (
+      {roleFillBadges.length > 0 && !showBulkAdd && (
         <HStack spacing="2" mb="3" wrap="wrap">
-          {Array.from(rolesWithAssignments.entries()).map(([role, count]) => (
+          {roleFillBadges.map((role) => (
             <Badge
-              key={role}
+              key={role.role}
               variant="subtle"
-              colorScheme="gray"
+              colorScheme={role.complete ? 'green' : 'orange'}
               borderRadius="full"
               px="2"
               py="0.5"
               fontSize="xs"
             >
-              {role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}: {count}
+              {role.text}
             </Badge>
           ))}
         </HStack>
@@ -903,9 +914,22 @@ export default function ServiceSchedule({
         <VStack spacing="2" align="stretch">
           {sortedAssignments.map((assignment) => {
             const highlighted = assignment.id === highlightedAssignmentId;
-            const isOwn = isOwnAssignment(assignment);
+            const isOwn = isOwnAssignment(
+              {
+                team_member_id: assignment.team_member_id,
+                team_member_user_id: assignment.team_member?.user_id,
+                status: assignment.status,
+              },
+              currentUserId,
+              user?.team_member_id,
+            );
             const showActions = isOwn && assignment.status === 'pending';
             const swap = swapByAssignment.get(assignment.id);
+            const swapActions = getSwapActionVisibility({
+              isOwn,
+              isLeader,
+              status: swap?.status ?? null,
+            });
             const showRequestSwap = shouldShowSwapRequest(
               {
                 team_member_id: assignment.team_member_id,
@@ -1053,9 +1077,9 @@ export default function ServiceSchedule({
                       }}
                     />
                   )}
-                  {!readOnly && isLeader && swap && (
+                  {!readOnly && swap && (swapActions.showApprove || swapActions.showDecline) && (
                     <>
-                      {swap.status === 'claimed' && (
+                      {swapActions.showApprove && (
                         <Button
                           size="sm"
                           variant="primary"
@@ -1066,14 +1090,16 @@ export default function ServiceSchedule({
                           Approve swap
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleSwapDecision(swap.id, 'decline')}
-                        isDisabled={swapProcessing === swap.id}
-                      >
-                        Decline swap
-                      </Button>
+                      {swapActions.showDecline && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleSwapDecision(swap.id, 'decline')}
+                          isDisabled={swapProcessing === swap.id}
+                        >
+                          Decline swap
+                        </Button>
+                      )}
                     </>
                   )}
                   {/* Remove button — on every row including declined */}
@@ -1096,6 +1122,11 @@ export default function ServiceSchedule({
           })}
         </VStack>
       )}
+
+      <OpenSwapsDrawer
+        isOpen={showOpenSwaps}
+        onClose={() => setShowOpenSwaps(false)}
+      />
 
       {/* Auto-fill preview */}
       <AutoFillRolesModal

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   findActiveSwapForAssignment,
+  getSwapActionVisibility,
   hasActiveSwap,
   isOwnAssignment,
   shouldShowSwapRequest,
@@ -82,5 +83,29 @@ describe('swap UI helpers', () => {
     expect(findActiveSwapForAssignment(swaps, 'asg-1')?.id).toBe('b');
     expect(findActiveSwapForAssignment(swaps, 'asg-2')).toBeUndefined();
     expect(hasActiveSwap('approved')).toBe(false);
+  });
+
+  it('lets the requester only cancel their own active request', () => {
+    expect(
+      getSwapActionVisibility({ isOwn: true, isLeader: false, status: 'open' }),
+    ).toEqual({ showCancel: true, showApprove: false, showDecline: false });
+    expect(
+      getSwapActionVisibility({ isOwn: true, isLeader: true, status: 'claimed' }),
+    ).toEqual({ showCancel: true, showApprove: false, showDecline: false });
+    expect(
+      getSwapActionVisibility({ isOwn: true, isLeader: true, status: 'declined' }),
+    ).toEqual({ showCancel: false, showApprove: false, showDecline: false });
+  });
+
+  it('lets leaders approve or decline only someone else claimed request', () => {
+    expect(
+      getSwapActionVisibility({ isOwn: false, isLeader: true, status: 'claimed' }),
+    ).toEqual({ showCancel: false, showApprove: true, showDecline: true });
+    expect(
+      getSwapActionVisibility({ isOwn: false, isLeader: true, status: 'open' }),
+    ).toEqual({ showCancel: false, showApprove: false, showDecline: false });
+    expect(
+      getSwapActionVisibility({ isOwn: false, isLeader: false, status: 'claimed' }),
+    ).toEqual({ showCancel: false, showApprove: false, showDecline: false });
   });
 });

@@ -23,6 +23,7 @@ import {
   loadChurchName,
   loadSwap,
   loadTeamMemberById,
+  scheduleAfterResponse,
   sendSwapNotifications,
   toTeamMemberRecipient,
 } from '@/lib/swaps/service';
@@ -133,10 +134,6 @@ export async function POST(
       );
     }
 
-    const requester = await loadTeamMemberById(swap.requested_by, context.churchId);
-    const leaders = await loadChurchLeaders(context.churchId);
-    const churchName = await loadChurchName(context.churchId);
-    const serviceLink = `/services/${assignment.service_id}?tab=schedule`;
     const autoApproved = await isAutoApproveSwapsEnabled(context.churchId);
 
     if (autoApproved) {
@@ -155,54 +152,64 @@ export async function POST(
           { status: 500 }
         );
       }
+    }
 
-      const approvalRecipients = [
+    const claimer = member;
+    scheduleAfterResponse(async () => {
+      const requester = await loadTeamMemberById(swap.requested_by, context.churchId);
+      const leaders = await loadChurchLeaders(context.churchId);
+      const churchName = await loadChurchName(context.churchId);
+      const serviceLink = `/services/${assignment.service_id}?tab=schedule`;
+
+      if (autoApproved) {
+        const approvalRecipients = [
+          toTeamMemberRecipient(requester),
+          toTeamMemberRecipient(claimer),
+        ].filter((recipient): recipient is NonNullable<typeof recipient> => Boolean(recipient));
+
+        await sendSwapNotifications(approvalRecipients, {
+          churchId: context.churchId,
+          churchName,
+          serviceId: assignment.service_id,
+          assignmentId: assignment.id,
+          title: `Swap approved: ${formatSwapRole(assignment.role)}`,
+          message: `The swap for ${assignment.service.title} on ${assignment.service.date} was auto-approved. ${claimer.name} now holds the assignment.`,
+          linkUrl: serviceLink,
+          emailHeadline: 'Your swap was approved',
+          emailMessage: `${claimer.name} has taken over this assignment. It is now confirmed.`,
+          serviceTitle: assignment.service.title,
+          serviceDate: assignment.service.date,
+          serviceTime: assignment.service.time,
+          role: assignment.role,
+        });
+      }
+
+      const claimRecipients = [
         toTeamMemberRecipient(requester),
-        toTeamMemberRecipient(member),
+        ...leaders.map((leader) => ({
+          userId: leader.id,
+          name: leader.name,
+          email: leader.email,
+        })),
       ].filter((recipient): recipient is NonNullable<typeof recipient> => Boolean(recipient));
 
-      await sendSwapNotifications(approvalRecipients, {
+      await sendSwapNotifications(claimRecipients, {
         churchId: context.churchId,
         churchName,
         serviceId: assignment.service_id,
         assignmentId: assignment.id,
-        title: `Swap approved: ${formatSwapRole(assignment.role)}`,
-        message: `The swap for ${assignment.service.title} on ${assignment.service.date} was auto-approved. ${member.name} now holds the assignment.`,
+        title: `Swap claimed: ${formatSwapRole(assignment.role)}`,
+        message: `${claimer.name} claimed the swap for ${assignment.service.title} on ${assignment.service.date}. ${autoApproved ? 'It was auto-approved.' : 'A leader still needs to approve it.'}`,
         linkUrl: serviceLink,
-        emailHeadline: 'Your swap was approved',
-        emailMessage: `${member.name} has taken over this assignment. It is now confirmed.`,
+        emailHeadline: `${claimer.name} claimed your swap request`,
+        emailMessage: autoApproved
+          ? `${claimer.name} now holds this assignment. It is already confirmed.`
+          : 'A leader will review and approve the change. You do not need to do anything else right now.',
         serviceTitle: assignment.service.title,
         serviceDate: assignment.service.date,
         serviceTime: assignment.service.time,
         role: assignment.role,
       });
-    }
-
-    const claimRecipients = [
-      toTeamMemberRecipient(requester),
-      ...leaders.map((leader) => ({
-        userId: leader.id,
-        name: leader.name,
-        email: leader.email,
-      })),
-    ].filter((recipient): recipient is NonNullable<typeof recipient> => Boolean(recipient));
-
-    await sendSwapNotifications(claimRecipients, {
-      churchId: context.churchId,
-      churchName,
-      serviceId: assignment.service_id,
-      assignmentId: assignment.id,
-      title: `Swap claimed: ${formatSwapRole(assignment.role)}`,
-      message: `${member.name} claimed the swap for ${assignment.service.title} on ${assignment.service.date}. ${autoApproved ? 'It was auto-approved.' : 'A leader still needs to approve it.'}`,
-      linkUrl: serviceLink,
-      emailHeadline: `${member.name} claimed your swap request`,
-      emailMessage: autoApproved
-        ? `${member.name} now holds this assignment. It is already confirmed.`
-        : 'A leader will review and approve the change. You do not need to do anything else right now.',
-      serviceTitle: assignment.service.title,
-      serviceDate: assignment.service.date,
-      serviceTime: assignment.service.time,
-      role: assignment.role,
     });
 
     return NextResponse.json({

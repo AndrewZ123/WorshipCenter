@@ -83,3 +83,33 @@ export function findActiveSwapForAssignment<
       swap.assignment_id === assignmentId && hasActiveSwap(swap.status),
   );
 }
+
+export interface SwapActionContext {
+  isOwn: boolean;
+  isLeader: boolean;
+  status?: AssignmentSwapStatus | null;
+}
+
+export interface SwapActionVisibility {
+  showCancel: boolean;
+  showApprove: boolean;
+  showDecline: boolean;
+}
+
+/**
+ * The requester can only cancel their own request. Leaders only adjudicate
+ * someone else's claimed request; they never get approve/decline on their own.
+ */
+export function getSwapActionVisibility({
+  isOwn,
+  isLeader,
+  status,
+}: SwapActionContext): SwapActionVisibility {
+  const isClaimed = status === 'claimed';
+
+  return {
+    showCancel: isOwn && hasActiveSwap(status),
+    showApprove: !isOwn && isLeader && isClaimed,
+    showDecline: !isOwn && isLeader && isClaimed,
+  };
+}

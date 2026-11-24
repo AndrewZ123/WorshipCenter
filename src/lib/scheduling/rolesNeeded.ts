@@ -143,3 +143,80 @@ export function getFillRolesHint(state: FillRolesState): string | null {
   if (state === 'all_filled') return 'All roles filled';
   return null;
 }
+
+export interface RoleFillBadge {
+  role: string;
+  label: string;
+  /** Ready-to-render text such as "Keys 0/1" or "WL 1". */
+  text: string;
+  filled: number;
+  needed: number | null;
+  complete: boolean;
+}
+
+/**
+ * Merge staffing targets with actual assignments for the Team tab badges.
+ * Positions with a target show filled/needed; roles only present on an
+ * assignment keep their filled count without a target.
+ */
+export function getRoleFillBadges(
+  positions: Array<{ role: string; max_volunteers: number }>,
+  assignments: Array<{ role?: string | null }>,
+): RoleFillBadge[] {
+  const filledByRole = new Map<string, number>();
+  const displayRoleByKey = new Map<string, string>();
+
+  for (const assignment of assignments) {
+    const rawRole = (assignment.role || '').trim();
+    const role = normalizeRoleName(rawRole);
+    if (!role) continue;
+    if (!displayRoleByKey.has(role)) displayRoleByKey.set(role, rawRole);
+    filledByRole.set(role, (filledByRole.get(role) ?? 0) + 1);
+  }
+
+  const badges: RoleFillBadge[] = [];
+  const seen = new Set<string>();
+
+  for (const position of positions) {
+    const role = normalizeRoleName(position.role || '');
+    if (!role || seen.has(role)) continue;
+    seen.add(role);
+
+    const needed = Number.isFinite(position.max_volunteers)
+      ? Math.max(0, Math.floor(position.max_volunteers))
+      : 0;
+    const filled = filledByRole.get(role) ?? 0;
+    const label = roleLabel(position.role || role);
+
+    badges.push({
+      role,
+      label,
+      text: `${label} ${filled}/${needed}`,
+      filled,
+      needed,
+      complete: filled >= needed,
+    });
+  }
+
+  const extraRoles = Array.from(filledByRole.entries())
+    .filter(([role]) => !seen.has(role))
+    .sort(([a], [b]) =>
+      roleLabel(displayRoleByKey.get(a) || a).localeCompare(
+        roleLabel(displayRoleByKey.get(b) || b),
+      ),
+    );
+
+  for (const [role, filled] of extraRoles) {
+    const label = roleLabel(displayRoleByKey.get(role) || role);
+    badges.push({
+      role,
+      label,
+      text: `${label} ${filled}`,
+      filled,
+      needed: null,
+      complete: filled > 0,
+    });
+  }
+
+  return badges;
+}

@@ -365,6 +365,30 @@ describe('POST /api/swaps/[id]/decline', () => {
     expect(response.status).toBe(403);
   });
 
+  it('rejects the requester when they are not a leader', async () => {
+    authAs('team', 'church-1', 'user-2');
+    fake.setTableResult('team_members', { data: requesterMember, error: null });
+    fake.setTableResult('assignment_swap_requests', { data: swapRow, error: null });
+
+    const response = await declineSwap(actionRequest(`/api/swaps/${swapId}/decline`), params());
+    expect(response.status).toBe(403);
+    expect(
+      fake.operationsFor('assignment_swap_requests').some((op) => op.method === 'update')
+    ).toBe(false);
+  });
+
+  it('rejects a leader declining their own request', async () => {
+    authAs('leader', 'church-1', 'user-2');
+    fake.setTableResult('team_members', { data: requesterMember, error: null });
+    fake.setTableResult('assignment_swap_requests', { data: swapRow, error: null });
+
+    const response = await declineSwap(actionRequest(`/api/swaps/${swapId}/decline`), params());
+    expect(response.status).toBe(403);
+    expect(
+      fake.operationsFor('assignment_swap_requests').some((op) => op.method === 'update')
+    ).toBe(false);
+  });
+
   it('declines an open swap without changing the assignment', async () => {
     authAs('leader');
     setSequence('assignment_swap_requests', [
@@ -372,7 +396,7 @@ describe('POST /api/swaps/[id]/decline', () => {
       { data: [{ id: swapId }], error: null },
     ]);
     fake.setTableResult('service_assignments', { data: assignment, error: null });
-    fake.setTableResult('team_members', { data: requesterMember, error: null });
+    fake.setTableResult('team_members', { data: callerMember, error: null });
     fake.setTableResult('churches', { data: { name: 'Grace Church' }, error: null });
 
     const response = await declineSwap(actionRequest(`/api/swaps/${swapId}/decline`), params());

@@ -25,6 +25,7 @@ import { ArrowLeftRight, Calendar } from 'lucide-react';
 import { apiUrl, getAuthHeaders, parseJsonSafe } from '@/lib/api-base';
 import { formatServiceDate } from '@/lib/formatDate';
 import { hasActiveSwap } from '@/lib/swaps/ui';
+import { notifySwapsChanged } from '@/lib/swaps/refresh';
 import type { AssignmentSwapStatus } from '@/lib/types';
 import Button from '@/components/ui/Button';
 
@@ -97,6 +98,7 @@ export default function SwapRequestAction({
       });
       requestModal.onClose();
       setNote('');
+      notifySwapsChanged();
       await onChanged?.();
     } catch (error) {
       toast({
@@ -123,6 +125,7 @@ export default function SwapRequestAction({
       }
 
       toast({ title: 'Swap request cancelled', status: 'info' });
+      notifySwapsChanged();
       await onChanged?.();
     } catch (error) {
       toast({
@@ -156,7 +159,7 @@ export default function SwapRequestAction({
           onClick={handleCancel}
           isLoading={cancelling}
         >
-          Cancel swap
+          Cancel request
         </Button>
       </HStack>
     );

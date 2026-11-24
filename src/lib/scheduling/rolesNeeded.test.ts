@@ -6,6 +6,7 @@ import {
   findMatchingTemplate,
   getFillRolesHint,
   getFillRolesState,
+  getRoleFillBadges,
   normalizeRoleName,
   roleLabel,
 } from './rolesNeeded';
@@ -81,5 +82,61 @@ describe('rolesNeeded helpers', () => {
       'all_filled',
     );
     expect(getFillRolesHint('all_filled')).toBe('All roles filled');
+  });
+
+  it('merges role targets with assignments for fill badges', () => {
+    const badges = getRoleFillBadges(
+      [
+        { role: 'keys', max_volunteers: 1 },
+        { role: 'vocals', max_volunteers: 2 },
+        { role: 'worship_leader', max_volunteers: 1 },
+      ],
+      [
+        { role: 'Keys' },
+        { role: 'Worship Leader' },
+        { role: 'vocals' },
+        { role: 'WL' },
+        { role: null },
+      ],
+    );
+
+    expect(badges.map((badge) => badge.text)).toEqual([
+      'Keys 1/1',
+      'Vocals 1/2',
+      'Worship Leader 1/1',
+      'WL 1',
+    ]);
+    expect(badges.map((badge) => badge.complete)).toEqual([
+      true,
+      false,
+      true,
+      true,
+    ]);
+  });
+
+  it('shows assignment-only roles as a plain count when no target exists', () => {
+    const badges = getRoleFillBadges(
+      [],
+      [{ role: 'drums' }, { role: 'drums' }, { role: 'Vocals' }],
+    );
+
+    expect(badges).toEqual([
+      {
+        role: 'drums',
+        label: 'Drums',
+        text: 'Drums 2',
+        filled: 2,
+        needed: null,
+        complete: true,
+      },
+      {
+        role: 'vocals',
+        label: 'Vocals',
+        text: 'Vocals 1',
+        filled: 1,
+        needed: null,
+        complete: true,
+      },
+    ]);
   });
 });

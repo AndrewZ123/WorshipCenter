@@ -16,6 +16,7 @@ import {
   loadChurchName,
   loadSwap,
   loadTeamMemberById,
+  scheduleAfterResponse,
   sendSwapNotifications,
   toTeamMemberRecipient,
 } from '@/lib/swaps/service';
@@ -83,28 +84,32 @@ export async function POST(
       );
     }
 
-    const requester = await loadTeamMemberById(swap.requested_by, context.churchId);
-    const claimer = await loadTeamMemberById(swap.claimed_by, context.churchId);
-    const churchName = await loadChurchName(context.churchId);
-    const recipients = [
-      toTeamMemberRecipient(requester),
-      toTeamMemberRecipient(claimer),
-    ].filter((recipient): recipient is NonNullable<typeof recipient> => Boolean(recipient));
+    scheduleAfterResponse(async () => {
+      const requester = await loadTeamMemberById(swap.requested_by, context.churchId);
+      const claimer = swap.claimed_by
+        ? await loadTeamMemberById(swap.claimed_by, context.churchId)
+        : null;
+      const churchName = await loadChurchName(context.churchId);
+      const recipients = [
+        toTeamMemberRecipient(requester),
+        toTeamMemberRecipient(claimer),
+      ].filter((recipient): recipient is NonNullable<typeof recipient> => Boolean(recipient));
 
-    await sendSwapNotifications(recipients, {
-      churchId: context.churchId,
-      churchName,
-      serviceId: assignment.service_id,
-      assignmentId: assignment.id,
-      title: `Swap approved: ${formatSwapRole(assignment.role)}`,
-      message: `The swap for ${assignment.service.title} on ${assignment.service.date} was approved. ${claimer?.name || 'The claimer'} now holds this assignment.`,
-      linkUrl: `/services/${assignment.service_id}?tab=schedule`,
-      emailHeadline: 'Your swap was approved',
-      emailMessage: `${claimer?.name || 'The claimer'} has taken over this assignment. It is now confirmed.`,
-      serviceTitle: assignment.service.title,
-      serviceDate: assignment.service.date,
-      serviceTime: assignment.service.time,
-      role: assignment.role,
+      await sendSwapNotifications(recipients, {
+        churchId: context.churchId,
+        churchName,
+        serviceId: assignment.service_id,
+        assignmentId: assignment.id,
+        title: `Swap approved: ${formatSwapRole(assignment.role)}`,
+        message: `The swap for ${assignment.service.title} on ${assignment.service.date} was approved. ${claimer?.name || 'The claimer'} now holds this assignment.`,
+        linkUrl: `/services/${assignment.service_id}?tab=schedule`,
+        emailHeadline: 'Your swap was approved',
+        emailMessage: `${claimer?.name || 'The claimer'} has taken over this assignment. It is now confirmed.`,
+        serviceTitle: assignment.service.title,
+        serviceDate: assignment.service.date,
+        serviceTime: assignment.service.time,
+        role: assignment.role,
+      });
     });
 
     return NextResponse.json({

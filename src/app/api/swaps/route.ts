@@ -28,6 +28,7 @@ import {
   loadChurchTeamMembers,
   loadTeamMemberById,
   MAX_SWAP_NOTIFY_RECIPIENTS,
+  scheduleAfterResponse,
   sendSwapNotifications,
   SWAP_NOTE_MAX_LENGTH,
   toTeamMemberRecipient,
@@ -173,28 +174,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Notify qualified teammates (capped). Notification failures are non-fatal.
-    const candidates = await loadChurchTeamMembers(context.churchId);
-    const blockouts = await loadBlockoutsForChurch(context.churchId);
-    const sameDateAssignments = await loadAssignmentsForServiceDate(
-      context.churchId,
-      assignment.service.date.slice(0, 10)
-    );
-    const eligibility = buildSwapEligibilityContext(
-      assignment,
-      blockouts,
-      sameDateAssignments
-    );
-    const qualified = candidates
-      .filter(
-        (candidate) =>
-          candidate.id !== member.id &&
-          Boolean(candidate.user_id || candidate.email) &&
-          candidateCanClaim(candidate, eligibility)
-      )
-      .slice(0, MAX_SWAP_NOTIFY_RECIPIENTS);
+    // Notify qualified teammates after responding. Notification work (and its
+    // eligibility reads) must never delay the request the volunteer just made.
+    const requestedBy = member;
+    scheduleAfterResponse(async () => {
+      const candidates = await loadChurchTeamMembers(context.churchId);
+      const blockouts = await loadBlockoutsForChurch(context.churchId);
+      const sameDateAssignments = await loadAssignmentsForServiceDate(
+        context.churchId,
+        assignment.service.date.slice(0, 10)
+      );
+      const eligibility = buildSwapEligibilityContext(
+        assignment,
+        blockouts,
+        sameDateAssignments
+      );
+      const qualified = candidates
+        .filter(
+          (candidate) =>
+            candidate.id !== requestedBy.id &&
+            Boolean(candidate.user_id || candidate.email) &&
+            candidateCanClaim(candidate, eligibility)
+        )
+        .slice(0, MAX_SWAP_NOTIFY_RECIPIENTS);
 
-    if (qualified.length > 0) {
+      if (qualified.length === 0) return;
+
       const churchName = await loadChurchName(context.churchId);
       const recipients = qualified
         .map(toTeamMemberRecipient)
@@ -206,16 +211,16 @@ export async function POST(request: NextRequest) {
         serviceId: assignment.service_id,
         assignmentId: assignment.id,
         title: `Swap requested: ${formatSwapRole(assignment.role)}`,
-        message: `${member.name} is looking for someone to cover ${formatSwapRole(assignment.role)} for ${assignment.service.title} on ${assignment.service.date}.`,
+        message: `${requestedBy.name} is looking for someone to cover ${formatSwapRole(assignment.role)} for ${assignment.service.title} on ${assignment.service.date}.`,
         linkUrl: '/serve',
-        emailHeadline: `${member.name} is looking for a swap`,
-        emailMessage: `${member.name} has asked the team to cover their ${formatSwapRole(assignment.role)} role. If you are available, open WorshipCenter to claim it.`,
+        emailHeadline: `${requestedBy.name} is looking for a swap`,
+        emailMessage: `${requestedBy.name} has asked the team to cover their ${formatSwapRole(assignment.role)} role. If you are available, open WorshipCenter to claim it.`,
         serviceTitle: assignment.service.title,
         serviceDate: assignment.service.date,
         serviceTime: assignment.service.time,
         role: assignment.role,
       });
-    }
+    });
 
     return NextResponse.json(
       {

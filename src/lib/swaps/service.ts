@@ -6,6 +6,7 @@
  * and the migration denies client writes entirely.
  */
 
+import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { isEmailConfigured, sendEmail } from '@/lib/email';
 import { assignmentSwapEmail } from '@/lib/email-templates';
@@ -336,6 +337,27 @@ export interface SwapNotifyPayload {
   serviceDate: string;
   serviceTime?: string | null;
   role: string;
+}
+
+/**
+ * Run notification work after the API response is sent. Next's after() keeps it
+ * alive in production; direct route invocation (tests) has no request scope, so
+ * fall back to a detached promise that still never blocks the response.
+ */
+export function scheduleAfterResponse(task: () => Promise<void>): void {
+  const run = () => {
+    Promise.resolve()
+      .then(task)
+      .catch((error) => {
+        console.error('[Swaps] Background notification failed:', error);
+      });
+  };
+
+  try {
+    after(run);
+  } catch {
+    void Promise.resolve().then(run);
+  }
 }
 
 /**

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createFakeSupabaseClient } from '@/test/fake-supabase';
 import { GET, POST } from './route';
+import { sendSwapNotifications } from '@/lib/swaps/service';
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(),
@@ -12,6 +13,14 @@ vi.mock('@/lib/email', () => ({
   sendEmail: vi.fn().mockResolvedValue({ success: true }),
   isEmailConfigured: vi.fn().mockResolvedValue(false),
 }));
+
+vi.mock('@/lib/swaps/service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/swaps/service')>();
+  return {
+    ...actual,
+    sendSwapNotifications: vi.fn(() => new Promise<void>(() => {})),
+  };
+});
 
 const fake = createFakeSupabaseClient();
 vi.mocked(createClient).mockReturnValue(fake as never);
@@ -60,6 +69,18 @@ function authAs(role = 'team', churchId = 'church-1', userId = 'user-1') {
   });
 }
 
+function setSequence(
+  table: string,
+  results: Array<{ data: unknown; error: unknown }>
+) {
+  let index = 0;
+  fake.setTableResult(table, () => {
+    const result = results[Math.min(index, results.length - 1)];
+    index += 1;
+    return result;
+  });
+}
+
 function postRequest(body: Record<string, unknown>, token = 'test-token') {
   return new NextRequest('http://localhost/api/swaps', {
     method: 'POST',
@@ -77,6 +98,7 @@ function getRequest(path: string, token = 'test-token') {
 
 beforeEach(() => {
   fake.reset();
+  vi.mocked(sendSwapNotifications).mockClear();
 });
 
 describe('POST /api/swaps', () => {
@@ -170,6 +192,34 @@ describe('POST /api/swaps', () => {
       requested_by: 'tm-1',
       status: 'open',
       note: 'Family trip',
+    });
+  });
+
+  it('responds without waiting for notification sends', async () => {
+    authAs();
+    const otherMember = {
+      ...callerMember,
+      id: 'tm-other',
+      name: 'Other Volunteer',
+      user_id: 'user-2',
+      email: 'other@example.test',
+    };
+    setSequence('team_members', [
+      { data: callerMember, error: null },
+      { data: [callerMember, otherMember], error: null },
+    ]);
+    fake.setTableResult('service_assignments', { data: assignment, error: null });
+    fake.setTableResult('assignment_swap_requests', { data: null, error: null });
+    fake.setTableResult('team_member_blockout_dates', { data: [], error: null });
+    fake.setTableResult('churches', { data: { name: 'Grace Church' }, error: null });
+
+    // sendSwapNotifications is mocked to a never-resolving promise. If the
+    // route awaited it, this call (and the test) would hang.
+    const response = await POST(postRequest({ assignmentId }));
+    expect(response.status).toBe(201);
+
+    await vi.waitFor(() => {
+      expect(sendSwapNotifications).toHaveBeenCalledTimes(1);
     });
   });
 });

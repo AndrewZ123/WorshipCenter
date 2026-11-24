@@ -25,6 +25,7 @@ import {
   findActiveSwapForAssignment,
   shouldShowSwapRequest,
 } from '@/lib/swaps/ui';
+import { useSwapChanges } from '@/lib/swaps/refresh';
 import type {
   AssignmentSwapSummary,
   Service,
@@ -121,6 +122,8 @@ export default function UpcomingAssignmentsList({
       setLoading(false);
     }
   }, [church, user?.team_member_id, store, toast]);
+
+  useSwapChanges(loadData);
 
   useEffect(() => {
     if (authLoading) return;
