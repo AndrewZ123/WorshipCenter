@@ -47,4 +47,9 @@ describe('formatTime', () => {
       'Sunday, November 29 · 9:00 AM'
     );
   });
+
+  it('omits the time when none is given so cards can show it once', () => {
+    expect(formatServiceDate('2026-11-29')).toBe('Sunday, November 29');
+    expect(formatServiceDate('2026-11-29')).not.toContain('9:00');
+  });
 });

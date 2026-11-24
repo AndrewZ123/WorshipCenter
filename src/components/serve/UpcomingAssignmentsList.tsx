@@ -197,12 +197,10 @@ export default function UpcomingAssignmentsList({
                         </Badge>
                       )}
                     </HStack>
-                    <HStack spacing="3" color={subtextColor}>
+                    <HStack spacing="3" color={subtextColor} wrap="wrap" rowGap="1">
                       <HStack spacing="1.5">
                         <Calendar size={13} />
-                        <Text fontSize="xs">
-                          {formatServiceDate(row.service.date, row.service.time)}
-                        </Text>
+                        <Text fontSize="xs">{formatServiceDate(row.service.date)}</Text>
                       </HStack>
                       <HStack spacing="1.5">
                         <Clock size={13} />

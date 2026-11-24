@@ -1076,6 +1076,8 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                   gap={1}
                   role="tablist"
                   overflowX="auto"
+                  overflowY="hidden"
+                  pr={2}
                   sx={{ '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}
                 >
                   <Box
@@ -1160,7 +1162,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
                 {/* Secondary tab bar — Plan */}
                 {primaryTab === 1 && (
-                  <Flex mt={1} gap={1} role="tablist" borderBottom="1px solid" borderColor={borderColor} px={1}>
+                  <Flex mt={1} gap={1} role="tablist" borderBottom="1px solid" borderColor={borderColor} px={1} pr={3} overflowX="auto" overflowY="hidden" sx={{ '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}>
                     <Box
                       as="button"
                       flexShrink={0}
@@ -1206,7 +1208,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
 
                 {/* Secondary tab bar — Team */}
                 {primaryTab === 2 && (
-                  <Flex mt={1} gap={1} role="tablist" borderBottom="1px solid" borderColor={borderColor} px={1} overflowX="auto" sx={{ '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}>
+                  <Flex mt={1} gap={1} role="tablist" borderBottom="1px solid" borderColor={borderColor} px={1} pr={3} overflowX="auto" overflowY="hidden" sx={{ '&::-webkit-scrollbar': { display: 'none' }, scrollbarWidth: 'none' }}>
                     <Box
                       as="button"
                       flexShrink={0}

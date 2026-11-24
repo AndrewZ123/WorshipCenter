@@ -368,8 +368,8 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
   return (
     <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
       {/* Header */}
-      <Flex mb="6" gap="3" align="flex-start" direction={{ base: 'column', md: 'row' }}>
-        <HStack spacing="3" flex="1">
+      <Flex mb="6" gap="3" align="flex-start" direction="row">
+        <HStack spacing="3" flex="1" minW="0">
           <IconButton 
             aria-label="Back" 
             icon={<ArrowLeft size={20} />} 
@@ -379,8 +379,8 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
             color="gray.500"
             _hover={{ color: 'gray.700', bg: 'gray.100' }}
           />
-          <Box>
-            <Text fontSize="2xl" fontWeight="bold" color={headingColor} letterSpacing="tight">{song.title}</Text>
+          <Box minW="0" flex="1">
+            <Text fontSize="2xl" fontWeight="bold" color={headingColor} letterSpacing="tight" noOfLines={2}>{song.title}</Text>
             <HStack mt="1" spacing="3">
               <HStack spacing="1">
                 <Mic2 size={14} color="var(--chakra-colors-gray-400)" />
@@ -404,6 +404,7 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
               aria-label="Actions"
               color="gray.400"
               _hover={{ color: 'gray.600', bg: 'gray.100' }}
+              flexShrink={0}
             />
             <MenuList borderRadius="xl" zIndex={50}>
               <MenuItem onClick={() => setEditing(true)}><HStack><Edit size={16} /><Text>Edit Song</Text></HStack></MenuItem>
@@ -728,16 +729,25 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                     }}
                     transition="all 0.15s"
                   >
-                    <HStack justify="space-between">
-                      <HStack spacing="3">
-                        <Calendar size={16} color="var(--chakra-colors-gray-400)" />
-                        <Text color="teal.600" fontWeight="600" noOfLines={1}>{entry.service.title}</Text>
+                    <Flex
+                      direction={{ base: 'column', md: 'row' }}
+                      align={{ base: 'stretch', md: 'center' }}
+                      justify={{ base: 'flex-start', md: 'space-between' }}
+                      gap="1"
+                    >
+                      <HStack spacing="3" minW="0" flex="1" align="flex-start">
+                        <Box flexShrink={0} pt="2px">
+                          <Calendar size={16} color="var(--chakra-colors-gray-400)" />
+                        </Box>
+                        <Text color="teal.600" fontWeight="600" noOfLines={2} minW="0">
+                          {entry.service.title}
+                        </Text>
                       </HStack>
-                      <Text fontSize="sm" color={subtextColor}>
+                      <Text fontSize="sm" color={subtextColor} flexShrink={0} pl={{ base: '7', md: '0' }}>
                         {formatDate(entry.date)}
                         {isFutureCalendarDate(entry.date) ? ' · Upcoming' : ''}
                       </Text>
-                    </HStack>
+                    </Flex>
                   </Box>
                 ))}
               </VStack>

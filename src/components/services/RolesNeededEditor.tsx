@@ -277,10 +277,11 @@ export default function RolesNeededEditor({
                 addRole();
               }
             }}
-            placeholder="Add a role (pick from team or type new)"
+            placeholder="Add role"
             bg="white"
             _dark={{ bg: 'gray.800' }}
             flex="1"
+            minW="0"
           />
           <datalist id={suggestionListId}>
             {roleOptions.map((role) => (
@@ -299,6 +300,9 @@ export default function RolesNeededEditor({
             Add
           </Button>
         </HStack>
+        <Text fontSize="xs" color={subTextColor}>
+          Pick a role from your team or type a new one.
+        </Text>
       </VStack>
 
       <HStack justify="flex-end" mt="2">
