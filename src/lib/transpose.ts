@@ -6,6 +6,32 @@
  * intact outside of bracketed `[chords]` and the `{key: ...}` directive.
  */
 
+/**
+ * Browser-local transpose offset. This is display-only and intentionally not
+ * part of the song record, so every chart viewer uses the same per-song key.
+ */
+export const TRANSPOSE_STORAGE_PREFIX = 'wc:song-transpose:';
+export const TRANSPOSE_LIMIT = 11;
+
+export function clampTranspose(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(-TRANSPOSE_LIMIT, Math.min(TRANSPOSE_LIMIT, Math.trunc(value)));
+}
+
+/** Read the browser-local display transpose for a song, safely. */
+export function readStoredTransposeOffset(
+  songId: string,
+  storage?: Pick<Storage, 'getItem'> | null,
+): number {
+  try {
+    const target = storage ?? (typeof window !== 'undefined' ? window.localStorage : null);
+    if (!target) return 0;
+    return clampTranspose(Number.parseInt(target.getItem(`${TRANSPOSE_STORAGE_PREFIX}${songId}`) || '0', 10));
+  } catch {
+    return 0;
+  }
+}
+
 const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
 const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 

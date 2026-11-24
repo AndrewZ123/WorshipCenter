@@ -14,7 +14,7 @@ import { createControllerChannel, publishState, publishEndSession, startLiveSess
 import {
   Play, Pause, SkipForward, SkipBack, X, Clock,
   Music, AlignLeft, Maximize2, Minimize2,
-  Eye, EyeOff, Zap,
+  Eye, EyeOff, Zap, Monitor,
 } from 'lucide-react';
 
 interface TimingSnapshot {
@@ -386,6 +386,20 @@ export default function ServiceMode({ service, items, isOpen, onClose, churchId,
               display={{ base: 'none', md: 'inline-flex' }}
             >
               Notes
+            </Button>
+            <Button
+              as="a"
+              href={`/services/${service.id}/stage`}
+              target="_blank"
+              rel="noopener noreferrer"
+              size={{ base: 'xs', md: 'sm' }}
+              leftIcon={<Monitor size={14} />}
+              variant="ghost"
+              color="whiteAlpha.700"
+              _hover={{ color: 'white', bg: 'whiteAlpha.200' }}
+              display={{ base: 'none', md: 'inline-flex' }}
+            >
+              Stage
             </Button>
             <IconButton
               aria-label="Toggle fullscreen"

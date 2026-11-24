@@ -20,7 +20,14 @@ import ChordProPreview from '@/components/songs/ChordProPreview';
 import { summarizeSongUsageDates } from '@/lib/song-usage';
 import { isFutureCalendarDate } from '@/lib/formatDate';
 import { parseChordPro } from '@/lib/chordpro';
-import { capoSuggestions, transposeChordPro, transposeKey } from '@/lib/transpose';
+import {
+  TRANSPOSE_STORAGE_PREFIX,
+  capoSuggestions,
+  clampTranspose,
+  transposeChordPro,
+  transposeKey,
+} from '@/lib/transpose';
+import { generateChordChartPDF } from '@/lib/chord-chart-pdf';
 import { formatKey } from '@/lib/formatKey';
 import { normalizeCcliNumber, CCLI_NUMBER_MAX_LENGTH } from '@/lib/ccli';
 import {
@@ -45,14 +52,6 @@ const YoutubeIcon = () => (
     <polygon fill="white" points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
   </svg>
 );
-
-const TRANSPOSE_STORAGE_PREFIX = 'wc:song-transpose:';
-const TRANSPOSE_LIMIT = 11;
-
-function clampTranspose(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(-TRANSPOSE_LIMIT, Math.min(TRANSPOSE_LIMIT, Math.trunc(value)));
-}
 
 // ========== Main Client Component ==========
 export default function SongDetailClient({ songId: propSongId, onBack }: { songId?: string; onBack?: () => void } = {}) {
@@ -349,7 +348,8 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
 
   // Chart view transposition is derived on every render from the original
   // file text; nothing here is written back to the database.
-  const chartRaw = viewFile && isChordPro(viewFile) ? decodeTextFileDataUrl(viewFile.file_url) : '';
+  const chartFile = viewFile && isChordPro(viewFile) ? viewFile : findChordProFile(files);
+  const chartRaw = chartFile ? decodeTextFileDataUrl(chartFile.file_url) : '';
   const chartOriginalKey = chartRaw
     ? (parseChordPro(chartRaw).meta.key.trim() || song.default_key || '')
     : '';
@@ -364,6 +364,47 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
       )
     : '';
   const chartCapoSuggestions = chartDisplayKey ? capoSuggestions(chartDisplayKey) : [];
+
+  const handleDownloadChartPDF = () => {
+    if (!chartFile || !chartRaw.trim()) {
+      toast({
+        title: 'No ChordPro chart to print',
+        description: 'Upload or paste a ChordPro chart first, then try again.',
+        status: 'error',
+        duration: 4000,
+      });
+      return;
+    }
+
+    const capo = chartCapoSuggestions[0];
+    const capoLabel = capo
+      ? (capo.capo === 0
+          ? `No capo - ${formatKey(capo.shapeKey)} shapes`
+          : `Capo ${capo.capo} - play ${formatKey(capo.shapeKey)} shapes`)
+      : undefined;
+
+    try {
+      generateChordChartPDF([
+        {
+          title: song.title,
+          artist: song.artist,
+          key: chartDisplayKey || chartOriginalKey || song.default_key,
+          originalKey: chartOriginalKey || undefined,
+          capo: capoLabel,
+          ccli: song.ccli_number || undefined,
+          chart: chartText,
+        },
+      ]);
+    } catch (error) {
+      console.error('[ChordChartPDF] Export failed:', error);
+      toast({
+        title: 'PDF export failed',
+        description: 'Please try again.',
+        status: 'error',
+        duration: 3000,
+      });
+    }
+  };
 
   return (
     <Box px={{ base: '4', md: '8' }} pt={{ base: '2', md: '8' }} pb={{ base: '4', md: '8' }} maxW="800px" mx="auto">
@@ -557,13 +598,26 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
       </Card>
 
       {/* Chord Charts Section */}
-      <HStack justify="space-between" align="center" mb="4">
+      <HStack justify="space-between" align="center" mb="4" flexWrap="wrap" gap="2">
         <Text fontSize="lg" fontWeight="semibold" color={headingColor}>Chord Charts</Text>
-        {!isTeam && (
-          <Button size="sm" variant="outline" colorScheme="teal" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload size={14} />}>
-            Upload File
-          </Button>
-        )}
+        <HStack spacing="2">
+          {chartRaw.trim() && (
+            <Button
+              size="sm"
+              variant="outline"
+              colorScheme="teal"
+              onClick={handleDownloadChartPDF}
+              leftIcon={<Download size={14} />}
+            >
+              Chart PDF
+            </Button>
+          )}
+          {!isTeam && (
+            <Button size="sm" variant="outline" colorScheme="teal" onClick={() => fileInputRef.current?.click()} leftIcon={<Upload size={14} />}>
+              Upload File
+            </Button>
+          )}
+        </HStack>
         {!isTeam && <input ref={fileInputRef} type="file" accept=".pdf,.cho,.chordpro,.chopro,.crd,.pro,.txt" style={{ display: 'none' }} onChange={handleFileUpload} />}
       </HStack>
 
@@ -798,6 +852,15 @@ export default function SongDetailClient({ songId: propSongId, onBack }: { songI
                       borderColor={borderColor}
                       onClick={() => setTransposeOffset((current) => clampTranspose(current + 1))}
                     />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      colorScheme="teal"
+                      leftIcon={<Download size={14} />}
+                      onClick={handleDownloadChartPDF}
+                    >
+                      PDF
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"

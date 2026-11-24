@@ -417,6 +417,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { setDrawerControls, start } = useTour();
   const { colorMode } = useColorMode();
@@ -442,7 +443,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-
+  // The stage display is a music-stand screen: drop the app chrome so the
+  // dark, high-contrast chart can use the whole viewport.
+  if (/^\/services\/[^/]+\/stage\/?$/.test(pathname || '')) {
+    return <>{children}</>;
+  }
 
   return (
     <>

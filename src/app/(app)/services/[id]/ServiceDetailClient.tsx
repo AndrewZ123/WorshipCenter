@@ -34,6 +34,20 @@ import RehearsalTab from '@/components/services/RehearsalTab';
 import ServiceDebriefForm from '@/components/services/ServiceDebriefForm';
 import SignupManagement from '@/components/services/SignupManagement';
 import { generateServicePDF } from '@/components/services/ServicePrintView';
+import {
+  capoSuggestions,
+  readStoredTransposeOffset,
+  semitonesBetween,
+  transposeChordPro,
+  transposeKey,
+} from '@/lib/transpose';
+import { parseChordPro } from '@/lib/chordpro';
+import { decodeTextFileDataUrl, findChordProFile } from '@/lib/song-chart';
+import {
+  chordChartPdfFileName,
+  generateChordChartPDF,
+  type ChordChartPdfSong,
+} from '@/lib/chord-chart-pdf';
 import type { PlanChange } from '@/lib/planChanges';
 import { computeKeyChange, computeItemAdded, computeItemRemoved, formatChangesSummary } from '@/lib/planChanges';
 
@@ -750,6 +764,90 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
     }
   };
 
+  const handleExportChordChartsPDF = async () => {
+    if (!church || !service) return;
+
+    const songItems = items.filter((item) => item.type === 'song' && item.song_id);
+    if (songItems.length === 0) {
+      toast({
+        title: 'No songs to export',
+        description: 'Add songs with ChordPro charts to this service first.',
+        status: 'info',
+        duration: 3000,
+      });
+      return;
+    }
+
+    try {
+      const charts: ChordChartPdfSong[] = [];
+
+      for (const item of songItems) {
+        const songId = item.song_id as string;
+        const song = songs.find((candidate) => candidate.id === songId)
+          || await store.songs.getById(songId, church.id);
+        if (!song) continue;
+
+        const files = await store.songFiles.getBySong(songId, church.id);
+        const chartFile = findChordProFile(files);
+        const raw = chartFile ? decodeTextFileDataUrl(chartFile.file_url) : '';
+        if (!raw.trim()) continue;
+
+        const meta = parseChordPro(raw).meta;
+        const originalKey = meta.key.trim() || song.default_key || '';
+        // Same rules as the song/stage viewers: an explicit service key wins,
+        // otherwise honour the browser-local per-song transpose offset.
+        const semitones = item.key && originalKey
+          ? semitonesBetween(originalKey, item.key)
+          : readStoredTransposeOffset(songId);
+        const displayKey = item.key
+          ? formatKey(item.key)
+          : originalKey
+            ? transposeKey(originalKey, semitones)
+            : '';
+        const chartText = transposeChordPro(
+          raw,
+          semitones,
+          semitones === 0 ? undefined : (displayKey || undefined),
+        );
+        const capo = displayKey ? capoSuggestions(displayKey)[0] : undefined;
+
+        charts.push({
+          title: song.title,
+          artist: song.artist,
+          key: displayKey || originalKey,
+          originalKey: originalKey || undefined,
+          ccli: song.ccli_number || undefined,
+          capo: capo
+            ? (capo.capo === 0
+                ? `No capo - ${formatKey(capo.shapeKey)} shapes`
+                : `Capo ${capo.capo} - play ${formatKey(capo.shapeKey)} shapes`)
+            : undefined,
+          chart: chartText,
+        });
+      }
+
+      if (charts.length === 0) {
+        toast({
+          title: 'No ChordPro charts to export',
+          description: 'Upload a ChordPro chart to the songs in this service first.',
+          status: 'error',
+          duration: 4000,
+        });
+        return;
+      }
+
+      generateChordChartPDF(charts, chordChartPdfFileName(`${service.title}-chord-charts`));
+      toast({
+        title: `Exported ${charts.length} chord chart${charts.length === 1 ? '' : 's'}`,
+        status: 'success',
+        duration: 2500,
+      });
+    } catch (error) {
+      console.error('[ChordChartPDF] Service export failed:', error);
+      toast({ title: 'Chord chart export failed', description: 'Please try again.', status: 'error', duration: 3000 });
+    }
+  };
+
   const handleOpenShare = useCallback(() => {
     if (service?.share_token) {
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -1015,6 +1113,19 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
               </Button>
             )
           )}
+          <IconButton
+            as="a"
+            href={`/services/${serviceId}/stage`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Stage display"
+            title="Stage display"
+            icon={<Monitor size={18} />}
+            variant="ghost"
+            color="gray.500"
+            _hover={{ color: 'teal.600', bg: 'teal.50' }}
+            minW="44px"
+          />
           {!isReadOnly && (
             <IconButton
               aria-label="Share service"
@@ -1055,6 +1166,7 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
                     toast({ title: 'PDF export failed', description: 'Please try again.', status: 'error', duration: 3000 });
                   }
                 }} icon={<Printer size={16} />}>Export / Print PDF</MenuItem>
+                <MenuItem onClick={() => { void handleExportChordChartsPDF(); }} icon={<Music size={16} />}>Export chord charts PDF</MenuItem>
                 <MenuItem onClick={handleDuplicateService} icon={<Copy size={16} />}>Duplicate</MenuItem>
                 <Divider />
                 <MenuItem color="red.500" onClick={deleteDisclosure.onOpen} icon={<Trash2 size={16} />}>Delete</MenuItem>
