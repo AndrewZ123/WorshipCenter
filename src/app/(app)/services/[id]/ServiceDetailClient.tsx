@@ -173,6 +173,26 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
   // Volunteers have read-only access
   const isReadOnly = permissions.isVolunteer;
 
+  // Deep link from the Sunday view: `?mode=live` opens Service Mode once the
+  // plan has loaded. Phone and read-only users get the viewer instead of the
+  // controller so a volunteer never starts publishing live state.
+  const autoOpenedModeRef = useRef(false);
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (autoOpenedModeRef.current) return;
+    if (mode !== 'live' && mode !== 'service') return;
+    if (!service || items.length === 0) return;
+
+    autoOpenedModeRef.current = true;
+    if (isPhone || isReadOnly) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- opens the modal requested by the URL once data is ready.
+      setMobileViewOpen(true);
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- opens the modal requested by the URL once data is ready.
+      setServiceModeOpen(true);
+    }
+  }, [searchParams, service, items.length, isPhone, isReadOnly]);
+
   // Plan-change notification accumulation (debounced)
   const pendingChanges = useRef<PlanChange[]>([]);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -1984,8 +2004,8 @@ export default function ServiceDetailClient({ serviceId: propServiceId, onBack, 
         />
       )}
 
-      {/* Service Mode (Mobile Companion View) — Phone viewer */}
-      {service && church && isPhone && (
+      {/* Service Mode (Companion View) — Phone and read-only viewers */}
+      {service && church && (isPhone || isReadOnly) && (
         <Modal isOpen={mobileViewOpen} onClose={() => setMobileViewOpen(false)} size="full" isCentered>
           <ModalOverlay bg="blackAlpha.50" backdropFilter="none" />
           <ModalContent borderRadius="0" m="0" h="100dvh" maxW="100vw" overflow="hidden" bg="transparent" boxShadow="none">

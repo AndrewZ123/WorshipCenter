@@ -2,10 +2,11 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { Box, Flex, Text, useColorModeValue } from '@chakra-ui/react';
-import { Home, Calendar, CheckSquare, MessageCircle, MoreHorizontal } from 'lucide-react';
+import { Home, Calendar, CalendarDays, CheckSquare, MessageCircle, MoreHorizontal } from 'lucide-react';
 
 const NAV_ITEMS = [
   { label: 'Home', href: '/dashboard', icon: Home },
+  { label: 'Today', href: '/sunday', icon: CalendarDays },
   { label: 'Services', href: '/services', icon: Calendar },
   { label: 'Tasks', href: '/tasks', icon: CheckSquare },
   { label: 'Chat', href: '/chat', icon: MessageCircle },

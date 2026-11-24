@@ -22,7 +22,7 @@ import { TOUR_STEPS, MOBILE_TOUR_STEPS } from '@/lib/tour/steps';
 
 // Lucide icons
 import { 
-  Calendar, Home, Music, Users, CreditCard,
+  Calendar, CalendarDays, Home, Music, Users, CreditCard,
   LogOut, Settings, Bell, Moon, Sun, Church, MessageCircle, HelpCircle,
   CheckSquare, FileBarChart, Sparkles
 } from 'lucide-react';
@@ -35,6 +35,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: Home },
+  { label: 'Today', href: '/sunday', icon: CalendarDays },
   { label: 'Services', href: '/services', icon: Calendar },
   { label: 'My Tasks', href: '/tasks', icon: CheckSquare },
   { label: 'Songs', href: '/songs', icon: Music },
@@ -44,7 +45,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 // Allowed nav items for non-admin users
-const VOLUNTEER_NAV_ITEMS = ['/dashboard', '/services', '/tasks', '/songs', '/chat'];
+const VOLUNTEER_NAV_ITEMS = ['/dashboard', '/sunday', '/services', '/tasks', '/songs', '/chat'];
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
